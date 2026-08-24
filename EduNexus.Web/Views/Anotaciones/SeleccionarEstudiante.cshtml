@@ -1,0 +1,74 @@
+﻿@model IEnumerable<EduNexus.Application.Entities.Estudiante>
+
+@{
+    ViewData["Title"] = "Seleccionar Estudiante - Libro de Anotaciones";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary mb-1">📋 Libro de Anotaciones</h2>
+            <p class="text-muted mb-0">Selecciona un estudiante para consultar o registrar observaciones en su hoja de vida.</p>
+        </div>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">
+            Volver al Panel
+        </a>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+            ⚠️ @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-primary">
+                        <tr>
+                            <th class="ps-4">Nº</th>
+                            <th>Nombre del Estudiante</th>
+                            <th>RUT</th>
+                            <th>Curso</th>
+                            <th class="text-end pe-4">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">No hay estudiantes matriculados en el sistema.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int index = 1;
+                            foreach (var est in Model)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold text-muted">@index</td>
+                                    <td class="fw-bold text-dark">👤 @est.Usuario?.Nombre @est.Usuario?.Apellido</td>
+                                    <td><small class="text-muted">@est.Usuario?.Rut</small></td>
+                                    <td>
+                                        <span class="badge bg-info text-dark">
+                                            @(est.Curso != null ? $"{est.Curso.Nombre} \"{est.Curso.Letra}\"" : "Sin Curso")
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <a asp-action="Index" asp-route-estudianteId="@est.Id" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">
+                                            Ver / Crear Anotaciones ➔
+                                        </a>
+                                    </td>
+                                </tr>
+                                index++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

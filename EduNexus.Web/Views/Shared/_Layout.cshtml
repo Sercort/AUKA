@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - EduNexus.Web</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/EduNexus.Web.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom box-shadow mb-3 py-2">
+            <div class="container-fluid">
+                <a class="navbar-brand fw-bold text-primary fs-4" asp-area="" asp-controller="Home" asp-action="Index">EduNexus</a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="navbar-collapse collapse d-lg-inline-flex justify-content-between align-items-center">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold" asp-area="" asp-controller="Home" asp-action="Index">Inicio</a>
+                        </li>
+                    </ul>
+
+                    @if (User.Identity != null && User.Identity.IsAuthenticated)
+                    {
+                        <!-- BARRA DE BÚSQUEDA GLOBAL -->
+                        <form asp-controller="Busqueda" asp-action="Index" method="get" class="d-flex my-2 my-lg-0 col-12 col-lg-5 mx-lg-auto">
+                            <div class="input-group">
+                                <input type="text" name="query" class="form-control rounded-start-pill ps-3 border-end-0" placeholder="🔍 Buscar estudiante, RUT, curso, profesor..." required />
+                                <button type="submit" class="btn btn-primary rounded-end-pill px-4">
+                                    Buscar
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- MENÚ DESPLEGABLE DE USUARIO -->
+                        <div class="d-flex align-items-center gap-3 mt-2 mt-lg-0">
+                            <div class="dropdown">
+                                <button class="btn btn-light dropdown-toggle rounded-pill px-3 py-2 fw-bold text-dark d-flex align-items-center gap-2 border shadow-sm" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 14px;">
+                                        👤
+                                    </span>
+                                    <span>@User.Identity.Name</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2" aria-labelledby="userMenu">
+                                    <li class="px-3 py-2 border-bottom">
+                                        <small class="text-muted d-block">Sesión activa como:</small>
+                                        <strong class="text-primary">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</strong>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" asp-controller="Account" asp-action="CambiarPassword">
+                                            <span>🔑</span> Cambiar Contraseña
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="dropdown-item py-2 text-danger d-flex align-items-center gap-2 fw-bold">
+                                                <span>🚪</span> Cerrar Sesión
+                                            </button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted py-3">
+        <div class="container text-center">
+            &copy; 2026 - EduNexus - Plataforma de Gestión Escolar
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

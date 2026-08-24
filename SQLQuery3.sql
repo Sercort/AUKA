@@ -1,0 +1,1 @@
+﻿SELECT Id, Nombre, Apellido, Email, PasswordHash, Rol FROM dbo.Usuarios;

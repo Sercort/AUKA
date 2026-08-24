@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="EduNexus.Application/EduNexus.Application.csproj" />
+  <Project Path="EduNexus.Infrastructure/EduNexus.Infrastructure.csproj" />
+  <Project Path="EduNexus.Web/EduNexus.Web.csproj" />
+</Solution>

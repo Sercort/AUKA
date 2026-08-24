@@ -1,0 +1,74 @@
+﻿@model IEnumerable<EduNexus.Application.Entities.Calificacion>
+
+@{
+    ViewData["Title"] = "Libro de Calificaciones";
+    var esDocente = User.IsInRole("Docente");
+    var esUTP = User.IsInRole("UTP");
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-info mb-1">📊 Registro de Calificaciones</h2>
+            <p class="text-muted">Consulta y control de notas por estudiante y asignatura.</p>
+        </div>
+
+        <!-- SOLO el Profesor ve el botón de Agregar -->
+        @if (esDocente)
+        {
+            <a asp-action="Crear" class="btn btn-info text-white rounded-pill px-4 fw-bold">
+                + Ingresar Nueva Nota
+            </a>
+        }
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Estudiante</th>
+                            <th>Asignatura</th>
+                            <th>Evaluación</th>
+                            <th>Nota</th>
+                            <th>Ponderación</th>
+                            <th>Fecha</th>
+                            <!-- Acciones según rol -->
+                            @if (esDocente || esUTP)
+                            {
+                                <th class="text-center">Acción</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td><strong>@item.Estudiante?.Usuario?.Nombre @item.Estudiante?.Usuario?.Apellido</strong></td>
+                                <td>@item.Asignatura?.Nombre</td>
+                                <td>@item.Descripcion</td>
+                                <td>
+                                    <span class="badge @(item.Nota >= 4.0m ? "bg-success" : "bg-danger") fs-6">
+                                        @item.Nota.ToString("0.0")
+                                    </span>
+                                </td>
+                                <td>@item.Ponderacion%</td>
+                                <td>@item.Fecha.ToString("dd/MM/yyyy")</td>
+
+                                @if (esDocente || esUTP)
+                                {
+                                    <td class="text-center">
+                                        <a asp-action="Editar" asp-route-id="@item.Id" class="btn btn-outline-warning btn-sm rounded-pill">
+                                            ✏️ Modificar
+                                        </a>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

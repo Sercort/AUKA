@@ -1,0 +1,45 @@
+﻿@model EduNexus.Application.Entities.Calificacion
+
+@{
+    ViewData["Title"] = "Modificar Nota";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-header bg-warning text-dark py-3">
+                    <h4 class="mb-0 fw-bold">✏️ Modificar Calificación</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Editar" method="post">
+                        <input type="hidden" asp-for="Id" />
+                        <input type="hidden" asp-for="EstudianteId" />
+                        <input type="hidden" asp-for="AsignaturaId" />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Descripción / Evaluacion</label>
+                            <input asp-for="Descripcion" class="form-control" required />
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Nota (1.0 a 7.0)</label>
+                                <input asp-for="Nota" type="number" step="0.1" min="1.0" max="7.0" class="form-control" required />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Ponderación (%)</label>
+                                <input asp-for="Ponderacion" type="number" step="1" min="1" max="100" class="form-control" required />
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Volver</a>
+                            <button type="submit" class="btn btn-warning text-dark rounded-pill px-4 fw-bold">Guardar Cambios</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

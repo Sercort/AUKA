@@ -1,0 +1,5 @@
+﻿ALTER TABLE Usuarios ADD EmailPersonal NVARCHAR(MAX) NULL;
+ALTER TABLE Usuarios ADD Telefono NVARCHAR(MAX) NULL;
+ALTER TABLE Usuarios ADD CargoInstitucional NVARCHAR(MAX) NULL;
+ALTER TABLE Usuarios ADD Asignaturas NVARCHAR(MAX) NULL;
+ALTER TABLE Usuarios ADD DebeCambiarPassword BIT NOT NULL DEFAULT 1;
