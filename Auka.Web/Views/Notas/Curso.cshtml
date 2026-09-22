@@ -1,0 +1,42 @@
+﻿@model dynamic
+
+@{
+    var curso = ViewBag.Curso as Auka.Application.Entities.Curso;
+    ViewData["Title"] = $"Libro de Notas - {curso?.Nombre} {curso?.Letra}";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary mb-1">📖 Libro de Notas: @curso?.Nombre "@curso?.Letra"</h2>
+            <p class="text-muted mb-0">Nómina oficial de alumnos y registro de calificaciones por asignatura.</p>
+        </div>
+        <a asp-controller="Notas" asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">
+            Volver a Cursos
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-primary">
+                        <tr>
+                            <th class="text-start ps-4" style="width: 250px;">Nº / Alumno</th>
+                            <th>RUT</th>
+                            <th>N1</th>
+                            <th>N2</th>
+                            <th>N3</th>
+                            <th>Promedio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" class="text-muted py-4">Seleccione un alumno o asignatura para consultar calificaciones.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

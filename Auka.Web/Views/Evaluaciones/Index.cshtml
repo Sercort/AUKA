@@ -1,0 +1,54 @@
+﻿@model IEnumerable<Auka.Application.Entities.Evaluacion>
+
+@{
+    var curso = ViewBag.Curso as Auka.Application.Entities.Curso;
+    ViewData["Title"] = $"Calendario de Evaluaciones - {curso?.Nombre} {curso?.Letra}";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary mb-1">🗓️ Calendario de Evaluaciones: @curso?.Nombre "@curso?.Letra"</h2>
+            <p class="text-muted mb-0">Próximas pruebas y contenidos publicados por los profesores.</p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <!-- SOLO EL PROFESOR PUEDE VER EL BOTÓN DE PROGRAMAR NUEVA EVALUACIÓN -->
+            @if (User.IsInRole("Docente"))
+            {
+                <a asp-action="Crear" class="btn btn-success rounded-pill px-4 fw-bold">
+                    + Programar Nueva Evaluación
+                </a>
+            }
+            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Volver a Cursos</a>
+        </div>
+    </div>
+
+    <!-- Lista de tarjetas de evaluaciones -->
+    <div class="row g-3">
+        @if (!Model.Any())
+        {
+            <div class="col-12 text-center py-5">
+                <p class="text-muted fs-5">No hay evaluaciones programadas para este curso.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var item in Model)
+            {
+                <div class="col-md-4">
+                    <div class="card shadow-sm border-0 rounded-3">
+                        <div class="card-body">
+                            <span class="badge bg-primary mb-2">@item.Asignatura?.Nombre</span>
+                            <h5 class="fw-bold text-dark">@item.Titulo</h5>
+                            <hr />
+                            <small class="text-danger fw-bold">
+                                📅 Fecha: @item.Fecha.ToString("dd-MM-yyyy HH:mm") hrs
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>

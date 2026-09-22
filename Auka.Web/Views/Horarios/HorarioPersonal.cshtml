@@ -1,0 +1,58 @@
+﻿@model IEnumerable<Auka.Application.Entities.Usuario>
+
+@{
+    ViewData["Title"] = "Asignar Horario de Personal";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary mb-1">👨‍🏫 Asignar Horario de Personal</h2>
+            <p class="text-muted mb-0">Selecciona un docente o inspector para consultar o gestionar su distribución de horas.</p>
+        </div>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">
+            Volver al Panel
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-primary text-center">
+                        <tr>
+                            <th class="text-start ps-4">Nombre del Funcionario</th>
+                            <th>Rol</th>
+                            <th>Email</th>
+                            <th class="text-end pe-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">No hay personal docente o inspectores registrados.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var p in Model)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold">👤 @p.Nombre @p.Apellido</td>
+                                    <td class="text-center"><span class="badge bg-info text-dark">@p.Rol</span></td>
+                                    <td class="text-center"><small class="text-muted">@p.Email</small></td>
+                                    <td class="text-end pe-4">
+                                        <a asp-action="MiHorarioDocente" asp-route-profesorId="@p.Id" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">
+                                            Ver Horario ➔
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

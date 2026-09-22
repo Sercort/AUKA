@@ -1,0 +1,104 @@
+﻿@model IEnumerable<Auka.Application.Entities.Anotacion>
+
+@{
+    var estudiante = ViewBag.Estudiante as Auka.Application.Entities.Estudiante;
+    ViewData["Title"] = "Gestión de Anotaciones";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary mb-1">📝 Hoja de Vida: @estudiante?.Usuario?.Nombre @estudiante?.Usuario?.Apellido</h2>
+            <p class="text-muted mb-0">Curso: <strong>@(estudiante?.Curso != null ? $"{estudiante.Curso.Nombre} \"{estudiante.Curso.Letra}\"" : "N/A")</strong></p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalNuevaAnotacion">
+                + Nueva Anotación
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Volver a Selección</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
+            ✅ @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Tabla de anotaciones -->
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-primary">
+                        <tr>
+                            <th style="width: 140px;">Fecha</th>
+                            <th style="width: 150px;">Tipo</th>
+                            <th class="text-start">Detalle / Observación</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="3" class="text-muted py-4">El estudiante no registra anotaciones.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var item in Model)
+                            {
+                                var esPositiva = item.Tipo.ToString().ToLower().Contains("positiva");
+                                <tr>
+                                    <td><small class="fw-bold">@item.Fecha.ToString("dd/MM/yyyy")</small></td>
+                                    <td>
+                                        <span class="badge @(esPositiva ? "bg-success" : "bg-danger") rounded-pill px-3">
+                                            @item.Tipo
+                                        </span>
+                                    </td>
+                                    <td class="text-start">@item.Detalle</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Registrar Anotación -->
+<div class="modal fade" id="modalNuevaAnotacion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-3 border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold">📌 Registrar Anotación</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="Crear" method="post">
+                <div class="modal-body">
+                    <input type="hidden" name="estudianteId" value="@ViewBag.EstudianteId" />
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tipo de Anotación</label>
+                        <select name="tipo" class="form-select" required>
+                            <option value="Positiva">👍 Positiva / Mérito</option>
+                            <option value="Negativa">⚠️ Negativa / Observación</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Detalle / Observación</label>
+                        <textarea name="detalle" class="form-control" rows="4" placeholder="Escriba la descripción del hecho..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Guardar Anotación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

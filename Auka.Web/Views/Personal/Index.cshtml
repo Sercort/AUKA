@@ -1,0 +1,106 @@
+﻿@model IEnumerable<Auka.Application.Entities.Usuario>
+
+@{
+    ViewData["Title"] = "Personal y Equipo Docente";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-danger mb-1">👥 Personal y Equipo Docente</h3>
+            <p class="text-muted small mb-0">Administración de Directivos, UTP, Docentes, Inspectores y Psicopedagogos.</p>
+        </div>
+        <a asp-action="Crear" class="btn btn-danger rounded-pill px-4 fw-bold">
+            + Agregar Funcionario
+        </a>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">RUT</th>
+                            <th>Nombre Completo</th>
+                            <th>Rol / Cargo</th>
+                            <th>Asignaturas</th>
+                            <th>Correo Electrónico</th>
+                            <th>Estado</th>
+                            <th class="text-end pe-4">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="ps-4 text-danger fw-semibold">@item.Rut</td>
+                                <td>
+                                    <div class="fw-bold text-dark">@item.Nombre @item.Apellido</div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">@item.Rol</span>
+                                    @if (!string.IsNullOrEmpty(item.CargoInstitucional))
+                                    {
+                                        <div class="small text-muted fw-semibold mt-1">@item.CargoInstitucional</div>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.Asignaturas))
+                                    {
+                                        <span class="badge bg-info text-dark">@item.Asignaturas</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small"><em>Sin asignar</em></span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="text-dark">@item.Email</span>
+                                    @if (!string.IsNullOrEmpty(item.EmailPersonal))
+                                    {
+                                        <div class="small text-muted">Respaldo: @item.EmailPersonal</div>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.Activo)
+                                    {
+                                        <span class="badge bg-success rounded-pill px-3">Activo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger rounded-pill px-3">Inactivo</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <!-- BOTÓN EDITAR (AGREGADO) -->
+                                        <a asp-action="Editar" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">
+                                            ✏️ Editar
+                                        </a>
+
+                                        <!-- BOTÓN ELIMINAR / DESACTIVAR -->
+                                        <form asp-action="Eliminar" asp-route-id="@item.Id" method="post" onsubmit="return confirm('¿Está seguro de eliminar a este funcionario?');" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                                                🗑️ Eliminar
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

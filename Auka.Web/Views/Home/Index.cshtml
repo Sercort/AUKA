@@ -1,0 +1,271 @@
+﻿@{
+    ViewData["Title"] = "Panel Principal";
+    var rol = ViewBag.Rol as string;
+}
+
+<div class="container-fluid py-4">
+    <!-- Encabezado de Bienvenida -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-primary text-white shadow-sm rounded-3 border-0">
+                <div class="card-body p-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="fw-bold mb-1">¡Hola, @ViewBag.NombreUsuario! 👋</h2>
+                        <p class="mb-0 text-light">Perfil: <span class="badge bg-light text-primary fs-6">@rol</span> | Colegio: <strong>@ViewBag.Colegio</strong></p>
+                    </div>
+                    <div>
+                        <a asp-controller="Account" asp-action="Logout" class="btn btn-outline-light btn-sm rounded-pill px-3">
+                            Cerrar Sesión
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Módulos Principales -->
+    <div class="row g-4">
+        <!-- Módulo Extraprogramático: Clubes y Talleres (ACLE) -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 border-start border-4 border-warning rounded-3">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title fw-bold text-dark mb-2">🏆 Clubes y Talleres (ACLE)</h5>
+                        <p class="card-text text-muted small">
+                            @if (rol == "SuperAdmin" || rol == "Director")
+                            {
+                                <span>Creación de talleres y asignación de profesores.</span>
+                            }
+                            else if (rol == "Docente")
+                            {
+                                <span>Gestión de tus talleres asignados y nómina de alumnos.</span>
+                            }
+                            else
+                            {
+                                <span>Consulta e inscripción de talleres extraprogramáticos.</span>
+                            }
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a asp-controller="Talleres" asp-action="Index" class="btn btn-warning text-dark btn-sm rounded-pill px-3 fw-semibold">
+                            Ver Clubes y Talleres
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Módulo 1: Gestión de Personal (SuperAdmin y Director) -->
+        @if (rol == "SuperAdmin" || rol == "Director")
+        {
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-0 border-start border-4 border-danger rounded-3">
+                    <div class="card-body p-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <h5 class="card-title fw-bold text-danger mb-2">👥 Gestión de Personal</h5>
+                            <p class="card-text text-muted small">Administración y registro de Docentes, Inspectores, UTP y Directivos.</p>
+                        </div>
+                        <div class="mt-3">
+                            <a asp-controller="Personal" asp-action="Index" class="btn btn-danger btn-sm rounded-pill px-3">
+                                Gestionar Personal
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Módulo 2: Matrícula y Cursos (UTP, Director, SuperAdmin) -->
+        @if (rol == "UTP" || rol == "Director" || rol == "SuperAdmin")
+        {
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-0 border-start border-4 border-primary rounded-3">
+                    <div class="card-body p-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <h5 class="card-title fw-bold text-primary mb-2">🏫 Matrícula y Cursos</h5>
+                            <p class="card-text text-muted small">Ingreso de alumnos, asignación de cursos y listas por nivel.</p>
+                        </div>
+                        <div class="mt-3">
+                            <a asp-controller="Cursos" asp-action="Index" class="btn btn-primary btn-sm rounded-pill px-3">
+                                Ver Cursos y Alumnos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Módulo 3: Calendario de Evaluaciones (Todos) -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 border-start border-4 border-success rounded-3">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title fw-bold text-success mb-2">📝 Calendario de Evaluaciones</h5>
+                        <p class="card-text text-muted small">Fechas de pruebas y temarios organizados por curso y asignatura.</p>
+                    </div>
+                    <div class="mt-3">
+                        <a asp-controller="Evaluaciones" asp-action="Index" class="btn btn-success btn-sm rounded-pill px-3">
+                            Ver Evaluaciones
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Módulo 4: Libro de Notas (Todos) -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 border-start border-4 border-info rounded-3">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title fw-bold text-info mb-2">📊 Libro de Notas</h5>
+                        <p class="card-text text-muted small">
+                            @if (rol == "Docente")
+                            {
+                                <span>Ingreso y edición de calificaciones por asignatura.</span>
+                            }
+                            else if (rol == "UTP")
+                            {
+                                <span>Revisión y rectificación de notas por curso.</span>
+                            }
+                            else if (rol == "Alumno" || rol == "Apoderado")
+                            {
+                                <span>Consulta de calificaciones personales.</span>
+                            }
+                            else
+                            {
+                                <span>Consulta general de notas.</span>
+                            }
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a asp-controller="Notas" asp-action="Index" class="btn btn-info text-white btn-sm rounded-pill px-3 fw-semibold">
+                            Ver Libro de Notas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Módulo 5: Libro de Anotaciones (Privacidad Garantizada) -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 border-start border-4 border-warning rounded-3">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="card-title fw-bold text-dark mb-2">📋 Libro de Anotaciones</h5>
+                        <p class="card-text text-muted small">
+                            @if (rol == "Alumno")
+                            {
+                                <span>Consulta confidencial de tu hoja de vida y anotaciones personales.</span>
+                            }
+                            else if (rol == "Apoderado")
+                            {
+                                <span>Registro de observaciones de tus pupilos.</span>
+                            }
+                            else
+                            {
+                                <span>Registro y consulta de conducta u observaciones institucionales.</span>
+                            }
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a asp-controller="Anotaciones" asp-action="Index" class="btn btn-outline-dark btn-sm rounded-pill px-3 fw-semibold">
+                            Ver Anotaciones
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Módulo 6: Horario de Clases (Alumnos/Cursos) -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 border-start border-4 border-secondary rounded-3">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-2">⏰ Horario de Clases</h5>
+                        <p class="text-muted small">
+                            Distribución semanal de asignaturas por sala y curso.
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        @if (rol == "Docente")
+                        {
+                            <a asp-controller="Horarios" asp-action="MiHorarioDocente" class="btn btn-secondary btn-sm rounded-pill px-3 fw-bold">
+                                Ver Mi Horario
+                            </a>
+                        }
+                        else
+                        {
+                            <a asp-controller="Horarios" asp-action="Index" class="btn btn-secondary btn-sm rounded-pill px-3 fw-bold text-white">
+                                Gestionar Horarios
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Módulo 7: Asignar Horario de Personal (Solo UTP, Director, SuperAdmin) -->
+        @if (rol == "UTP" || rol == "Director" || rol == "SuperAdmin")
+        {
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-0 border-start border-4 border-dark rounded-3">
+                    <div class="card-body p-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-2">👨‍🏫 Horario del Personal</h5>
+                            <p class="text-muted small">
+                                Gestión y distribución de carga horaria de docentes e inspectores.
+                            </p>
+                        </div>
+                        <div class="mt-3">
+                            <a asp-controller="Horarios" asp-action="HorarioPersonal" class="btn btn-dark btn-sm rounded-pill px-3 fw-bold">
+                                Asignar Horario Personal
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Módulo 8: Directorio y Contacto (Alumnos y Apoderados) -->
+        @if (rol == "Alumno" || rol == "Apoderado")
+        {
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm border-0 border-start border-4 border-primary rounded-3">
+                    <div class="card-body p-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <h5 class="fw-bold text-primary mb-2">📇 Contacto del Curso</h5>
+                            <p class="text-muted small">
+                                Correos institucionales de tus docentes y compañeros para consultas.
+                            </p>
+                        </div>
+                        <div class="mt-3">
+                            <a asp-controller="Cursos" asp-action="Contacto" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">
+                                Ver Directorio
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Módulo 9: Asistente IA Auka (Chatbot) -->
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 border-start border-4 border-info rounded-3">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <h5 class="fw-bold text-info mb-2">🤖 Asistente IA Auka</h5>
+                        <p class="text-muted small">
+                            Tutor inteligente para apoyo en estudio, dudas pedagógicas y gestión.
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a asp-controller="Chatbot" asp-action="Index" class="btn btn-info text-white btn-sm rounded-pill px-3 fw-bold">
+                            Iniciar Chat IA
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

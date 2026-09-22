@@ -1,0 +1,115 @@
+﻿@model IEnumerable<Auka.Application.Entities.HorarioClase>
+
+@{
+    ViewData["Title"] = "Mi Horario Docente";
+    var dias = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
+    var nombresDias = new[] { "Lunes", "Martes", "Miércoles", "Jueves", "Viernes" };
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary mb-1">📅 Mi Horario de Clases</h2>
+            <p class="text-muted mb-0">Consulta tus bloques asignados, cursos y salas para la semana.</p>
+        </div>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Volver al Panel</a>
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered text-center align-middle mb-0">
+                    <thead class="table-primary">
+                        <tr>
+                            <th style="width: 150px;">Bloque / Hora</th>
+                            @for (int i = 0; i < nombresDias.Length; i++)
+                            {
+                                <th>@nombresDias[i]</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- BLOQUE 1 -->
+                        @Html.Raw(RenderFilaDocente(1, "08:00 - 08:45", dias, Model, false))
+                        <!-- BLOQUE 2 -->
+                        @Html.Raw(RenderFilaDocente(2, "08:50 - 09:35", dias, Model, false))
+
+                        <!-- RECREO -->
+                        <tr class="table-warning text-dark fw-bold">
+                            <td class="py-2">☕ RECREO</td>
+                            <td colspan="5" class="py-2">09:35 - 09:50 (Desayuno / Recreo)</td>
+                        </tr>
+
+                        <!-- BLOQUE 3 -->
+                        @Html.Raw(RenderFilaDocente(3, "09:50 - 10:35", dias, Model, false))
+                        <!-- BLOQUE 4 -->
+                        @Html.Raw(RenderFilaDocente(4, "10:40 - 11:25", dias, Model, false))
+
+                        <!-- RECREO -->
+                        <tr class="table-warning text-dark fw-bold">
+                            <td class="py-2">🔔 RECREO</td>
+                            <td colspan="5" class="py-2">11:25 - 11:35</td>
+                        </tr>
+
+                        <!-- BLOQUE 5 -->
+                        @Html.Raw(RenderFilaDocente(5, "11:35 - 12:20", dias, Model, false))
+                        <!-- BLOQUE 6 -->
+                        @Html.Raw(RenderFilaDocente(6, "12:20 - 13:00", dias, Model, false))
+
+                        <!-- ALMUERZO -->
+                        <tr class="table-info text-dark fw-bold">
+                            <td class="py-2">🍕 ALMUERZO</td>
+                            <td colspan="4" class="py-2">13:00 - 14:00 (Almuerzo Institucional)</td>
+                            <td class="table-secondary text-muted">🔒 Salida Viernes 13:00</td>
+                        </tr>
+
+                        <!-- BLOQUE 7 (TARDE) -->
+                        @Html.Raw(RenderFilaDocente(7, "14:00 - 14:50", dias, Model, true))
+                        <!-- BLOQUE 8 (TARDE) -->
+                        @Html.Raw(RenderFilaDocente(8, "14:55 - 16:00", dias, Model, true))
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    public string RenderFilaDocente(int numBloque, string horario, DayOfWeek[] dias, IEnumerable<Auka.Application.Entities.HorarioClase> model, bool esTarde)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"<tr><td class='table-light fw-bold'>Bloque {numBloque}<br/><small class='text-muted'>{horario}</small></td>");
+
+        for (int i = 0; i < dias.Length; i++)
+        {
+            var diaActual = dias[i];
+            if (esTarde && diaActual == DayOfWeek.Friday)
+            {
+                sb.Append("<td class='table-secondary text-muted fw-bold align-middle'>🔒 Salida</td>");
+            }
+            else
+            {
+                var clase = model.FirstOrDefault(h => h.BloqueHorario?.NumeroBloque == numBloque && h.BloqueHorario?.DiaSemana == diaActual);
+                sb.Append("<td>");
+                if (clase != null)
+                {
+                    sb.Append($"<div class='p-2 bg-primary text-white rounded text-start shadow-sm'>");
+                    sb.Append($"<strong class='d-block mb-1'>🏫 {clase.Curso?.Nombre} \"{clase.Curso?.Letra}\"</strong>");
+                    sb.Append($"<small class='d-block'>📚 {clase.Asignatura?.Nombre}</small>");
+                    if (!string.IsNullOrEmpty(clase.Sala))
+                    {
+                        sb.Append($"<small class='badge bg-light text-primary mt-1'>📍 {clase.Sala}</small>");
+                    }
+                    sb.Append("</div>");
+                }
+                else
+                {
+                    sb.Append("<span class='text-muted small'>- Libre -</span>");
+                }
+                sb.Append("</td>");
+            }
+        }
+        sb.Append("</tr>");
+        return sb.ToString();
+    }
+}
