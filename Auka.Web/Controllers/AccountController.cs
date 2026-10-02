@@ -92,7 +92,7 @@ public class AccountController : Controller
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
 
         // D) Iniciar Sesión con Cookie
-        await HttpContext.SignInAsync("AukaAuth", principal);
+        await HttpContext.SignInAsync("AukaAuthCookie", principal);
 
         // E) VALIDACIÓN CLAVE PROVISORIA
         if (usuario.DebeCambiarPassword)
@@ -326,7 +326,7 @@ public class AccountController : Controller
         var identity = new System.Security.Claims.ClaimsIdentity(claims, "AukaAuth");
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
 
-        await HttpContext.SignInAsync("AukaAuth", principal);
+        await HttpContext.SignOutAsync("AukaAuthCookie");
         return RedirectToAction("Index", "Home");
     }
     // GET: /Account/Registrar
