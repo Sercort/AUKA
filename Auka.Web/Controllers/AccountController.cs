@@ -245,15 +245,18 @@ public class AccountController : Controller
         return RedirectToAction(nameof(Login));
     }
 
-    // 9. GET & POST: Logout (Soporta peticiones GET y POST para evitar HTTP 405)
+    
+    // 9. GET & POST: Logout
     [HttpGet]
     [HttpPost]
     public async Task<IActionResult> Logout()
     {
         if (User.Identity != null && User.Identity.IsAuthenticated)
         {
-            await HttpContext.SignOutAsync("AukaAuth");
+            
+            await HttpContext.SignOutAsync("AukaAuthCookie");
         }
+
         return RedirectToAction(nameof(Login));
     }
 
@@ -323,7 +326,7 @@ public class AccountController : Controller
             new System.Security.Claims.Claim("ColegioId", usuario.ColegioId.ToString())
         };
 
-        var identity = new System.Security.Claims.ClaimsIdentity(claims, "AukaAuth");
+        var identity = new System.Security.Claims.ClaimsIdentity(claims, "AukaAuthCookie");
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
 
         await HttpContext.SignOutAsync("AukaAuthCookie");
