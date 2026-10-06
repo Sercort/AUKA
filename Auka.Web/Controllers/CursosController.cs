@@ -1,7 +1,11 @@
-﻿using System.Security.Claims;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +23,7 @@ public class CursosController : Controller
     }
 
     // 1. Vista General de Cursos
+    [HttpGet]
     public async Task<IActionResult> Index()
     {
         var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
@@ -40,8 +45,12 @@ public class CursosController : Controller
     [HttpGet]
     public async Task<IActionResult> Crear()
     {
+        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
+        int.TryParse(colegioIdClaim, out int colegioId);
+
         var docentes = await _context.Usuarios
             .Where(u => u.Rol == RolUsuario.Docente && u.Activo)
+            .Where(u => u.ColegioId == colegioId || colegioId == 0)
             .Select(u => new { u.Id, NombreCompleto = u.Nombre + " " + u.Apellido })
             .ToListAsync();
 
@@ -69,6 +78,7 @@ public class CursosController : Controller
 
         var docentes = await _context.Usuarios
             .Where(u => u.Rol == RolUsuario.Docente && u.Activo)
+            .Where(u => u.ColegioId == colegioId || colegioId == 0)
             .Select(u => new { u.Id, NombreCompleto = u.Nombre + " " + u.Apellido })
             .ToListAsync();
 
@@ -77,18 +87,22 @@ public class CursosController : Controller
     }
 
     // 3. Ver Lista de Alumnos de un Curso Específico
+    [HttpGet]
     public async Task<IActionResult> Alumnos(int id)
     {
+        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
+        int.TryParse(colegioIdClaim, out int colegioId);
+
         var curso = await _context.Cursos
             .Include(c => c.ProfesorJefe)
             .Include(c => c.Estudiantes)
                 .ThenInclude(e => e.Usuario)
-            .FirstOrDefaultAsync(c => c.Id == id);
+            .FirstOrDefaultAsync(c => c.Id == id && (c.ColegioId == colegioId || colegioId == 0));
 
         if (curso == null) return NotFound();
 
         var otrosCursos = await _context.Cursos
-            .Where(c => c.Nombre == curso.Nombre && c.Id != curso.Id)
+            .Where(c => c.ColegioId == colegioId && c.Id != curso.Id)
             .ToListAsync();
 
         ViewBag.OtrosCursos = otrosCursos;
@@ -103,13 +117,12 @@ public class CursosController : Controller
         var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
         int.TryParse(colegioIdClaim, out int colegioId);
 
-        // Trae TODOS los niveles/nombres de cursos existentes en la BD
         var nivelesEnBD = await _context.Cursos
+            .Where(c => c.ColegioId == colegioId || colegioId == 0)
             .Select(c => c.Nombre)
             .Distinct()
             .ToListAsync();
 
-        // Lista completa de respaldo con todos los niveles del sistema
         var nivelesPredeterminados = new List<string>
         {
             "Prekínder", "Kínder",
@@ -119,14 +132,13 @@ public class CursosController : Controller
             "4º Medio TP - Administración", "4º Medio TP - Electricidad", "4º Medio TP - Programación", "4º Medio TP - Mecánica Industrial"
         };
 
-        // Une los niveles existentes y los estándar sin duplicados
         var todosLosNiveles = nivelesEnBD.Union(nivelesPredeterminados).OrderBy(n => n).ToList();
 
         ViewBag.Niveles = new SelectList(todosLosNiveles);
         return View();
     }
 
-    // 5. Procesar Matrícula (POST) - Vinculación de Estudiante y Apoderado por RUT
+    // 5. Procesar Matrícula (POST) - Solución Robusta de Guardado
     [Authorize(Roles = "UTP,Director,SuperAdmin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -150,19 +162,21 @@ public class CursosController : Controller
             int.TryParse(colegioIdClaim, out int colegioId);
             colegioId = colegioId > 0 ? colegioId : 1;
 
-            // A) Buscar un curso existente que coincida con el nivel elegido
+            var hasher = new PasswordHasher<string>();
+
+            // A) Buscar o crear el curso de forma privada por ColegioId
+            string nivelLimpio = string.IsNullOrWhiteSpace(nivel) ? "General" : nivel.Trim();
             var cursoSeleccionado = await _context.Cursos
                 .Include(c => c.Estudiantes)
-                .Where(c => c.Nombre.ToLower() == nivel.ToLower())
+                .Where(c => c.ColegioId == colegioId && c.Nombre.ToLower() == nivelLimpio.ToLower())
                 .OrderBy(c => c.Estudiantes.Count)
                 .FirstOrDefaultAsync();
 
-            // Si el curso no existe en la BD aún, se crea automáticamente
             if (cursoSeleccionado == null)
             {
                 cursoSeleccionado = new Curso
                 {
-                    Nombre = nivel,
+                    Nombre = nivelLimpio,
                     Letra = "A",
                     CapacidadMaxima = 40,
                     ColegioId = colegioId
@@ -171,58 +185,85 @@ public class CursosController : Controller
                 await _context.SaveChangesAsync();
             }
 
-            // B) BUSCAR O CREAR APODERADO (Vinculación automática de familia por RUT)
+            // B) BUSCAR O CREAR APODERADO
+            string rutApoLimpio = string.IsNullOrWhiteSpace(rutApoderado) ? "99999999-9" : rutApoderado.Trim();
+            string emailApoLimpio = string.IsNullOrWhiteSpace(emailApoderado) ? $"apo.{rutApoLimpio.Replace("-", "")}@auka.cl" : emailApoderado.Trim().ToLower();
+
             var apoderado = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Rut == rutApoderado);
+                .FirstOrDefaultAsync(u => u.Rut == rutApoLimpio || u.Email.ToLower() == emailApoLimpio);
 
             if (apoderado == null)
             {
                 apoderado = new Usuario
                 {
-                    Rut = string.IsNullOrWhiteSpace(rutApoderado) ? "99999999-9" : rutApoderado,
-                    Nombre = nombreApoderado,
-                    Apellido = apellidoApoderado,
-                    Email = emailApoderado,
-                    PasswordHash = "Clave123*",
+                    Rut = rutApoLimpio,
+                    Nombre = string.IsNullOrWhiteSpace(nombreApoderado) ? "Apoderado" : nombreApoderado.Trim(),
+                    Apellido = string.IsNullOrWhiteSpace(apellidoApoderado) ? "Registrado" : apellidoApoderado.Trim(),
+                    Email = emailApoLimpio,
+                    Telefono = telefonoContacto?.Trim(),
                     Rol = RolUsuario.Apoderado,
                     ColegioId = colegioId,
                     Activo = true,
-                    FechaCreacion = DateTime.Now
+                    DebeCambiarPassword = true,
+                    FechaCreacion = DateTime.UtcNow
                 };
+                apoderado.PasswordHash = hasher.HashPassword(emailApoLimpio, "123456");
+
                 _context.Usuarios.Add(apoderado);
                 await _context.SaveChangesAsync();
             }
 
-            // C) Crear Usuario para el Estudiante
-            var usuarioEstudiante = new Usuario
-            {
-                Rut = string.IsNullOrWhiteSpace(rut) ? "12345678-9" : rut,
-                Nombre = nombre,
-                Apellido = apellido,
-                Email = email,
-                PasswordHash = "Clave123*",
-                Rol = RolUsuario.Estudiante,
-                ColegioId = colegioId,
-                Activo = true,
-                FechaCreacion = DateTime.Now
-            };
+            // C) BUSCAR O CREAR USUARIO ESTUDIANTE
+            string rutEstLimpio = string.IsNullOrWhiteSpace(rut) ? "12345678-9" : rut.Trim();
+            string emailEstLimpio = string.IsNullOrWhiteSpace(email) ? $"alumno.{rutEstLimpio.Replace("-", "")}@auka.cl" : email.Trim().ToLower();
 
-            _context.Usuarios.Add(usuarioEstudiante);
+            var usuarioEstudiante = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Rut == rutEstLimpio || u.Email.ToLower() == emailEstLimpio);
+
+            if (usuarioEstudiante == null)
+            {
+                usuarioEstudiante = new Usuario
+                {
+                    Rut = rutEstLimpio,
+                    Nombre = nombre.Trim(),
+                    Apellido = apellido.Trim(),
+                    Email = emailEstLimpio,
+                    Rol = RolUsuario.Estudiante,
+                    ColegioId = colegioId,
+                    Activo = true,
+                    DebeCambiarPassword = true,
+                    FechaCreacion = DateTime.UtcNow
+                };
+                usuarioEstudiante.PasswordHash = hasher.HashPassword(emailEstLimpio, "123456");
+
+                _context.Usuarios.Add(usuarioEstudiante);
+                await _context.SaveChangesAsync();
+            }
+
+            // D) BUSCAR O CREAR REGISTRO DE ESTUDIANTE
+            var estudiante = await _context.Estudiantes
+                .FirstOrDefaultAsync(e => e.UsuarioId == usuarioEstudiante.Id);
+
+            if (estudiante == null)
+            {
+                estudiante = new Estudiante
+                {
+                    UsuarioId = usuarioEstudiante.Id,
+                    CursoId = cursoSeleccionado.Id,
+                    TipoMatricula = tipoMatricula,
+                    FechaMatricula = DateTime.UtcNow
+                };
+                _context.Estudiantes.Add(estudiante);
+            }
+            else
+            {
+                estudiante.CursoId = cursoSeleccionado.Id;
+                estudiante.TipoMatricula = tipoMatricula;
+                _context.Estudiantes.Update(estudiante);
+            }
+
             await _context.SaveChangesAsync();
 
-            // D) Crear Registro de Estudiante vinculado al Curso y a la Familia
-            var estudiante = new Estudiante
-            {
-                UsuarioId = usuarioEstudiante.Id,
-                CursoId = cursoSeleccionado.Id,
-                TipoMatricula = tipoMatricula,
-                FechaMatricula = DateTime.Now
-            };
-
-            _context.Estudiantes.Add(estudiante);
-            await _context.SaveChangesAsync();
-
-            // E) Notificación de Éxito
             string tipoTexto = tipoMatricula switch
             {
                 TipoMatricula.Nuevo => "Alumno Nuevo",
@@ -230,18 +271,18 @@ public class CursosController : Controller
                 _ => "Traslado"
             };
 
-            TempData["SuccessMessage"] = $"✅ ¡Estudiante {nombre} {apellido} matriculado con éxito! Asignado a: {cursoSeleccionado.Nombre} \"{cursoSeleccionado.Letra}\" [{tipoTexto}]. Apoderado vinculado: {apoderado.Nombre} {apoderado.Apellido}. Contraseña inicial: Clave123*";
+            TempData["SuccessMessage"] = $"✅ ¡Estudiante {nombre} {apellido} matriculado con éxito! Asignado a: {cursoSeleccionado.Nombre} \"{cursoSeleccionado.Letra}\" [{tipoTexto}]. Clave inicial: 123456";
 
             return RedirectToAction("Alumnos", new { id = cursoSeleccionado.Id });
         }
         catch (Exception ex)
         {
-            TempData["InfoMessage"] = $"Error al guardar en la base de datos: {ex.Message}";
+            TempData["Error"] = $"Error al guardar en la base de datos: {ex.InnerException?.Message ?? ex.Message}";
             return RedirectToAction(nameof(Index));
         }
     }
 
-    // 6. Cambiar Manualmente de Curso a un Estudiante (Por Excepción)
+    // 6. Cambiar Manualmente de Curso a un Estudiante
     [Authorize(Roles = "UTP,Director,SuperAdmin")]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -257,7 +298,7 @@ public class CursosController : Controller
             _context.Estudiantes.Update(estudiante);
             await _context.SaveChangesAsync();
 
-            TempData["SuccessMessage"] = "El estudiante fue cambiado de curso por excepción correctamente.";
+            TempData["SuccessMessage"] = "El estudiante fue cambiado de curso correctamente.";
         }
 
         return RedirectToAction("Alumnos", new { id = nuevoCursoId });

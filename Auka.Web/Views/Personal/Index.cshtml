@@ -141,6 +141,11 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="d-flex justify-content-end gap-2">
+                                            <!-- BOTÓN EDITAR AGREGADO -->
+                                            <a asp-action="Editar" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold">
+                                                ✏️ Editar
+                                            </a>
+
                                             @if (item.Activo)
                                             {
                                                 @if (item.Rol == RolUsuario.Inspector && !item.EsInspectorGeneral)

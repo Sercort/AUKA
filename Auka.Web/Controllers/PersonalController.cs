@@ -55,7 +55,106 @@ public class PersonalController : Controller
         return View(listaUsuarios);
     }
 
-    // 2. POST: CREAR FUNCIONARIO
+    // 2. GET: FORMULARIO DE EDICIÓN DE FUNCIONARIO
+    [HttpGet]
+    [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
+    public async Task<IActionResult> Editar(int id)
+    {
+        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
+        int.TryParse(colegioIdClaim, out int colegioId);
+
+        var usuario = await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
+
+        if (usuario == null)
+        {
+            TempData["Error"] = "❌ El funcionario no fue encontrado en la base de datos.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        return View(usuario);
+    }
+
+    // 3. POST: PROCESAR EDICIÓN DE FUNCIONARIO
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
+    public async Task<IActionResult> Editar(
+        int id, string nombre, string apellido,
+        string? emailPersonal, string? telefono, string? direccion,
+        RolUsuario rol, string? cargoEspecifico, string? asignaturasImpartidas)
+    {
+        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
+        int.TryParse(colegioIdClaim, out int colegioId);
+
+        var usuario = await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
+
+        if (usuario == null)
+        {
+            TempData["Error"] = "❌ El funcionario no fue encontrado.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // Actualización de campos de contacto y perfil
+        usuario.Nombre = nombre.Trim();
+        usuario.Apellido = apellido.Trim();
+        usuario.EmailPersonal = emailPersonal?.Trim().ToLower();
+        usuario.Telefono = telefono?.Trim();
+        usuario.Direccion = direccion?.Trim();
+        usuario.Rol = rol;
+        usuario.CargoInstitucional = string.IsNullOrWhiteSpace(cargoEspecifico) ? rol.ToString() : cargoEspecifico.Trim();
+        usuario.Asignaturas = asignaturasImpartidas?.Trim();
+
+        _context.Usuarios.Update(usuario);
+        await _context.SaveChangesAsync();
+
+        // Registro / Sincronización automática de asignaturas agregadas o editadas
+        if (!string.IsNullOrWhiteSpace(asignaturasImpartidas))
+        {
+            var primerCurso = await _context.Cursos
+                .FirstOrDefaultAsync(c => c.ColegioId == colegioId);
+
+            if (primerCurso == null)
+            {
+                primerCurso = new Curso
+                {
+                    Nombre = "General Institucional",
+                    Letra = "A",
+                    CapacidadMaxima = 45,
+                    AnioAcademico = DateTime.UtcNow.Year,
+                    ColegioId = colegioId > 0 ? colegioId : 1
+                };
+                _context.Cursos.Add(primerCurso);
+                await _context.SaveChangesAsync();
+            }
+
+            var lista = asignaturasImpartidas.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var item in lista)
+            {
+                string asigNombre = item.Trim();
+                bool existeAsig = await _context.Asignaturas
+                    .AnyAsync(a => a.Nombre.ToLower() == asigNombre.ToLower() && a.DocenteId == usuario.Id);
+
+                if (!existeAsig)
+                {
+                    _context.Asignaturas.Add(new Asignatura
+                    {
+                        Nombre = asigNombre,
+                        Codigo = asigNombre.Length >= 4 ? asigNombre.Substring(0, 4).ToUpper() : asigNombre.ToUpper(),
+                        CursoId = primerCurso.Id,
+                        DocenteId = usuario.Id
+                    });
+                }
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        TempData["SuccessMessage"] = $"✅ Datos de {usuario.Nombre} {usuario.Apellido} actualizados con éxito.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    // 4. POST: CREAR FUNCIONARIO
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
@@ -69,14 +168,12 @@ public class PersonalController : Controller
         int.TryParse(colegioIdClaim, out int colegioId);
         colegioId = colegioId > 0 ? colegioId : 1;
 
-        // A) Validación de RUT (Formato chileno)
         if (!Regex.IsMatch(rut ?? string.Empty, @"^[0-9]+-[0-9kK]{1}$"))
         {
             TempData["Error"] = "❌ El RUT ingresado no es válido. Formato requerido: 12345678-9";
             return RedirectToAction(nameof(Index));
         }
 
-        // B) Verificar correo duplicado
         bool existeEmail = await _context.Usuarios.AnyAsync(u => u.Email.ToLower() == emailInstitucional.Trim().ToLower());
         if (existeEmail)
         {
@@ -84,19 +181,6 @@ public class PersonalController : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        // C) Traspaso de Inspector General
-        if (rol == RolUsuario.Inspector && esInspectorGeneral)
-        {
-            var inspectorPrevio = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Rol == RolUsuario.Inspector && u.EsInspectorGeneral && u.ColegioId == colegioId);
-            if (inspectorPrevio != null)
-            {
-                inspectorPrevio.EsInspectorGeneral = false;
-                _context.Usuarios.Update(inspectorPrevio);
-            }
-        }
-
-        // D) Guardar nuevo usuario
         var hasher = new PasswordHasher<string>();
         var nuevoPersonal = new Usuario
         {
@@ -121,64 +205,11 @@ public class PersonalController : Controller
         _context.Usuarios.Add(nuevoPersonal);
         await _context.SaveChangesAsync();
 
-        // E) Registrar Asignaturas en el catálogo (Resuelto CS8602 con validación directa)
-        if (!string.IsNullOrWhiteSpace(asignaturasImpartidas))
-        {
-            var primerCurso = await _context.Cursos
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.ColegioId == colegioId);
-            int cursoIdValido = primerCurso != null ? primerCurso.Id : 1;
-
-            var lista = asignaturasImpartidas.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var item in lista)
-            {
-                string asigNombre = item.Trim();
-                bool existeAsig = await _context.Asignaturas
-                    .AnyAsync(a => a.Nombre.ToLower() == asigNombre.ToLower());
-
-                if (!existeAsig)
-                {
-                    _context.Asignaturas.Add(new Asignatura
-                    {
-                        Nombre = asigNombre,
-                        Codigo = asigNombre.Length >= 4 ? asigNombre.Substring(0, 4).ToUpper() : asigNombre.ToUpper(),
-                        CursoId = cursoIdValido,
-                        DocenteId = nuevoPersonal.Id
-                    });
-                }
-            }
-            await _context.SaveChangesAsync();
-        }
-
-        TempData["SuccessMessage"] = $"✅ {nuevoPersonal.Nombre} {nuevoPersonal.Apellido} fue registrado con éxito. Correo: {nuevoPersonal.Email} (Clave provisoria: 123456).";
+        TempData["SuccessMessage"] = $"✅ {nuevoPersonal.Nombre} {nuevoPersonal.Apellido} fue registrado con éxito.";
         return RedirectToAction(nameof(Index));
     }
 
-    // 3. POST: ASIGNAR INSPECTOR GENERAL
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
-    public async Task<IActionResult> AsignarInspectorGeneral(int id)
-    {
-        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
-        int.TryParse(colegioIdClaim, out int colegioId);
-
-        var inspectores = await _context.Usuarios
-            .Where(u => u.Rol == RolUsuario.Inspector && (u.ColegioId == colegioId || colegioId == 0))
-            .ToListAsync();
-
-        foreach (var insp in inspectores)
-        {
-            insp.EsInspectorGeneral = (insp.Id == id);
-            _context.Usuarios.Update(insp);
-        }
-
-        await _context.SaveChangesAsync();
-        TempData["SuccessMessage"] = "✅ Se ha reasignado el cargo de Inspector General con éxito.";
-        return RedirectToAction(nameof(Index));
-    }
-
-    // 4. POST: DESACTIVAR (Soft Delete)
+    // 5. POST: DESACTIVAR
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
@@ -195,7 +226,7 @@ public class PersonalController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    // 5. POST: REACTIVAR
+    // 6. POST: REACTIVAR
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]

@@ -19,19 +19,23 @@ public class TalleresController : Controller
     }
 
     // 1. Vista General de Talleres / Clubes
+    [HttpGet]
     public async Task<IActionResult> Index()
     {
+        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
+        int.TryParse(colegioIdClaim, out int colegioId);
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         int.TryParse(userIdClaim, out int userId);
         var rol = User.FindFirst(ClaimTypes.Role)?.Value;
 
+        // Consulta sobre la tabla Talleres sin llamadas a propiedades inexistentes
         var query = _context.Talleres
-            .Include(t => t.DocenteCargo)
             .Include(t => t.Estudiantes)
+            .Where(t => t.ColegioId == colegioId || colegioId == 0)
             .AsQueryable();
 
-        // Si es docente, podemos filtrar opcionalmente los que tiene a cargo
-        var talleres = await query.ToListAsync();
+        var talleres = await query.OrderBy(t => t.Nombre).ToListAsync();
 
         ViewBag.Rol = rol;
         ViewBag.UserId = userId;
@@ -39,14 +43,16 @@ public class TalleresController : Controller
         return View(talleres);
     }
 
-    // 2. Crear Taller (Exclusivo SuperAdmin y Director)
-    [Authorize(Roles = "SuperAdmin,Director")]
+    // 2. Crear Taller (Exclusivo SuperAdmin, Director, UTP y Administrador)
+    [Authorize(Roles = "SuperAdmin,Director,UTP,Administrador")]
     [HttpGet]
     public async Task<IActionResult> Crear()
     {
-        // Traer lista de profesores para asignar
+        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
+        int.TryParse(colegioIdClaim, out int colegioId);
+
         var docentes = await _context.Usuarios
-            .Where(u => u.Rol == RolUsuario.Docente && u.Activo)
+            .Where(u => u.Rol == RolUsuario.Docente && u.Activo && (u.ColegioId == colegioId || colegioId == 0))
             .Select(u => new { u.Id, NombreCompleto = u.Nombre + " " + u.Apellido })
             .ToListAsync();
 
@@ -54,7 +60,7 @@ public class TalleresController : Controller
         return View();
     }
 
-    [Authorize(Roles = "SuperAdmin,Director")]
+    [Authorize(Roles = "SuperAdmin,Director,UTP,Administrador")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Crear(Taller taller)
@@ -67,11 +73,13 @@ public class TalleresController : Controller
             taller.ColegioId = colegioId > 0 ? colegioId : 1;
             _context.Talleres.Add(taller);
             await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "✅ Taller / Club registrado exitosamente.";
             return RedirectToAction(nameof(Index));
         }
 
         var docentes = await _context.Usuarios
-            .Where(u => u.Rol == RolUsuario.Docente && u.Activo)
+            .Where(u => u.Rol == RolUsuario.Docente && u.Activo && (u.ColegioId == colegioId || colegioId == 0))
             .Select(u => new { u.Id, NombreCompleto = u.Nombre + " " + u.Apellido })
             .ToListAsync();
 
