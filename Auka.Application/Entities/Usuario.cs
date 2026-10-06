@@ -5,13 +5,13 @@ public enum RolUsuario
     SuperAdmin = 1,
     Director = 2,
     UTP = 3,
-    Psicopedagogo = 4,  
+    Docente = 4,
     Inspector = 5,
-    Docente = 6,
-    Apoderado = 7,
-    Estudiante = 8
+    Psicologo = 6,
+    Psicopedagogo = 7,
+    Apoderado = 8,
+    Estudiante = 9
 }
-
 
 public class Usuario
 {
@@ -19,18 +19,25 @@ public class Usuario
     public string Rut { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public string Apellido { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty; // Correo Institucional
-    public string? EmailPersonal { get; set; }        // Correo personal para recuperar clave
-    public string? Telefono { get; set; }
-    public string PasswordHash { get; set; } = string.Empty;
-    public RolUsuario Rol { get; set; }
 
-    // 🎯 NUEVOS CAMPOS
-    public string? CargoInstitucional { get; set; }  // Ej: "Jefe de UTP", "Inspector General"
-    public string? Asignaturas { get; set; }         // Ej: "Matemáticas, Física, Programación"
-    public bool DebeCambiarPassword { get; set; } = true; // Forzar cambio de clave preventiva
+    // Correo oficial del colegio para entrar a AUKA
+    public string Email { get; set; } = string.Empty;
+
+    // Correo personal externo solo para recuperación en caso de olvido
+    public string? EmailPersonal { get; set; }
+    public string? Telefono { get; set; }
+    public string? Direccion { get; set; }
+    public string PasswordHash { get; set; } = string.Empty;
+
+    public RolUsuario Rol { get; set; }
+    public string? CargoInstitucional { get; set; }
+    public bool EsInspectorGeneral { get; set; } = false;
+    public string? Asignaturas { get; set; }
 
     public int ColegioId { get; set; }
     public bool Activo { get; set; } = true;
-    public DateTime FechaCreacion { get; set; } = DateTime.Now;
+
+    // 🔑 Flag clave: 'true' fuerza el cambio de contraseña en el primer login
+    public bool DebeCambiarPassword { get; set; } = true;
+    public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 }

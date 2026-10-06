@@ -1,7 +1,12 @@
-﻿namespace Auka.Application.Entities;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Auka.Application.Entities;
 
 public class EstudianteApoderado
 {
+    [Key]
+    public int Id { get; set; }
+
     public int EstudianteId { get; set; }
     public Estudiante? Estudiante { get; set; }
 

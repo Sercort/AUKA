@@ -1,37 +1,51 @@
-using Auka.Application.Entities;
+using Auka.Application.Interfaces;
+using Auka.Application.Services;
 using Auka.Infrastructure.Data;
+using Auka.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configuración de Entity Framework Core con PostgreSQL (Open Source)
+// 1. Configurar conexión nativa a PostgreSQL con Npgsql
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("No se encontró la cadena de conexión 'DefaultConnection'.");
+    ?? throw new InvalidOperationException("No se encontró la cadena 'DefaultConnection' para PostgreSQL.");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
+{
+    var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
+    var tenantClaim = httpContextAccessor.HttpContext?.User.FindFirst("ColegioId")?.Value;
+    int tenantId = int.TryParse(tenantClaim, out var id) ? id : 0;
 
-// Add services to the container.
-builder.Services.AddControllersWithViews();
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        npgsqlOptions.MigrationsAssembly("Auka.Infrastructure");
+        npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorCodesToAdd: null);
+    });
+});
 
-// Configurar Autenticación por Cookies y Google SSO
+builder.Services.AddHttpContextAccessor();
+
+// 2. Inyección de Patrones de Servicio de Auka
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IAnotacionService, AnotacionService>();
+
+// 3. Autenticación de Sesión Nativa de Auka
 builder.Services.AddAuthentication("AukaAuthCookie")
     .AddCookie("AukaAuthCookie", options =>
     {
-        options.Cookie.Name = "Auka.Cookie";
+        options.Cookie.Name = "Auka.Session";
         options.LoginPath = "/Account/Login";
+        options.LogoutPath = "/Account/Logout";
         options.AccessDeniedPath = "/Account/AccesoDenegado";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
-    })
-    .AddGoogle(googleOptions =>
-    {
-        googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? "CLIENT_ID_TEMPORAL";
-        googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "CLIENT_SECRET_TEMPORAL";
+        options.SlidingExpiration = true;
     });
+
+builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// 4. Canalización Middleware de Producción
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -49,24 +63,5 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
-
-// --- SEED DATA INICIAL Y CREACIÓN DE BD ---
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-
-        // Crear automáticamente la BD y tablas si no existen
-        context.Database.EnsureCreated();
-        DbInitializer.Initialize(context);
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Ocurrió un error al inicializar la base de datos PostgreSQL.");
-    }
-}
 
 app.Run();

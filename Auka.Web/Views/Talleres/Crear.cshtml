@@ -13,6 +13,7 @@
                 </div>
                 <div class="card-body p-4">
                     <form asp-action="Crear" method="post">
+                        @Html.AntiForgeryToken()
 
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Nombre del Club / Taller</label>
@@ -24,11 +25,10 @@
                             <textarea asp-for="Descripcion" class="form-control" rows="2" placeholder="Ej: Entrenamiento enfocado en torneos interescolares..." required></textarea>
                         </div>
 
+                        <!-- 🔑 CORREGIDO: Se apunta directamente a DocenteCargo (string) -->
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Profesor o Entrenador a Cargo</label>
-                            <select asp-for="DocenteCargoId" class="form-select" asp-items="ViewBag.Docentes" required>
-                                <option value="">-- Seleccionar Profesor --</option>
-                            </select>
+                            <input asp-for="DocenteCargo" class="form-control" placeholder="Ej: Profesor Juan Pérez" required />
                         </div>
 
                         <div class="mb-4">

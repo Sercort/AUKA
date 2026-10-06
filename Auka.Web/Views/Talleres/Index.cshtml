@@ -2,7 +2,7 @@
 
 @{
     ViewData["Title"] = "Clubes y Talleres Extraprogramáticos";
-    var esAdmin = User.IsInRole("SuperAdmin") || User.IsInRole("Director");
+    var esAdmin = User.IsInRole("SuperAdmin") || User.IsInRole("Director") || User.IsInRole("UTP");
 }
 
 <div class="container py-4">
@@ -21,7 +21,7 @@
     </div>
 
     <div class="row g-4">
-        @if (!Model.Any())
+        @if (Model == null || !Model.Any())
         {
             <div class="col-12">
                 <div class="alert alert-light text-center py-4 border shadow-sm">
@@ -42,16 +42,17 @@
                             <div class="bg-light p-3 rounded-3 mb-3">
                                 <small class="d-block text-secondary">
                                     👨‍🏫 <strong>Profesor a Cargo:</strong><br />
-                                    @(taller.DocenteCargo != null ? $"{taller.DocenteCargo.Nombre} {taller.DocenteCargo.Apellido}" : "Sin Asignar")
+                                    <!-- 🔑 CORREGIDO: Imprime directamente la propiedad string DocenteCargo -->
+                                    @(string.IsNullOrWhiteSpace(taller.DocenteCargo) ? "Sin Asignar" : taller.DocenteCargo)
                                 </small>
                                 <hr class="my-2" />
                                 <small class="d-block text-secondary">
-                                    ⏰ <strong>Horario:</strong> @taller.Horario
+                                    ⏰ <strong>Horario:</strong> @(taller.Horario ?? "Por definir")
                                 </small>
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center">
-                                <span class="badge bg-secondary">@taller.Estudiantes.Count Alumnos Inscritos</span>
+                                <span class="badge bg-secondary">@(taller.Estudiantes?.Count ?? 0) Alumnos Inscritos</span>
                                 <button class="btn btn-outline-dark btn-sm rounded-pill px-3">Ver Integrantes</button>
                             </div>
                         </div>
