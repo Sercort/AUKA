@@ -13,27 +13,37 @@
                 </div>
                 <div class="card-body p-4">
                     <form asp-action="Crear" method="post">
-                        @Html.AntiForgeryToken()
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Nombre del Club / Taller</label>
+                            <label asp-for="Nombre" class="form-label fw-semibold">Nombre del Club / Taller</label>
                             <input asp-for="Nombre" class="form-control" placeholder="Ej: Selección de Fútbol Sub-17" required />
+                            <span asp-validation-for="Nombre" class="text-danger"></span>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Descripción u Objetivo</label>
+                            <label asp-for="Descripcion" class="form-label fw-semibold">Descripción u Objetivo</label>
                             <textarea asp-for="Descripcion" class="form-control" rows="2" placeholder="Ej: Entrenamiento enfocado en torneos interescolares..." required></textarea>
+                            <span asp-validation-for="Descripcion" class="text-danger"></span>
                         </div>
 
-                        <!-- 🔑 CORREGIDO: Se apunta directamente a DocenteCargo (string) -->
+                        <!-- Profesor: se elige de la lista de docentes activos del colegio -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Profesor o Entrenador a Cargo</label>
-                            <input asp-for="DocenteCargo" class="form-control" placeholder="Ej: Profesor Juan Pérez" required />
+                            <label asp-for="DocenteId" class="form-label fw-semibold">Profesor o Entrenador a Cargo</label>
+                            <select asp-for="DocenteId"
+                                    asp-items="(SelectList)ViewBag.Docentes"
+                                    class="form-select"
+                                    required>
+                                <option value="">-- Seleccione un profesor --</option>
+                            </select>
+                            <span asp-validation-for="DocenteId" class="text-danger"></span>
                         </div>
 
                         <div class="mb-4">
-                            <label class="form-label fw-semibold">Horarios y Días de Entrenamiento</label>
+                            <label asp-for="Horario" class="form-label fw-semibold">Horarios y Días de Entrenamiento</label>
                             <input asp-for="Horario" class="form-control" placeholder="Ej: Martes y Jueves de 16:00 a 17:30 hrs" required />
+                            <span asp-validation-for="Horario" class="text-danger"></span>
                         </div>
 
                         <div class="d-flex justify-content-between">
@@ -46,3 +56,9 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

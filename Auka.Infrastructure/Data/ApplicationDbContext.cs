@@ -1,6 +1,7 @@
 ﻿using Auka.Application.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace Auka.Infrastructure.Data;
 
@@ -8,15 +9,15 @@ public class ApplicationDbContext : DbContext
 {
     private readonly int _currentTenantId;
 
-    // Constructor compatible con la inyección de dependencias de .NET 8
+    // Constructor compatible con .NET 8 e inyección de dependencias
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
-        _currentTenantId = 1; // ID de tenant base para desarrollo y pruebas locales
+        _currentTenantId = 1; // Tenant por defecto para desarrollo local
     }
 
     // -----------------------------------------------------------------
-    // Colecciones DbSet del Dominio Auka (Soporte completo para controladores)
+    // Colecciones DbSet del Dominio Auka
     // -----------------------------------------------------------------
     public DbSet<Colegio> Colegios { get; set; } = null!;
     public DbSet<Usuario> Usuarios { get; set; } = null!;
@@ -52,18 +53,20 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<AnotacionEliminada>().ToTable("AnotacionesEliminadas");
         modelBuilder.Entity<BitacoraPsicosocial>().ToTable("BitacorasPsicosociales");
 
-        // 🔑 Mapeo explícito de Clave Primaria para EstudianteApoderado
         modelBuilder.Entity<EstudianteApoderado>()
             .ToTable("EstudiantesApoderados")
             .HasKey(ea => ea.Id);
 
-        // Aplicación automática de Global Query Filters (Soft Delete e IsDeleted)
+        // Aplicación SEGURA de Global Query Filters (Soft Delete y Multitenant)
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
+            // 🛡️ EXCLUIR TALLER DEL FILTRO DINÁMICO (Previene la inyección de columnas inexistentes)
+            if (entityType.ClrType == typeof(Taller)) continue;
+
             var parameter = Expression.Parameter(entityType.ClrType, "e");
             Expression? filter = null;
 
-            // Filtro de Borrado Lógico (IsDeleted == false)
+            // 1. Filtro de Borrado Lógico (Solo si la entidad contiene explícitamente la propiedad 'IsDeleted')
             var isDeletedProp = entityType.FindProperty("IsDeleted");
             if (isDeletedProp != null && isDeletedProp.ClrType == typeof(bool))
             {
@@ -72,7 +75,7 @@ public class ApplicationDbContext : DbContext
                 filter = isNotDeleted;
             }
 
-            // Filtro Multitenant por ColegioId
+            // 2. Filtro Multitenant (Solo si la entidad contiene explícitamente la propiedad 'ColegioId')
             var tenantProp = entityType.FindProperty("ColegioId");
             if (tenantProp != null && tenantProp.ClrType == typeof(int))
             {

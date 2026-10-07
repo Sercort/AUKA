@@ -3,6 +3,7 @@ using System;
 using Auka.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Auka.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007170207_AgregarActivoATalleres")]
+    partial class AgregarActivoATalleres
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -481,9 +484,6 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<string>("DocenteCargo")
                         .HasColumnType("text");
 
-                    b.Property<int?>("DocenteId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Horario")
                         .HasColumnType("text");
 
@@ -492,8 +492,6 @@ namespace Auka.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DocenteId");
 
                     b.ToTable("Talleres", (string)null);
                 });
@@ -751,15 +749,6 @@ namespace Auka.Infrastructure.Migrations
                     b.Navigation("Curso");
 
                     b.Navigation("Profesor");
-                });
-
-            modelBuilder.Entity("Auka.Application.Entities.Taller", b =>
-                {
-                    b.HasOne("Auka.Application.Entities.Usuario", "Docente")
-                        .WithMany()
-                        .HasForeignKey("DocenteId");
-
-                    b.Navigation("Docente");
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.Usuario", b =>
