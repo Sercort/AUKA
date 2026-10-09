@@ -1,0 +1,51 @@
+﻿@model Auka.Web.Models.PsychosocialDashboardViewModel
+@{
+    ViewData["Title"] = "Panel Psicosocial";
+}
+
+<div class="container py-4">
+
+    <!-- Encabezado -->
+    <div class="p-4 rounded-4 text-white mb-4" style="background: linear-gradient(135deg,#1e3a8a,#3b82f6);">
+        <h3 class="fw-bold mb-1">Panel Psicosocial</h3>
+        <p class="mb-0 small">Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento estudiantil</p>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-primary p-3">
+                <span class="text-muted small fw-bold">ATENCIONES DEL MES</span>
+                <h3 class="fw-bold mb-0 mt-1">@Model.AtencionesDelMes</h3>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-danger p-3">
+                <span class="text-muted small fw-bold">ALERTAS DE AUSENTISMO</span>
+                <h3 class="fw-bold text-danger mb-0 mt-1">@Model.AlertasAusentismo</h3>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-warning p-3">
+                <span class="text-muted small fw-bold">CITAS PENDIENTES (SEMANA)</span>
+                <h3 class="fw-bold mb-0 mt-1">@Model.CitasPendientesSemana</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Espacios reservados para las siguientes partes -->
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                <h6 class="fw-bold">Agenda semanal</h6>
+                <p class="text-muted small mb-0">Próximamente (Parte 3)</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                <h6 class="fw-bold">Alumnos con baja asistencia</h6>
+                <p class="text-muted small mb-0">Próximamente (Parte 2)</p>
+            </div>
+        </div>
+    </div>
+</div>

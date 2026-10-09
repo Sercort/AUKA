@@ -28,7 +28,8 @@ public class AccountController : Controller
     {
         if (User.Identity != null && User.Identity.IsAuthenticated)
         {
-            return RedirectToAction("Index", "Home");
+            // CAMBIO 3: redirige según rol si ya hay sesión abierta
+            return RedirigirSegunRol(User.FindFirst(SystemClaimTypes.Role)?.Value ?? "");
         }
         return View();
     }
@@ -100,7 +101,8 @@ public class AccountController : Controller
             return RedirectToAction(nameof(CambiarPasswordObligatorio));
         }
 
-        return RedirectToAction("Index", "Home");
+        // CAMBIO 2: redirige según rol
+        return RedirigirSegunRol(usuario.Rol.ToString());
     }
 
     // 3. GET: Cambiar Password Obligatorio
@@ -146,7 +148,9 @@ public class AccountController : Controller
         await _context.SaveChangesAsync();
 
         TempData["SuccessMessage"] = "¡Contraseña actualizada con éxito! Bienvenido a la plataforma.";
-        return RedirectToAction("Index", "Home");
+
+        // CAMBIO 4: redirige según rol
+        return RedirigirSegunRol(usuario.Rol.ToString());
     }
 
     // 5. GET: Cambiar Password Opcional (Desde el Menú Desplegable)
@@ -245,7 +249,7 @@ public class AccountController : Controller
         return RedirectToAction(nameof(Login));
     }
 
-    
+
     // 9. GET & POST: Logout
     [HttpGet]
     [HttpPost]
@@ -253,7 +257,7 @@ public class AccountController : Controller
     {
         if (User.Identity != null && User.Identity.IsAuthenticated)
         {
-            
+
             await HttpContext.SignOutAsync("AukaAuthCookie");
         }
 
@@ -265,6 +269,17 @@ public class AccountController : Controller
     public IActionResult AccesoDenegado()
     {
         return View();
+    }
+
+    // CAMBIO 1: método auxiliar. Decide a qué panel va cada rol después de autenticarse
+    private IActionResult RedirigirSegunRol(string rol)
+    {
+        if (rol is "Psicologo" or "Psicopedagogo")
+        {
+            return RedirectToAction("Index", "Psychosocial");
+        }
+
+        return RedirectToAction("Index", "Home");
     }
 
     private string OcultarEmail(string email)
@@ -332,6 +347,7 @@ public class AccountController : Controller
         await HttpContext.SignOutAsync("AukaAuthCookie");
         return RedirectToAction("Index", "Home");
     }
+
     // GET: /Account/Registrar
     [HttpGet]
     public IActionResult Registrar()

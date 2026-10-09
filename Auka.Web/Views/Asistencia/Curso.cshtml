@@ -1,0 +1,91 @@
+﻿@{
+    string cursoNombre = (string)ViewBag.CursoNombre;
+    ViewData["Title"] = $"Asistencia - {cursoNombre}";
+    var estudiantes = (IEnumerable<dynamic>?)ViewBag.EstudiantesDetalle;
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">📋 Asistencia: @cursoNombre</h2>
+            <p class="text-muted mb-0">Detalle por alumno (últimos 20 registros de cada uno).</p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">← Volver a cursos</a>
+    </div>
+
+    @if (estudiantes == null || !estudiantes.Any())
+    {
+        <div class="alert alert-light text-center py-4 border shadow-sm">
+            Este curso no tiene estudiantes matriculados.
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Alumno</th>
+                            <th>RUT</th>
+                            <th class="text-center">Presentes</th>
+                            <th class="text-center">Ausentes</th>
+                            <th style="min-width: 180px;">Asistencia</th>
+                            <th class="text-end">Historial</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var est in estudiantes)
+                        {
+                            int estId = (int)est.Id;
+                            double porcentaje = (double)est.Porcentaje;
+                            string color = porcentaje >= 90 ? "success" : (porcentaje >= 85 ? "warning" : "danger");
+
+                            <tr>
+                                <td class="fw-semibold">@((string)est.NombreCompleto)</td>
+                                <td class="text-muted">@((string)est.Rut)</td>
+                                <td class="text-center"><span class="badge bg-success">@((int)est.DiasPresentes)</span></td>
+                                <td class="text-center"><span class="badge bg-danger">@((int)est.DiasAusentes)</span></td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height: 8px;">
+                                            <div class="progress-bar bg-@color" role="progressbar"
+                                                 style="width: @porcentaje.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%;"></div>
+                                        </div>
+                                        <small class="fw-bold text-@color">@porcentaje.ToString("0.0")%</small>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-dark btn-sm rounded-pill px-3" type="button"
+                                            data-bs-toggle="collapse" data-bs-target="#hist-@estId">
+                                        Ver
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="hist-@estId">
+                                <td colspan="6" class="bg-light">
+                                    @if (((IEnumerable<dynamic>)est.Historial).Any())
+                                    {
+                                        <div class="d-flex flex-wrap gap-2 py-2">
+                                            @foreach (var h in est.Historial)
+                                            {
+                                                bool presente = (bool)h.Presente;
+                                                <span class="badge bg-@(presente ? "success" : "danger")">
+                                                    @h.Fecha.ToString("dd/MM/yyyy") · @(presente ? "Presente" : "Ausente")
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <small class="text-muted">Sin registros de asistencia.</small>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>

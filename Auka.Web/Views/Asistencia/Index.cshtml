@@ -1,0 +1,59 @@
+﻿@{
+    ViewData["Title"] = "Asistencia por Curso";
+    var cursos = (IEnumerable<dynamic>?)ViewBag.CursosResumen;
+}
+
+<div class="container py-4">
+    <div class="mb-4">
+        <h2 class="fw-bold text-dark mb-1">📋 Asistencia por Curso</h2>
+        <p class="text-muted mb-0">Porcentaje general de asistencia de cada curso. Selecciona uno para ver el detalle por alumno.</p>
+    </div>
+
+    <div class="row g-4">
+        @if (cursos == null || !cursos.Any())
+        {
+            <div class="col-12">
+                <div class="alert alert-light text-center py-4 border shadow-sm">
+                    No hay cursos registrados para este establecimiento.
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var c in cursos)
+            {
+                double porcentaje = (double)c.PorcentajeAsistencia;
+                int cursoId = (int)c.Id;
+                string nombre = (string)c.CursoNombre;
+                int totalEstudiantes = (int)c.TotalEstudiantes;
+
+                // 85% es el mínimo de asistencia exigido para aprobar en Chile
+                string color = porcentaje >= 90 ? "success" : (porcentaje >= 85 ? "warning" : "danger");
+
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm border-0 border-top border-4 border-@color">
+                        <div class="card-body">
+                            <h5 class="fw-bold text-dark mb-1">🏫 @nombre</h5>
+                            <p class="text-muted small mb-3">@totalEstudiantes estudiantes</p>
+
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-secondary">Asistencia general</span>
+                                <strong class="text-@color">@porcentaje.ToString("0.0")%</strong>
+                            </div>
+                            <div class="progress mb-3" style="height: 10px;">
+                                <div class="progress-bar bg-@color" role="progressbar"
+                                     style="width: @porcentaje.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%;"
+                                     aria-valuenow="@porcentaje" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+
+                            <a href="@Url.Action("Curso", "Asistencia", new { id = cursoId })"
+                               class="btn btn-outline-@color btn-sm rounded-pill w-100 fw-semibold">
+                                Ver detalle por alumno
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
