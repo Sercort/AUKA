@@ -3,49 +3,233 @@
     ViewData["Title"] = "Panel Psicosocial";
 }
 
-<div class="container py-4">
+<style>
+    .ps-card {
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 1px 3px rgba(18,38,58,.08);
+    }
 
-    <!-- Encabezado -->
-    <div class="p-4 rounded-4 text-white mb-4" style="background: linear-gradient(135deg,#1e3a8a,#3b82f6);">
-        <h3 class="fw-bold mb-1">Panel Psicosocial</h3>
-        <p class="mb-0 small">Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento estudiantil</p>
+    .ps-label {
+        font-size: .75rem;
+        font-weight: 700;
+        color: #4A5D73;
+        letter-spacing: .04em;
+    }
+
+    .ps-kpi {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .ps-pill {
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: .75rem;
+        font-weight: 700;
+        display: inline-block;
+    }
+
+    .ps-alto {
+        background: #FBE4E0;
+        color: #8E2C1F;
+    }
+
+    .ps-medio {
+        background: #FCEFD2;
+        color: #6B4500;
+    }
+
+    .ps-bajo {
+        background: #DDF1E6;
+        color: #14573A;
+    }
+
+    .ps-fila {
+        cursor: pointer;
+        border-bottom: 1px solid #EEF1F6;
+    }
+
+        .ps-fila:hover {
+            background: #F3F7FB;
+        }
+
+        .ps-fila.activa {
+            background: #EAF3F7;
+        }
+
+    .ps-hero {
+        background: #12263A;
+        color: #fff;
+        border-radius: 16px;
+    }
+
+    .ps-agenda {
+        background: #F3F5F9;
+        border-radius: 12px;
+    }
+
+    .ps-bitacora {
+        border: 1px dashed #9AA9BB;
+        border-radius: 12px;
+        background: #FAFBFD;
+    }
+</style>
+
+<div class="container py-4" style="max-width:1240px;">
+
+    <!-- ENCABEZADO -->
+    <div class="ps-hero p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h3 class="fw-bold mb-1">Panel Psicosocial</h3>
+            <p class="mb-0 small" style="color:#C9D6E6;">
+                Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento estudiantil
+            </p>
+            <span class="ps-pill mt-2" style="background:#2B4764;color:#fff;">Datos de ejemplo</span>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-light fw-bold rounded-pill px-4"
+                    data-bs-toggle="modal" data-bs-target="#modalCitacion">
+                Solicitar citación
+            </button>
+            <button type="button" class="btn btn-outline-light rounded-pill px-4" disabled
+                    title="Disponible en una próxima etapa">
+                Importar planilla
+            </button>
+        </div>
     </div>
 
     <!-- KPIs -->
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-primary p-3">
-                <span class="text-muted small fw-bold">ATENCIONES DEL MES</span>
-                <h3 class="fw-bold mb-0 mt-1">@Model.AtencionesDelMes</h3>
+        <div class="col-6 col-lg-3">
+            <div class="ps-card p-3 h-100">
+                <div class="ps-label">ATENCIONES DEL MES</div>
+                <div class="ps-kpi mt-1">24</div>
+                <div class="small fw-semibold" style="color:#1B6B4A;">+6 vs. mes anterior</div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-danger p-3">
-                <span class="text-muted small fw-bold">ALERTAS DE AUSENTISMO</span>
-                <h3 class="fw-bold text-danger mb-0 mt-1">@Model.AlertasAusentismo</h3>
+        <div class="col-6 col-lg-3">
+            <div class="ps-card p-3 h-100">
+                <div class="ps-label">ALUMNOS EN ALERTA</div>
+                <div class="ps-kpi mt-1" style="color:#B4402F;">9</div>
+                <div class="small text-secondary">3 en nivel rojo</div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-warning p-3">
-                <span class="text-muted small fw-bold">CITAS PENDIENTES (SEMANA)</span>
-                <h3 class="fw-bold mb-0 mt-1">@Model.CitasPendientesSemana</h3>
+        <div class="col-6 col-lg-3">
+            <div class="ps-card p-3 h-100">
+                <div class="ps-label">CITAS ESTA SEMANA</div>
+                <div class="ps-kpi mt-1">7</div>
+                <div class="small text-secondary">2 sin confirmar</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="ps-card p-3 h-100">
+                <div class="ps-label">CASOS EN SEGUIMIENTO</div>
+                <div class="ps-kpi mt-1">12</div>
+                <div class="small text-secondary">4 sin contacto hace 15+ días</div>
             </div>
         </div>
     </div>
 
-    <!-- Espacios reservados para las siguientes partes -->
-    <div class="row g-3">
-        <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
-                <h6 class="fw-bold">Agenda semanal</h6>
-                <p class="text-muted small mb-0">Próximamente (Parte 3)</p>
+    <div class="row g-4">
+
+        <!-- COLUMNA IZQUIERDA: alertas + agenda -->
+        <div class="col-lg-8">
+
+            <!-- Alumnos en alerta -->
+            <div class="ps-card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h5 class="fw-bold mb-0">Alumnos en alerta por curso</h5>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="ps-pill" style="background:#E8EEF6;color:#12263A;">Todos los cursos</span>
+                        <span class="ps-pill" style="background:#E8EEF6;color:#12263A;">Asistencia menor a 85%</span>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0" style="min-width:560px;">
+                        <thead>
+                            <tr class="ps-label">
+                                <th class="border-0">ALUMNO</th>
+                                <th class="border-0">CURSO</th>
+                                <th class="border-0">ASISTENCIA</th>
+                                <th class="border-0">ANOTACIONES (-)</th>
+                                <th class="border-0">RIESGO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="ps-fila activa">
+                                <td class="fw-bold">Matías Rojas P.</td>
+                                <td>7° A</td>
+                                <td class="fw-bold" style="color:#B4402F;">71%</td>
+                                <td>5</td>
+                                <td><span class="ps-pill ps-alto">Alto</span></td>
+                            </tr>
+                            <tr class="ps-fila">
+                                <td class="fw-semibold">Valentina Soto M.</td>
+                                <td>8° B</td>
+                                <td class="fw-bold" style="color:#B4402F;">78%</td>
+                                <td>3</td>
+                                <td><span class="ps-pill ps-alto">Alto</span></td>
+                            </tr>
+                            <tr class="ps-fila">
+                                <td class="fw-semibold">Benjamín Leiva C.</td>
+                                <td>6° A</td>
+                                <td class="fw-bold" style="color:#8A5A00;">83%</td>
+                                <td>2</td>
+                                <td><span class="ps-pill ps-medio">Medio</span></td>
+                            </tr>
+                            <tr class="ps-fila">
+                                <td class="fw-semibold">Catalina Muñoz R.</td>
+                                <td>7° B</td>
+                                <td class="fw-bold" style="color:#8A5A00;">84%</td>
+                                <td>1</td>
+                                <td><span class="ps-pill ps-medio">Medio</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Agenda semanal -->
+            <div class="ps-card p-4">
+                <h5 class="fw-bold mb-3">Agenda semanal</h5>
+                <div class="row g-3">
+                    <div class="col-sm-4">
+                        <div class="ps-agenda p-3 h-100">
+                            <div class="ps-label">LUN 12</div>
+                            <div class="fw-semibold small mt-2">09:00 · Alumno + apoderado</div>
+                            <div class="small text-secondary">Seguimiento de asistencia</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="ps-agenda p-3 h-100">
+                            <div class="ps-label">MAR 13</div>
+                            <div class="fw-semibold small mt-2">11:30 · Profesor jefe</div>
+                            <div class="small text-secondary">Coordinación 7° A</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="ps-agenda p-3 h-100">
+                            <div class="ps-label">JUE 15</div>
+                            <div class="fw-semibold small mt-2">15:00 · Alumno</div>
+                            <div class="small fw-semibold" style="color:#8A5A00;">Pendiente de confirmar</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
-                <h6 class="fw-bold">Alumnos con baja asistencia</h6>
-                <p class="text-muted small mb-0">Próximamente (Parte 2)</p>
-            </div>
-        </div>
-    </div>
-</div>
+
+        <!-- COLUMNA DERECHA: ficha del estudiante -->
+        <div class="col-lg-4">
+            <div class="ps-card p-4 d-flex flex-column gap-3">
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">Ficha del estudiante</h5>
+                    <span class="ps-pill ps-alto">Riesgo alto</span>
+                </div>
+
+                <div>
+                    <div class="fs-5 fw-bold">Matías Rojas P.</div>
+                    <div
