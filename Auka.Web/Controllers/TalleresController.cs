@@ -1,4 +1,8 @@
-﻿using System.Security.Claims;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -18,9 +22,7 @@ public class TalleresController : Controller
         _context = context;
     }
 
-    // 1. Vista general de Talleres / Clubes
-    //    - Administración (SuperAdmin, Director, UTP, Administrador): ve todos los talleres del colegio
-    //    - Docente: ve solo los talleres donde es el profesor a cargo
+    // 1. VISTA GENERAL DE TALLERES / CLUBES (ACLE)
     [HttpGet]
     public async Task<IActionResult> Index()
     {
@@ -33,11 +35,15 @@ public class TalleresController : Controller
         var rol = User.FindFirst(ClaimTypes.Role)?.Value;
         var esDocente = string.Equals(rol, RolUsuario.Docente.ToString(), StringComparison.OrdinalIgnoreCase);
 
-        IQueryable<Taller> query = _context.Talleres
+        // 🛡️ .IgnoreQueryFilters() evita el error 'PostgresException 42703' por columnas inexistentes
+        var query = _context.Talleres
+            .IgnoreQueryFilters()
             .Include(t => t.Estudiantes)
             .Include(t => t.Docente)
-            .Where(t => t.ColegioId == colegioId || colegioId == 0);
+            .Where(t => t.ColegioId == colegioId || colegioId == 0)
+            .AsQueryable();
 
+        // Si el usuario con sesión activa es Docente, filtra sus talleres asignados
         if (esDocente)
         {
             query = query.Where(t => t.DocenteId == userId);
@@ -51,7 +57,7 @@ public class TalleresController : Controller
         return View(talleres);
     }
 
-    // 2. Crear Taller (GET - carga de docentes)
+    // 2. CREAR TALLER (GET - Carga Combo de Docentes)
     [Authorize(Roles = "SuperAdmin,Director,UTP,Administrador")]
     [HttpGet]
     public async Task<IActionResult> Crear()
@@ -60,7 +66,7 @@ public class TalleresController : Controller
         return View();
     }
 
-    // 3. Crear Taller (POST - registro con docente y asignación de ColegioId)
+    // 3. CREAR TALLER (POST - Registro con Validación Estricta)
     [Authorize(Roles = "SuperAdmin,Director,UTP,Administrador")]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -69,15 +75,15 @@ public class TalleresController : Controller
         var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
         int.TryParse(colegioIdClaim, out int colegioId);
 
-        // Estas propiedades no vienen del formulario como entidades completas
+        // Remover objetos navegacionales de la validación del modelo Razor
         ModelState.Remove(nameof(Taller.Docente));
         ModelState.Remove(nameof(Taller.Estudiantes));
 
         Usuario? docente = null;
 
-        if (taller.DocenteId == null)
+        if (taller.DocenteId == null || taller.DocenteId == 0)
         {
-            ModelState.AddModelError(nameof(Taller.DocenteId), "Debes seleccionar un profesor.");
+            ModelState.AddModelError(nameof(Taller.DocenteId), "Debes seleccionar un profesor a cargo.");
         }
         else
         {
@@ -89,7 +95,7 @@ public class TalleresController : Controller
 
             if (docente == null)
             {
-                ModelState.AddModelError(nameof(Taller.DocenteId), "El profesor seleccionado no es válido.");
+                ModelState.AddModelError(nameof(Taller.DocenteId), "El profesor seleccionado no es válido o está inactivo.");
             }
         }
 
@@ -109,7 +115,7 @@ public class TalleresController : Controller
         return View(taller);
     }
 
-    // Método auxiliar: carga el combo de docentes del colegio
+    // Método Auxiliar: Carga la lista desplegable de Docentes del Establecimiento
     private async Task CargarDocentesAsync(int? docenteSeleccionado = null)
     {
         var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
