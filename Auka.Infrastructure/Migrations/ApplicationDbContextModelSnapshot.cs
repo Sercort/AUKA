@@ -303,6 +303,9 @@ namespace Auka.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("PlanPsicosocialActivo")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Rut")
                         .IsRequired()
                         .HasColumnType("text");
