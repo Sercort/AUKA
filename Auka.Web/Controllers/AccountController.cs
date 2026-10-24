@@ -22,13 +22,17 @@ public class AccountController : Controller
         _configuration = configuration;
     }
 
+    // Roles que trabajan dentro del módulo Psicosocial
+    private static readonly string[] RolesPsicosociales = { "Psicologo", "Psicopedagogo", "TrabajadorSocial", "Orientadora" };
+
     // 1. GET: Login
     [HttpGet]
     public IActionResult Login()
     {
         if (User.Identity != null && User.Identity.IsAuthenticated)
         {
-            return RedirectToAction("Index", "Home");
+            var planActivo = User.FindFirst("PlanPsicosocial")?.Value == "true";
+            return RedirigirSegunRol(User.FindFirst(SystemClaimTypes.Role)?.Value ?? "", planActivo);
         }
         return View();
     }
@@ -37,8 +41,9 @@ public class AccountController : Controller
     [HttpPost]
     public async Task<IActionResult> Login(string email, string password)
     {
-        // A) Buscar usuario activo por Email Institucional
+        // A) Antes de iniciar sesión no hay colegio en la sesión: se busca en todos los colegios
         var usuario = await _context.Usuarios
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email == email && u.Activo);
 
         if (usuario == null)
@@ -78,15 +83,9 @@ public class AccountController : Controller
             return View();
         }
 
-        // C) Crear los Claims
-        var claims = new List<SystemClaim>
-        {
-            new SystemClaim(SystemClaimTypes.NameIdentifier, usuario.Id.ToString()),
-            new SystemClaim(SystemClaimTypes.Name, $"{usuario.Nombre} {usuario.Apellido}"),
-            new SystemClaim(SystemClaimTypes.Email, usuario.Email),
-            new SystemClaim(SystemClaimTypes.Role, usuario.Rol.ToString()),
-            new SystemClaim("ColegioId", usuario.ColegioId.ToString())
-        };
+        // C) Crear los Claims (incluye el plan contratado por el colegio)
+        var claims = await ConstruirClaimsAsync(usuario);
+        var planPsicosocial = claims.Any(c => c.Type == "PlanPsicosocial" && c.Value == "true");
 
         var identity = new SystemClaimsIdentity(claims, "AukaAuth");
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
@@ -100,7 +99,7 @@ public class AccountController : Controller
             return RedirectToAction(nameof(CambiarPasswordObligatorio));
         }
 
-        return RedirectToAction("Index", "Home");
+        return RedirigirSegunRol(usuario.Rol.ToString(), planPsicosocial);
     }
 
     // 3. GET: Cambiar Password Obligatorio
@@ -146,7 +145,9 @@ public class AccountController : Controller
         await _context.SaveChangesAsync();
 
         TempData["SuccessMessage"] = "¡Contraseña actualizada con éxito! Bienvenido a la plataforma.";
-        return RedirectToAction("Index", "Home");
+
+        var planActivo = User.FindFirst("PlanPsicosocial")?.Value == "true";
+        return RedirigirSegunRol(usuario.Rol.ToString(), planActivo);
     }
 
     // 5. GET: Cambiar Password Opcional (Desde el Menú Desplegable)
@@ -213,7 +214,7 @@ public class AccountController : Controller
         return View();
     }
 
-    // 8. POST: Olvidé mi Contraseña
+    // 8. POST: Olvidé mi Contraseña (el envío real del correo se programa más adelante)
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> OlvidoPassword(string emailOusuario)
@@ -225,6 +226,7 @@ public class AccountController : Controller
         }
 
         var usuario = await _context.Usuarios
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email == emailOusuario || u.Rut == emailOusuario);
 
         if (usuario == null)
@@ -245,7 +247,6 @@ public class AccountController : Controller
         return RedirectToAction(nameof(Login));
     }
 
-    
     // 9. GET & POST: Logout
     [HttpGet]
     [HttpPost]
@@ -253,18 +254,124 @@ public class AccountController : Controller
     {
         if (User.Identity != null && User.Identity.IsAuthenticated)
         {
-            
             await HttpContext.SignOutAsync("AukaAuthCookie");
         }
 
         return RedirectToAction(nameof(Login));
     }
 
+    // =====================================================================
+    // ⚠️ SOLO PRUEBAS (borrar antes de la entrega). Solo funcionan en Development.
+    // =====================================================================
+
+    // Alterna el plan Psicosocial del colegio del usuario actual y cierra la sesión.
+    // Uso: https://localhost:7157/Account/AlternarPlanPsicosocial
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> AlternarPlanPsicosocial([FromServices] IWebHostEnvironment env)
+    {
+        if (!env.IsDevelopment()) return NotFound();
+
+        if (!int.TryParse(User.FindFirst("ColegioId")?.Value, out int colegioId))
+            return RedirectToAction(nameof(Login));
+
+        var colegio = await _context.Colegios.FindAsync(colegioId);
+        if (colegio == null) return NotFound();
+
+        colegio.PlanPsicosocialActivo = !colegio.PlanPsicosocialActivo;
+        await _context.SaveChangesAsync();
+
+        await HttpContext.SignOutAsync("AukaAuthCookie");
+        TempData["SuccessMessage"] = colegio.PlanPsicosocialActivo
+            ? "Plan PSICOSOCIAL activado. Inicia sesión de nuevo."
+            : "Plan PSICOSOCIAL desactivado. Inicia sesión de nuevo.";
+
+        return RedirectToAction(nameof(Login));
+    }
+
+    // Crea un usuario de prueba con el rol indicado, en el colegio del usuario actual.
+    // Uso: /Account/CrearUsuarioPrueba?rol=Psicologo   (o TrabajadorSocial, Orientadora, Psicopedagogo)
+    // Resultado: correo <rol en minúsculas>.prueba@auka.cl  /  clave Test1234
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> CrearUsuarioPrueba(string rol, [FromServices] IWebHostEnvironment env)
+    {
+        if (!env.IsDevelopment()) return NotFound();
+
+        if (!Enum.TryParse<RolUsuario>(rol, true, out var rolUsuario)
+            || rolUsuario == RolUsuario.SuperAdmin || rolUsuario == RolUsuario.AdminPlataforma)
+        {
+            return Content("Rol no válido. Usa: Psicologo, TrabajadorSocial, Orientadora, Psicopedagogo, Docente...");
+        }
+
+        if (!int.TryParse(User.FindFirst("ColegioId")?.Value, out int colegioId))
+            return RedirectToAction(nameof(Login));
+
+        var email = $"{rolUsuario.ToString().ToLower()}.prueba@auka.cl";
+        if (await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Email == email))
+        {
+            TempData["SuccessMessage"] = $"El usuario de prueba {email} ya existe.";
+            return RedirectToAction("Index", "Home");
+        }
+
+        var hasher = new PasswordHasher<string>();
+        _context.Usuarios.Add(new Usuario
+        {
+            ColegioId = colegioId,
+            Rut = $"9.{(int)rolUsuario:000}.000-1",
+            Nombre = rolUsuario.ToString(),
+            Apellido = "Prueba",
+            Email = email,
+            PasswordHash = hasher.HashPassword(email, "Test1234"),
+            Rol = rolUsuario,
+            Activo = true,
+            DebeCambiarPassword = false
+        });
+        await _context.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = $"Usuario de prueba creado: {email} / Test1234";
+        return RedirectToAction("Index", "Home");
+    }
+
+    // =====================================================================
+
     // 10. GET: Acceso Denegado
     [HttpGet]
     public IActionResult AccesoDenegado()
     {
         return View();
+    }
+
+    // Decide a qué panel va cada rol después de autenticarse.
+    // El equipo psicosocial va al panel psicosocial solo si el colegio tiene el módulo activo.
+    private IActionResult RedirigirSegunRol(string rol, bool planPsicosocial = false)
+    {
+        if (planPsicosocial && RolesPsicosociales.Contains(rol))
+        {
+            return RedirectToAction("Index", "Psychosocial");
+        }
+
+        return RedirectToAction("Index", "Home");
+    }
+
+    // Construye los claims de sesión; lee el plan del colegio desde la BD
+    private async Task<List<SystemClaim>> ConstruirClaimsAsync(Usuario usuario)
+    {
+        var planPsicosocial = await _context.Colegios
+            .AsNoTracking()
+            .Where(c => c.Id == usuario.ColegioId)
+            .Select(c => c.PlanPsicosocialActivo)
+            .FirstOrDefaultAsync();
+
+        return new List<SystemClaim>
+        {
+            new SystemClaim(SystemClaimTypes.NameIdentifier, usuario.Id.ToString()),
+            new SystemClaim(SystemClaimTypes.Name, $"{usuario.Nombre} {usuario.Apellido}"),
+            new SystemClaim(SystemClaimTypes.Email, usuario.Email),
+            new SystemClaim(SystemClaimTypes.Role, usuario.Rol.ToString()),
+            new SystemClaim("ColegioId", usuario.ColegioId.ToString()),
+            new SystemClaim("PlanPsicosocial", planPsicosocial ? "true" : "false")
+        };
     }
 
     private string OcultarEmail(string email)
@@ -287,7 +394,7 @@ public class AccountController : Controller
     public IActionResult GoogleLogin()
     {
         var redirectUrl = Url.Action("GoogleResponse", "Account");
-        var properties = new Microsoft.AspNetCore.Authentication.AuthenticationProperties { RedirectUri = redirectUrl };
+        var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
         return Challenge(properties, "Google");
     }
 
@@ -302,7 +409,7 @@ public class AccountController : Controller
             return RedirectToAction("Login");
         }
 
-        var email = result.Principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        var email = result.Principal.FindFirst(SystemClaimTypes.Email)?.Value;
 
         if (string.IsNullOrEmpty(email))
         {
@@ -310,28 +417,23 @@ public class AccountController : Controller
             return RedirectToAction("Login");
         }
 
-        var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Email == email && u.Activo);
+        var usuario = await _context.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email && u.Activo);
         if (usuario == null)
         {
             TempData["Error"] = $"El correo {email} no se encuentra registrado en el sistema.";
             return RedirectToAction("Login");
         }
 
-        var claims = new List<System.Security.Claims.Claim>
-        {
-            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, usuario.Id.ToString()),
-            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, $"{usuario.Nombre} {usuario.Apellido}"),
-            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, usuario.Email),
-            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, usuario.Rol.ToString()),
-            new System.Security.Claims.Claim("ColegioId", usuario.ColegioId.ToString())
-        };
-
-        var identity = new System.Security.Claims.ClaimsIdentity(claims, "AukaAuthCookie");
+        var claims = await ConstruirClaimsAsync(usuario);
+        var identity = new SystemClaimsIdentity(claims, "AukaAuth");
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
 
-        await HttpContext.SignOutAsync("AukaAuthCookie");
-        return RedirectToAction("Index", "Home");
+        await HttpContext.SignInAsync("AukaAuthCookie", principal);
+
+        var planActivo = claims.Any(c => c.Type == "PlanPsicosocial" && c.Value == "true");
+        return RedirigirSegunRol(usuario.Rol.ToString(), planActivo);
     }
+
     // GET: /Account/Registrar
     [HttpGet]
     public IActionResult Registrar()
@@ -359,13 +461,13 @@ public class AccountController : Controller
             return View();
         }
 
-        if (await _context.Usuarios.AnyAsync(u => u.Email == emailAdmin))
+        if (await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Email == emailAdmin))
         {
             ViewBag.Error = "El correo electrónico ya se encuentra registrado.";
             return View();
         }
 
-        if (await _context.Usuarios.AnyAsync(u => u.Rut == rutAdmin))
+        if (await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Rut == rutAdmin))
         {
             ViewBag.Error = "El RUT ingresado ya está registrado en el sistema.";
             return View();

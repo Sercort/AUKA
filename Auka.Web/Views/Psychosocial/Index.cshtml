@@ -1,0 +1,304 @@
+﻿@model Auka.Web.Models.PsychosocialDashboardViewModel
+@{
+    ViewData["Title"] = "Panel Psicosocial";
+    Layout = "_LayoutPsicosocial";
+}
+
+<style>
+    .ps-card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(18,38,58,.08); }
+    .ps-label { font-size:.75rem; font-weight:700; color:#4A5D73; letter-spacing:.04em; }
+    .ps-kpi { font-size:1.8rem; font-weight:800; line-height:1.1; }
+    .ps-pill { border-radius:999px; padding:4px 12px; font-size:.75rem; font-weight:700; display:inline-block; }
+    .ps-hero { background:#12263A; color:#fff; border-radius:16px; }
+    .ps-agenda { background:#F3F5F9; border-radius:12px; }
+    .ps-bitacora { border:1px dashed #9AA9BB; border-radius:12px; background:#FAFBFD; }
+
+    /* Calendario tipo pizarra */
+    .cal-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; }
+    .cal-dow { font-size:.7rem; font-weight:700; color:#4A5D73; text-align:center; }
+    .cal-day { min-height:108px; background:#F7F9FC; border:1px solid #EEF1F6; border-radius:10px; padding:5px; cursor:pointer; overflow:hidden; }
+    .cal-day.off { background:#fff; border-style:dashed; cursor:default; }
+    .cal-day.hoy { border-color:#0d6efd; box-shadow:0 0 0 1px #0d6efd; }
+    .cal-day.fer { background:#FDECEA; }
+    .cal-n { font-size:.72rem; font-weight:700; color:#4A5D73; }
+    .cal-ev { display:flex; gap:4px; align-items:flex-start; font-size:.7rem; line-height:1.2; border-radius:6px; padding:2px 4px; margin-top:3px; border-left:3px solid var(--c); background:#fff; cursor:pointer; }
+    .cal-ev.done .t { text-decoration:line-through; opacity:.5; }
+    .cal-ev input { margin-top:1px; flex:none; }
+    .cal-leg span { font-size:.7rem; color:#4A5D73; margin-right:10px; white-space:nowrap; }
+    .cal-leg i { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:4px; }
+    .cal-tab { border:1px solid #E5EAF1; background:#fff; border-radius:999px; padding:3px 12px; font-size:.78rem; font-weight:700; color:#4A5D73; }
+    .cal-tab.on { background:#12263A; color:#fff; border-color:#12263A; }
+
+    /* Panel de alertas compacto */
+    .al-sec { font-size:.7rem; font-weight:700; color:#4A5D73; letter-spacing:.04em; margin:.8rem 0 .3rem; display:flex; justify-content:space-between; }
+    .al-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; font-size:.8rem; cursor:pointer; }
+    .al-row:hover { background:#F3F7FB; }
+    .al-row span { color:#64748b; font-size:.74rem; margin-left:auto; }
+    .al-bad { color:#B4402F; font-weight:800; }
+
+    @@media (max-width:767px) {
+        .cal-grid { grid-template-columns:1fr; }
+        .cal-dow { display:none; }
+        .cal-day { min-height:auto; }
+    }
+</style>
+
+<div class="container py-4" style="max-width:1240px;">
+
+    <!-- ENCABEZADO -->
+    <div class="ps-hero p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h3 class="fw-bold mb-1">Panel Psicosocial</h3>
+            <p class="mb-0 small" style="color:#C9D6E6;">
+                Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento estudiantil
+            </p>
+            <span class="ps-pill mt-2" style="background:#2B4764;color:#fff;">Datos de ejemplo</span>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#modalCitacion">Solicitar citación</button>
+            <button type="button" class="btn btn-outline-light rounded-pill px-4" disabled title="Disponible en una próxima etapa">Importar planilla</button>
+        </div>
+    </div>
+
+    <!-- NÚMEROS CLAVE (arriba) -->
+    <div class="row g-3 mb-4" id="kpis"></div>
+
+    <div class="row g-4 mb-4">
+        <!-- CALENDARIO -->
+        <div class="col-lg-8">
+            <div class="ps-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="cal-tab" id="cPrev">&lsaquo;</button>
+                        <h5 class="fw-bold mb-0" id="cTitulo" style="min-width:150px;text-align:center;"></h5>
+                        <button class="cal-tab" id="cNext">&rsaquo;</button>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button class="cal-tab on" id="vMes">Mes</button>
+                        <button class="cal-tab" id="vHoy">Hoy</button>
+                        <button class="btn btn-primary btn-sm rounded-pill px-3" id="cNueva">+ Nueva nota</button>
+                    </div>
+                </div>
+                <div class="cal-leg mb-2" id="cLeg"></div>
+                <div id="cBody"></div>
+                <div class="small text-secondary mt-2">Marca la casilla cuando una tarea esté realizada. Vista previa: los cambios se compartirán entre psicóloga, orientadora y trabajador social cuando se conecte a la base de datos.</div>
+            </div>
+        </div>
+
+        <!-- ALERTAS (compactas) -->
+        <div class="col-lg-4">
+            <div class="ps-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">Alertas</h5>
+                    <span class="ps-pill" style="background:#FBE4E0;color:#8E2C1F;" id="alTot"></span>
+                </div>
+                <div class="al-sec"><span>ASISTENCIA BAJO 85%</span></div><div id="alAs"></div>
+                <div class="al-sec"><span>DERIVACIONES SIN GESTIONAR</span></div><div id="alDer"></div>
+                <div class="al-sec"><span>CITAS SIN CONFIRMAR</span></div><div id="alCit"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PLANILLA PSICOSOCIAL 2026 -->
+    @await Html.PartialAsync("_PlanillaPsicosocial")
+
+</div>
+
+<!-- MODAL: FICHA DE LA ALUMNA -->
+<div class="modal fade" id="modalFicha" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">Ficha de la alumna</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-3">
+                <div><div class="fs-5 fw-bold" id="fNom"></div><div class="small text-secondary" id="fCur"></div></div>
+                <div class="row g-2">
+                    <div class="col-6"><div class="ps-agenda p-2 text-center"><div class="ps-label">ASISTENCIA</div><div class="fw-bold al-bad" id="fAs"></div></div></div>
+                    <div class="col-6"><div class="ps-agenda p-2 text-center"><div class="ps-label">ANOTACIONES (-)</div><div class="fw-bold" id="fAn"></div></div></div>
+                </div>
+                <div class="ps-bitacora p-3">
+                    <div class="ps-label mb-1">BITÁCORA CONFIDENCIAL</div>
+                    <div id="fLock">
+                        <div class="small text-secondary mb-2">Ingresa tu segunda clave para ver y editar.</div>
+                        <div class="input-group input-group-sm"><input type="password" class="form-control" id="fClave" placeholder="Segunda clave"><button class="btn btn-dark" id="fUnlock">Desbloquear</button></div>
+                    </div>
+                    <div id="fOpen" class="small text-secondary" style="display:none;">Sin entradas de ejemplo. Visible solo para el equipo psicosocial.</div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-dark rounded-pill px-4" id="fNuevo" data-bs-dismiss="modal">Nuevo registro</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: NOTA DEL CALENDARIO -->
+<div class="modal fade" id="modalNota" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header border-0"><h5 class="modal-title fw-bold" id="nTit">Nota</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+            <div class="modal-body">
+                <label class="ps-label mb-1">TÍTULO</label>
+                <input class="form-control mb-3" id="nX" placeholder="Ej: Citación apoderada, Consejo, Taller...">
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><label class="ps-label mb-1">FECHA</label><input type="date" class="form-control" id="nF"></div>
+                    <div class="col-6"><label class="ps-label mb-1">HORA</label><input type="time" class="form-control" id="nH"></div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><label class="ps-label mb-1">TIPO</label><select class="form-select" id="nT"></select></div>
+                    <div class="col-6"><label class="ps-label mb-1">RESPONSABLE</label>
+                        <select class="form-select" id="nR"><option>Psicóloga</option><option>Trabajador social</option><option>Orientadora</option><option>Equipo psicosocial</option></select></div>
+                </div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="nOk"><label class="form-check-label" for="nOk">Realizada</label></div>
+            </div>
+            <div class="modal-footer border-0 justify-content-between">
+                <button class="btn btn-outline-danger rounded-pill px-3" id="nDel">Eliminar</button>
+                <div><button class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="btn btn-primary rounded-pill px-4" id="nSave">Guardar</button></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: SOLICITAR CITACIÓN (visual; se conecta al controlador en el siguiente paso) -->
+<div class="modal fade" id="modalCitacion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px;">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">Solicitar citación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="ps-label mb-1">CITAR A</label>
+                <select class="form-select mb-3"><option>Alumno</option><option>Apoderado</option><option>Profesor jefe</option><option>Alumno + apoderado</option></select>
+                <label class="ps-label mb-1">ESTUDIANTE</label>
+                <input type="text" class="form-control mb-3" value="Matías Rojas P." />
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><label class="ps-label mb-1">FECHA</label><input type="date" class="form-control" /></div>
+                    <div class="col-6"><label class="ps-label mb-1">HORA</label><input type="time" class="form-control" /></div>
+                </div>
+                <label class="ps-label mb-1">MOTIVO</label>
+                <textarea class="form-control" rows="3" placeholder="Seguimiento de asistencia..."></textarea>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4" disabled title="Se conecta en el siguiente paso">Enviar citación</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var iso = function (d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  var MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var TIPOS = { 'Citación':'#0d6efd', 'Taller':'#7c3aed', 'Consejo':'#64748b', 'Coordinación':'#0f9d8a', 'Reunión':'#d98a00', 'Institucional':'#22a35a', 'Feriado':'#d64545' };
+
+  // ---- Números clave (arriba) ----
+  var K = [['Alumnas en seguimiento','93','11 cursos',''],['Alumnas en alerta','9','3 en nivel rojo','#B4402F'],['Derivaciones sin gestionar','3','desde profesores','#B4402F'],
+           ['Citas esta semana','7','2 sin confirmar',''],['Causas judiciales','71','57 informes de julio',''],['Informes evacuados','61','FEMAR-61-2026','']];
+  $('kpis').innerHTML = K.map(function (k) {
+    return '<div class="col-6 col-lg-2"><div class="ps-card p-3 h-100"><div class="ps-label" style="font-size:.66rem">' + k[0].toUpperCase() +
+      '</div><div class="ps-kpi mt-1"' + (k[3] ? ' style="color:' + k[3] + '"' : '') + '>' + k[1] + '</div><div class="small text-secondary">' + k[2] + '</div></div></div>';
+  }).join('');
+
+  // ---- Alertas compactas ----
+  var A = [['Matías Rojas P.','7° A',71,5],['Valentina Soto M.','8° B',78,3],['Benjamín Leiva C.','6° A',83,2],['Catalina Muñoz R.','7° B',84,1]];
+  $('alTot').textContent = '9 alumnas';
+  $('alAs').innerHTML = A.map(function (a, i) { return '<div class="al-row" data-i="' + i + '"><b>' + a[0] + '</b><span>' + a[1] + '</span><i class="al-bad" style="font-style:normal">' + a[2] + '%</i></div>'; }).join('');
+  $('alDer').innerHTML = [['Alumna D','3° Básico','hace 3 días'],['Alumna E','6° Básico','hace 5 días'],['Alumna F','7° Básico','hace 8 días']]
+    .map(function (d) { return '<div class="al-row"><b>' + d[0] + '</b><span>' + d[1] + ' · ' + d[2] + '</span></div>'; }).join('');
+  $('alCit').innerHTML = [['Jue 15 · 15:00','Alumno'],['Lun 19 · 15:00','Apoderada']]
+    .map(function (c) { return '<div class="al-row"><b>' + c[0] + '</b><span>' + c[1] + '</span></div>'; }).join('');
+
+  // ---- Ficha de la alumna ----
+  var fichaM = bootstrap.Modal.getOrCreateInstance($('modalFicha'));
+  $('alAs').onclick = function (e) {
+    var r = e.target.closest('.al-row'); if (!r) return; var a = A[+r.getAttribute('data-i')];
+    $('fNom').textContent = a[0]; $('fCur').textContent = a[1] + ' · Profesor jefe por asignar';
+    $('fAs').textContent = a[2] + '%'; $('fAn').textContent = a[3];
+    $('fLock').style.display = ''; $('fOpen').style.display = 'none'; $('fClave').value = '';
+    fichaM.show();
+  };
+  $('fUnlock').onclick = function () { if ($('fClave').value.length > 0) { $('fLock').style.display = 'none'; $('fOpen').style.display = ''; } };
+  $('fNuevo').onclick = function () { setTimeout(function () { var b = $('psxNew'); if (b) b.click(); }, 300); };
+
+  // ---- Calendario ----
+  var EV = [
+    [5,'09:45','Taller','Formación 5° B'],[6,'08:00','Taller','Taller 1° B'],[6,'13:45','Institucional','Debate'],[6,'16:30','Consejo','Consejo'],
+    [7,'08:30','Institucional','Eucaristía'],[7,'14:30','Citación','Citación apoderada · Alumna A'],
+    [8,'08:30','Citación','Citación apoderada · Alumna B',1],[8,'09:30','Citación','Citación apoderada · Alumna C',1],[8,'15:00','Coordinación','Coordinación con UTP'],
+    [9,'','Institucional','Peso y talla 1° M, 1° B, 5° B'],[12,'','Feriado','Feriado'],[13,'12:00','Coordinación','Coordinación de caso'],[13,'15:15','Citación','Citación apoderada · Alumna D'],
+    [14,'08:00','Reunión','Casos y reunión psicosocial'],[15,'08:00','Institucional','Celebración Día del Profesor'],[16,'','Feriado','Día libre'],
+    [19,'15:00','Citación','Citación apoderada · Alumna E'],[19,'15:40','Citación','Citación apoderada · Alumna F'],[20,'08:00','Taller','Taller 1° Básico'],[20,'16:30','Consejo','Consejo'],
+    [21,'08:15','Citación','Citación apoderada · Alumna G'],[21,'09:00','Coordinación','Coordinación de caso'],[22,'09:00','Coordinación','Coordinación de curso'],
+    [23,'','Institucional','Día de la familia'],[26,'08:00','Taller','Taller 1° Medio'],[27,'16:30','Consejo','Consejo'],[30,'','Institucional','Actividad pastoral']
+  ].map(function (e, i) { return { id: i + 1, f: '2026-10-' + String(e[0]).padStart(2, '0'), h: e[1], t: e[2], x: e[3], r: 'Equipo psicosocial', ok: !!e[4] }; });
+  var nextId = 100, Y = 2026, M = 9, vista = window.innerWidth < 768 ? 'hoy' : 'mes', cur = null;
+  var notaM = bootstrap.Modal.getOrCreateInstance($('modalNota'));
+  $('nT').innerHTML = Object.keys(TIPOS).map(function (t) { return '<option>' + t + '</option>'; }).join('');
+  $('cLeg').innerHTML = Object.keys(TIPOS).map(function (t) { return '<span><i style="background:' + TIPOS[t] + '"></i>' + t + '</span>'; }).join('');
+
+  var chip = function (e) {
+    return '<div class="cal-ev' + (e.ok ? ' done' : '') + '" data-id="' + e.id + '" style="--c:' + TIPOS[e.t] + '"><input type="checkbox" ' + (e.ok ? 'checked' : '') +
+      '><div class="t">' + (e.h ? '<b>' + e.h + '</b> ' : '') + e.x + '</div></div>';
+  };
+  var draw = function () {
+    $('vMes').classList.toggle('on', vista === 'mes'); $('vHoy').classList.toggle('on', vista === 'hoy');
+    if (vista === 'hoy') {
+      var hoy = iso(new Date());
+      var hoyEv = EV.filter(function (e) { return e.f === hoy; }), prox = EV.filter(function (e) { return e.f > hoy; }).sort(function (a, b) { return (a.f + a.h) < (b.f + b.h) ? -1 : 1; }).slice(0, 6);
+      $('cTitulo').textContent = 'Hoy';
+      $('cBody').innerHTML = '<div class="ps-label mb-1">HOY</div>' + (hoyEv.length ? hoyEv.map(chip).join('') : '<div class="small text-secondary mb-2">No hay actividades para hoy.</div>') +
+        '<div class="ps-label mt-3 mb-1">PRÓXIMAS</div>' + prox.map(function (e) { return '<div class="small text-secondary mt-2">' + e.f.slice(8) + '/' + e.f.slice(5, 7) + '</div>' + chip(e); }).join('');
+      return;
+    }
+    $('cTitulo').textContent = MES[M] + ' ' + Y;
+    var first = new Date(Y, M, 1), n = new Date(Y, M + 1, 0).getDate(), lead = (first.getDay() === 0 || first.getDay() === 6) ? 0 : first.getDay() - 1, h = iso(new Date());
+    var html = '<div class="cal-grid">' + ['LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES'].map(function (d) { return '<div class="cal-dow">' + d + '</div>'; }).join('');
+    for (var i = 0; i < lead; i++) html += '<div class="cal-day off"></div>';
+    for (var d = 1; d <= n; d++) {
+      var dt = new Date(Y, M, d); if (dt.getDay() === 0 || dt.getDay() === 6) continue;
+      var f = iso(dt), evs = EV.filter(function (e) { return e.f === f; }).sort(function (a, b) { return a.h < b.h ? -1 : 1; });
+      var fer = evs.some(function (e) { return e.t === 'Feriado'; });
+      html += '<div class="cal-day' + (f === h ? ' hoy' : '') + (fer ? ' fer' : '') + '" data-f="' + f + '"><div class="cal-n">' + d + '</div>' + evs.map(chip).join('') + '</div>';
+    }
+    $('cBody').innerHTML = html + '</div>';
+  };
+  var abrir = function (e, f) {
+    cur = e || null; $('nTit').textContent = e ? 'Editar nota' : 'Nueva nota';
+    $('nX').value = e ? e.x : ''; $('nF').value = e ? e.f : (f || iso(new Date())); $('nH').value = e ? e.h : '';
+    $('nT').value = e ? e.t : 'Citación'; $('nR').value = e ? e.r : 'Psicóloga'; $('nOk').checked = e ? e.ok : false;
+    $('nDel').style.display = e ? '' : 'none'; notaM.show();
+  };
+  $('cBody').onclick = function (ev) {
+    var c = ev.target.closest('.cal-ev');
+    if (c) {
+      var e = EV.filter(function (x) { return x.id === +c.getAttribute('data-id'); })[0];
+      if (ev.target.tagName === 'INPUT') { e.ok = ev.target.checked; draw(); } else abrir(e);
+      return;
+    }
+    var day = ev.target.closest('.cal-day'); if (day && day.getAttribute('data-f')) abrir(null, day.getAttribute('data-f'));
+  };
+  $('nSave').onclick = function () {
+    if (!$('nX').value.trim()) return;
+    var d = { f: $('nF').value, h: $('nH').value, t: $('nT').value, x: $('nX').value.trim(), r: $('nR').value, ok: $('nOk').checked };
+    if (cur) { Object.keys(d).forEach(function (k) { cur[k] = d[k]; }); } else { d.id = nextId++; EV.push(d); }
+    notaM.hide(); draw();
+  };
+  $('nDel').onclick = function () { EV = EV.filter(function (x) { return x !== cur; }); notaM.hide(); draw(); };
+  $('cNueva').onclick = function () { abrir(null); };
+  $('cPrev').onclick = function () { M--; if (M < 0) { M = 11; Y--; } vista = 'mes'; draw(); };
+  $('cNext').onclick = function () { M++; if (M > 11) { M = 0; Y++; } vista = 'mes'; draw(); };
+  $('vMes').onclick = function () { vista = 'mes'; draw(); };
+  $('vHoy').onclick = function () { vista = 'hoy'; draw(); };
+  draw();
+})();
+</script>
+}

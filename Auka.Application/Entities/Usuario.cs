@@ -2,7 +2,7 @@
 
 public enum RolUsuario
 {
-    SuperAdmin = 1,
+    SuperAdmin = 1,          // Administrador de cada colegio
     Director = 2,
     UTP = 3,
     Docente = 4,
@@ -10,7 +10,10 @@ public enum RolUsuario
     Psicologo = 6,
     Psicopedagogo = 7,
     Apoderado = 8,
-    Estudiante = 9
+    Estudiante = 9,
+    TrabajadorSocial = 10,   // Módulo Psicosocial
+    Orientadora = 11,        // Módulo Psicosocial
+    AdminPlataforma = 99     // Dueño de la plataforma Auka: administra colegios y planes
 }
 
 public class Usuario
@@ -37,7 +40,7 @@ public class Usuario
     public int ColegioId { get; set; }
     public bool Activo { get; set; } = true;
 
-    // 🔑 Flag clave: 'true' fuerza el cambio de contraseña en el primer login
+    // Flag clave: 'true' fuerza el cambio de contraseña en el primer login
     public bool DebeCambiarPassword { get; set; } = true;
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 }

@@ -2,28 +2,25 @@ using Auka.Application.Interfaces;
 using Auka.Application.Services;
 using Auka.Infrastructure.Data;
 using Auka.Infrastructure.Repositories;
+using Auka.Web.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurar conexión nativa a PostgreSQL con Npgsql
+// 1. Conexión nativa a PostgreSQL con Npgsql
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("No se encontró la cadena 'DefaultConnection' para PostgreSQL.");
 
-builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
-{
-    var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
-    var tenantClaim = httpContextAccessor.HttpContext?.User.FindFirst("ColegioId")?.Value;
-    int tenantId = int.TryParse(tenantClaim, out var id) ? id : 0;
+// Multitenant: el colegio sale del claim "ColegioId" de la sesión
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantProvider, HttpTenantProvider>();
 
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
         npgsqlOptions.MigrationsAssembly("Auka.Infrastructure");
         npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorCodesToAdd: null);
-    });
-});
-
-builder.Services.AddHttpContextAccessor();
+    }));
 
 // 2. Inyección de Patrones de Servicio de Auka
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -40,6 +37,21 @@ builder.Services.AddAuthentication("AukaAuthCookie")
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
     });
+
+// 3.1 Políticas de autorización
+builder.Services.AddAuthorization(options =>
+{
+    // Solo colegios con el módulo Psicosocial activo
+    options.AddPolicy("PsicosocialPremium", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireClaim("PlanPsicosocial", "true"));
+
+    // Equipo psicosocial: el rol correcto Y el colegio con el módulo activo
+    options.AddPolicy("EquipoPsicosocial", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole("Psicologo", "Psicopedagogo", "TrabajadorSocial", "Orientadora")
+              .RequireClaim("PlanPsicosocial", "true"));
+});
 
 builder.Services.AddControllersWithViews();
 

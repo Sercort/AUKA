@@ -1,20 +1,26 @@
 ﻿using Auka.Application.Entities;
+using Auka.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
-using System.Reflection;
 
 namespace Auka.Infrastructure.Data;
 
 public class ApplicationDbContext : DbContext
 {
-    private readonly int _currentTenantId;
+    private readonly ITenantProvider _tenantProvider;
 
-    // Constructor compatible con .NET 8 e inyección de dependencias
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    // El colegio de la sesión llega por inyección de dependencias (ver HttpTenantProvider)
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ITenantProvider tenantProvider)
         : base(options)
     {
-        _currentTenantId = 1; // Tenant por defecto para desarrollo local
+        _tenantProvider = tenantProvider;
     }
+
+    /// <summary>
+    /// Colegio (tenant) de la sesión actual. EF Core lo lee en cada consulta, por eso el
+    /// filtro global cambia de colegio sin recrear el modelo. 0 = sin sesión.
+    /// </summary>
+    public int CurrentTenantId => _tenantProvider.TenantId;
 
     // -----------------------------------------------------------------
     // Colecciones DbSet del Dominio Auka
@@ -33,6 +39,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Anotacion> Anotaciones { get; set; } = null!;
     public DbSet<AnotacionEliminada> AnotacionesEliminadas { get; set; } = null!;
     public DbSet<BitacoraPsicosocial> BitacorasPsicosociales { get; set; } = null!;
+    public DbSet<Asistencia> Asistencias { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,35 +59,38 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Anotacion>().ToTable("Anotaciones");
         modelBuilder.Entity<AnotacionEliminada>().ToTable("AnotacionesEliminadas");
         modelBuilder.Entity<BitacoraPsicosocial>().ToTable("BitacorasPsicosociales");
+        modelBuilder.Entity<Asistencia>().ToTable("Asistencias");
 
         modelBuilder.Entity<EstudianteApoderado>()
             .ToTable("EstudiantesApoderados")
             .HasKey(ea => ea.Id);
 
-        // Aplicación SEGURA de Global Query Filters (Soft Delete y Multitenant)
+        // Global Query Filters: Soft Delete + Multitenant (por ColegioId)
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            // 🛡️ EXCLUIR TALLER DEL FILTRO DINÁMICO (Previene la inyección de columnas inexistentes)
+            // Taller se excluye del filtro dinámico (no tiene las columnas esperadas)
             if (entityType.ClrType == typeof(Taller)) continue;
 
             var parameter = Expression.Parameter(entityType.ClrType, "e");
             Expression? filter = null;
 
-            // 1. Filtro de Borrado Lógico (Solo si la entidad contiene explícitamente la propiedad 'IsDeleted')
+            // 1. Borrado lógico (solo si la entidad tiene 'IsDeleted')
             var isDeletedProp = entityType.FindProperty("IsDeleted");
             if (isDeletedProp != null && isDeletedProp.ClrType == typeof(bool))
             {
                 var isDeletedProperty = Expression.Property(parameter, "IsDeleted");
-                var isNotDeleted = Expression.Equal(isDeletedProperty, Expression.Constant(false));
-                filter = isNotDeleted;
+                filter = Expression.Equal(isDeletedProperty, Expression.Constant(false));
             }
 
-            // 2. Filtro Multitenant (Solo si la entidad contiene explícitamente la propiedad 'ColegioId')
+            // 2. Multitenant (solo si la entidad tiene 'ColegioId').
+            //    IMPORTANTE: se compara contra una PROPIEDAD de este contexto, no contra una constante.
+            //    Así el valor se evalúa en cada consulta y cada sesión ve solo su colegio.
             var tenantProp = entityType.FindProperty("ColegioId");
             if (tenantProp != null && tenantProp.ClrType == typeof(int))
             {
                 var tenantProperty = Expression.Property(parameter, "ColegioId");
-                var tenantMatches = Expression.Equal(tenantProperty, Expression.Constant(_currentTenantId));
+                var currentTenant = Expression.Property(Expression.Constant(this), nameof(CurrentTenantId));
+                var tenantMatches = Expression.Equal(tenantProperty, currentTenant);
                 filter = filter == null ? tenantMatches : Expression.AndAlso(filter, tenantMatches);
             }
 
@@ -94,9 +104,22 @@ public class ApplicationDbContext : DbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        var tenantId = CurrentTenantId;
+
         foreach (var entry in ChangeTracker.Entries())
         {
-            // Interceptor de Borrado Físico -> Soft Delete
+            // Todo registro nuevo queda asociado al colegio de la sesión (si no lo trae asignado)
+            if (entry.State == EntityState.Added && tenantId > 0)
+            {
+                var colegioIdProp = entry.Metadata.FindProperty("ColegioId");
+                if (colegioIdProp != null && colegioIdProp.ClrType == typeof(int)
+                    && Equals(entry.Property("ColegioId").CurrentValue, 0))
+                {
+                    entry.Property("ColegioId").CurrentValue = tenantId;
+                }
+            }
+
+            // Borrado físico -> Soft Delete
             if (entry.State == EntityState.Deleted)
             {
                 var isDeletedProp = entry.Metadata.FindProperty("IsDeleted");
@@ -107,7 +130,7 @@ public class ApplicationDbContext : DbContext
                 }
             }
 
-            // Interceptor de Auditoría de Fechas
+            // Auditoría de fechas
             if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
             {
                 var fechaModificacion = entry.Metadata.FindProperty("FechaUltimaModificacion");
