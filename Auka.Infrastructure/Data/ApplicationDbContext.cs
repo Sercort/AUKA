@@ -9,15 +9,15 @@ public class ApplicationDbContext : DbContext
 {
     private readonly int _currentTenantId;
 
-    // Constructor compatible con .NET 8 e inyección de dependencias
+    // Constructor compatible con .NET 8 e inyección de dependencias[cite: 7]
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
-        _currentTenantId = 1; // Tenant por defecto para desarrollo local
+        _currentTenantId = 1; // Tenant por defecto para desarrollo local[cite: 7]
     }
 
     // -----------------------------------------------------------------
-    // Colecciones DbSet del Dominio Auka
+    // Colecciones DbSet del Dominio Auka (Soporte completo para controladores)[cite: 7]
     // -----------------------------------------------------------------
     public DbSet<Colegio> Colegios { get; set; } = null!;
     public DbSet<Usuario> Usuarios { get; set; } = null!;
@@ -33,12 +33,13 @@ public class ApplicationDbContext : DbContext
     public DbSet<Anotacion> Anotaciones { get; set; } = null!;
     public DbSet<AnotacionEliminada> AnotacionesEliminadas { get; set; } = null!;
     public DbSet<BitacoraPsicosocial> BitacorasPsicosociales { get; set; } = null!;
+    public DbSet<Asistencia> Asistencias { get; set; } = null!; // 👈 REGISTRO REQUERIDO PARA EL DASHBOARD
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Mapeo explícito de tablas en PostgreSQL
+        // Mapeo explícito de tablas en PostgreSQL[cite: 7]
         modelBuilder.Entity<Colegio>().ToTable("Colegios");
         modelBuilder.Entity<Usuario>().ToTable("Usuarios");
         modelBuilder.Entity<Apoderado>().ToTable("Apoderados");
@@ -52,21 +53,23 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Anotacion>().ToTable("Anotaciones");
         modelBuilder.Entity<AnotacionEliminada>().ToTable("AnotacionesEliminadas");
         modelBuilder.Entity<BitacoraPsicosocial>().ToTable("BitacorasPsicosociales");
+        modelBuilder.Entity<Asistencia>().ToTable("Asistencias");
 
+        // Mapeo de Clave Primaria para la relación intermedia EstudianteApoderado[cite: 7]
         modelBuilder.Entity<EstudianteApoderado>()
             .ToTable("EstudiantesApoderados")
             .HasKey(ea => ea.Id);
 
-        // Aplicación SEGURA de Global Query Filters (Soft Delete y Multitenant)
+        // Aplicación SEGURA de Global Query Filters (Soft Delete y Multitenant)[cite: 7]
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            // 🛡️ EXCLUIR TALLER DEL FILTRO DINÁMICO (Previene la inyección de columnas inexistentes)
+            // 🛡️ EXCLUIR TALLER DEL FILTRO DINÁMICO (Previene la inyección de columnas inexistentes)[cite: 7]
             if (entityType.ClrType == typeof(Taller)) continue;
 
             var parameter = Expression.Parameter(entityType.ClrType, "e");
             Expression? filter = null;
 
-            // 1. Filtro de Borrado Lógico (Solo si la entidad contiene explícitamente la propiedad 'IsDeleted')
+            // 1. Filtro de Borrado Lógico (Solo si la entidad contiene explícitamente 'IsDeleted')[cite: 7]
             var isDeletedProp = entityType.FindProperty("IsDeleted");
             if (isDeletedProp != null && isDeletedProp.ClrType == typeof(bool))
             {
@@ -75,7 +78,7 @@ public class ApplicationDbContext : DbContext
                 filter = isNotDeleted;
             }
 
-            // 2. Filtro Multitenant (Solo si la entidad contiene explícitamente la propiedad 'ColegioId')
+            // 2. Filtro Multitenant (Solo si la entidad contiene explícitamente 'ColegioId')[cite: 7]
             var tenantProp = entityType.FindProperty("ColegioId");
             if (tenantProp != null && tenantProp.ClrType == typeof(int))
             {
@@ -96,7 +99,7 @@ public class ApplicationDbContext : DbContext
     {
         foreach (var entry in ChangeTracker.Entries())
         {
-            // Interceptor de Borrado Físico -> Soft Delete
+            // Interceptor de Borrado Físico -> Soft Delete[cite: 7]
             if (entry.State == EntityState.Deleted)
             {
                 var isDeletedProp = entry.Metadata.FindProperty("IsDeleted");
@@ -107,7 +110,7 @@ public class ApplicationDbContext : DbContext
                 }
             }
 
-            // Interceptor de Auditoría de Fechas
+            // Interceptor de Auditoría de Fechas[cite: 7]
             if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
             {
                 var fechaModificacion = entry.Metadata.FindProperty("FechaUltimaModificacion");

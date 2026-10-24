@@ -143,6 +143,44 @@ namespace Auka.Infrastructure.Migrations
                     b.ToTable("Asignaturas", (string)null);
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.Asistencia", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AsignaturaId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("EnRangoColegio")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("EstudianteId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("LatitudCapturada")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LongitudCapturada")
+                        .HasColumnType("double precision");
+
+                    b.Property<bool>("Presente")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AsignaturaId");
+
+                    b.HasIndex("EstudianteId");
+
+                    b.ToTable("Asistencias", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.BitacoraPsicosocial", b =>
                 {
                     b.Property<int>("Id")
@@ -264,6 +302,9 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<bool>("PlanPsicosocialActivo")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Rut")
                         .IsRequired()
@@ -613,6 +654,25 @@ namespace Auka.Infrastructure.Migrations
                     b.Navigation("Curso");
 
                     b.Navigation("Docente");
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.Asistencia", b =>
+                {
+                    b.HasOne("Auka.Application.Entities.Asignatura", "Asignatura")
+                        .WithMany()
+                        .HasForeignKey("AsignaturaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Auka.Application.Entities.Estudiante", "Estudiante")
+                        .WithMany()
+                        .HasForeignKey("EstudianteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Asignatura");
+
+                    b.Navigation("Estudiante");
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.Calificacion", b =>
