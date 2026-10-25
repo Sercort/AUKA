@@ -3,306 +3,897 @@
    Sin modelo ni dependencias: se incluye desde Index.cshtml con
    @await Html.PartialAsync("_PlanillaPsicosocial") *@
 <style>
-.psx{--ink:#14233a;--mut:#64748b;--line:#e5eaf1;--bg:#f6f8fb;--b:#0d6efd;margin-top:1.5rem;color:var(--ink)}
-.psx *{box-sizing:border-box}
-.psx-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem}
-.psx-head h5{margin:0;font-weight:700}
-.psx-tabs{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:1rem}
-.psx-tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:.4rem .9rem;font-size:.85rem;font-weight:600;color:var(--mut);cursor:pointer}
-.psx-tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.psx-pane{display:none}.psx-pane.on{display:block}
-.psx-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1.1rem;margin-bottom:1rem;overflow-x:auto}
-.psx-card h6{font-weight:700;margin:0 0 .75rem}
-.psx-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
-.psx-kpis{display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:1rem}
-.psx-kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:.9rem}
-.psx-kpi small{display:block;color:var(--mut);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
-.psx-kpi b{font-size:1.7rem;line-height:1.2}.psx-kpi span{display:block;font-size:.75rem;color:var(--mut)}
-.psx-row{display:flex;align-items:center;gap:.6rem;font-size:.82rem;margin:.35rem 0}
-.psx-row em{font-style:normal;width:84px;flex:none;color:var(--mut)}
-.psx-bar{flex:1;background:var(--bg);border-radius:6px;height:12px;overflow:hidden}
-.psx-bar i{display:block;height:100%;background:var(--b);border-radius:6px}
-.psx-row b{width:30px;text-align:right}
-.psx-t{width:100%;border-collapse:collapse;font-size:.82rem}
-.psx-t th{text-align:left;color:var(--mut);font-size:.7rem;text-transform:uppercase;padding:.45rem .5rem;border-bottom:1px solid var(--line);white-space:nowrap}
-.psx-t td{padding:.55rem .5rem;border-bottom:1px solid var(--bg);vertical-align:top}
-.psx-c{display:inline-block;padding:.15rem .55rem;border-radius:999px;font-size:.7rem;font-weight:700;white-space:nowrap}
-.psx-c.ok{background:#dcf5e6;color:#15803d}.psx-c.warn{background:#fdf1d3;color:#8a5a00}
-.psx-c.bad{background:#fde2e2;color:#b42323}.psx-c.info{background:#e3edff;color:#1d4ed8}.psx-c.nil{background:var(--bg);color:var(--mut)}
-.psx-dots{display:flex;gap:3px}.psx-dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
-.psx-dots i.d2{background:#22a35a}.psx-dots i.d1{background:#f0a500}
-.psx-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:.35rem .8rem;font-size:.8rem;font-weight:600}
-.psx-btn.p{background:var(--b);border-color:var(--b);color:#fff}.psx-btn:disabled{opacity:.55}
-.psx-kan{display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-.psx-col{background:var(--bg);border-radius:12px;padding:.7rem}.psx-col h6{font-size:.8rem;color:var(--mut)}
-.psx-note{background:#fff;border:1px solid var(--line);border-radius:10px;padding:.6rem;font-size:.8rem;margin-top:.5rem}
-.psx-leg{font-size:.72rem;color:var(--mut);margin-top:.5rem}
-.psx-in{width:100%;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;font-size:.85rem;background:#fff}
-.psx-find-row{display:flex;gap:.5rem;flex-wrap:wrap}.psx-find-row .psx-in{flex:1;min-width:200px}.psx-find-row select{max-width:190px}
-.psx-res{margin-top:.5rem}
-.psx-it{display:flex;align-items:center;gap:.6rem;padding:.5rem .6rem;border-radius:8px;cursor:pointer;font-size:.84rem}
-.psx-it:hover{background:var(--bg)}.psx-it span{color:var(--mut);margin-left:auto;font-size:.78rem}
-.psx-ov{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(20,35,58,.55);z-index:2000;align-items:center;justify-content:center;padding:1rem}
-.psx-ov.on{display:flex}
-.psx-mod{background:#fff;border-radius:16px;width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column}
-.psx-mh{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.2rem;border-bottom:1px solid var(--line)}
-.psx-x{border:0;background:none;font-size:1.5rem;line-height:1;color:var(--mut)}
-.psx-steps{display:flex;gap:.4rem;padding:.7rem 1.2rem 0}
-.psx-st{font-size:.75rem;font-weight:700;color:var(--mut);padding:.2rem .6rem;border-radius:999px;background:var(--bg)}.psx-st.on{background:var(--ink);color:#fff}
-.psx-mb{padding:1rem 1.2rem;overflow-y:auto}
-.psx-mf{display:flex;justify-content:space-between;padding:.8rem 1.2rem;border-top:1px solid var(--line)}
-.psx-fg{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-.psx-fc{border:1px solid var(--line);border-radius:12px;padding:.7rem;cursor:pointer;font-size:.8rem}
-.psx-fc b{display:block;font-size:.88rem}.psx-fc span{color:var(--mut)}
-.psx-fc:hover{border-color:var(--b)}.psx-fc.on{border-color:var(--b);background:#eef4ff}
-.psx-fgrid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:.7rem}
-.psx-f span{display:block;font-size:.72rem;font-weight:700;color:var(--mut);text-transform:uppercase;margin-bottom:.2rem}
+    .psx {
+        --ink: #14233a;
+        --mut: #64748b;
+        --line: #e5eaf1;
+        --bg: #f6f8fb;
+        --b: #0d6efd;
+        margin-top: 1.5rem;
+        color: var(--ink)
+    }
+
+        .psx * {
+            box-sizing: border-box
+        }
+
+    .psx-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .5rem;
+        margin-bottom: .75rem
+    }
+
+        .psx-head h5 {
+            margin: 0;
+            font-weight: 700
+        }
+
+    .psx-tabs {
+        display: flex;
+        gap: .35rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem
+    }
+
+    .psx-tab {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 999px;
+        padding: .4rem .9rem;
+        font-size: .85rem;
+        font-weight: 600;
+        color: var(--mut);
+        cursor: pointer
+    }
+
+        .psx-tab.on {
+            background: var(--ink);
+            color: #fff;
+            border-color: var(--ink)
+        }
+
+    .psx-pane {
+        display: none
+    }
+
+        .psx-pane.on {
+            display: block
+        }
+
+    .psx-card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 1.1rem;
+        margin-bottom: 1rem;
+        overflow-x: auto
+    }
+
+        .psx-card h6 {
+            font-weight: 700;
+            margin: 0 0 .75rem
+        }
+
+    .psx-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit,minmax(260px,1fr))
+    }
+
+    .psx-kpis {
+        display: grid;
+        gap: .75rem;
+        grid-template-columns: repeat(auto-fit,minmax(150px,1fr));
+        margin-bottom: 1rem
+    }
+
+    .psx-kpi {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: .9rem
+    }
+
+        .psx-kpi small {
+            display: block;
+            color: var(--mut);
+            font-size: .7rem;
+            text-transform: uppercase;
+            letter-spacing: .04em
+        }
+
+        .psx-kpi b {
+            font-size: 1.7rem;
+            line-height: 1.2
+        }
+
+        .psx-kpi span {
+            display: block;
+            font-size: .75rem;
+            color: var(--mut)
+        }
+
+    .psx-row {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        font-size: .82rem;
+        margin: .35rem 0
+    }
+
+        .psx-row em {
+            font-style: normal;
+            width: 84px;
+            flex: none;
+            color: var(--mut)
+        }
+
+    .psx-bar {
+        flex: 1;
+        background: var(--bg);
+        border-radius: 6px;
+        height: 12px;
+        overflow: hidden
+    }
+
+        .psx-bar i {
+            display: block;
+            height: 100%;
+            background: var(--b);
+            border-radius: 6px
+        }
+
+    .psx-row b {
+        width: 30px;
+        text-align: right
+    }
+
+    .psx-t {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .82rem
+    }
+
+        .psx-t th {
+            text-align: left;
+            color: var(--mut);
+            font-size: .7rem;
+            text-transform: uppercase;
+            padding: .45rem .5rem;
+            border-bottom: 1px solid var(--line);
+            white-space: nowrap
+        }
+
+        .psx-t td {
+            padding: .55rem .5rem;
+            border-bottom: 1px solid var(--bg);
+            vertical-align: top
+        }
+
+    .psx-c {
+        display: inline-block;
+        padding: .15rem .55rem;
+        border-radius: 999px;
+        font-size: .7rem;
+        font-weight: 700;
+        white-space: nowrap
+    }
+
+        .psx-c.ok {
+            background: #dcf5e6;
+            color: #15803d
+        }
+
+        .psx-c.warn {
+            background: #fdf1d3;
+            color: #8a5a00
+        }
+
+        .psx-c.bad {
+            background: #fde2e2;
+            color: #b42323
+        }
+
+        .psx-c.info {
+            background: #e3edff;
+            color: #1d4ed8
+        }
+
+        .psx-c.nil {
+            background: var(--bg);
+            color: var(--mut)
+        }
+
+    .psx-dots {
+        display: flex;
+        gap: 3px
+    }
+
+        .psx-dots i {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--line)
+        }
+
+            .psx-dots i.d2 {
+                background: #22a35a
+            }
+
+            .psx-dots i.d1 {
+                background: #f0a500
+            }
+
+    .psx-btn {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 8px;
+        padding: .35rem .8rem;
+        font-size: .8rem;
+        font-weight: 600
+    }
+
+        .psx-btn.p {
+            background: var(--b);
+            border-color: var(--b);
+            color: #fff
+        }
+
+        .psx-btn:disabled {
+            opacity: .55
+        }
+
+    .psx-kan {
+        display: grid;
+        gap: .75rem;
+        grid-template-columns: repeat(auto-fit,minmax(200px,1fr))
+    }
+
+    .psx-col {
+        background: var(--bg);
+        border-radius: 12px;
+        padding: .7rem
+    }
+
+        .psx-col h6 {
+            font-size: .8rem;
+            color: var(--mut)
+        }
+
+    .psx-note {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: .6rem;
+        font-size: .8rem;
+        margin-top: .5rem
+    }
+
+    .psx-leg {
+        font-size: .72rem;
+        color: var(--mut);
+        margin-top: .5rem
+    }
+
+    .psx-in {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: .4rem .6rem;
+        font-size: .85rem;
+        background: #fff
+    }
+
+    .psx-find-row {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap
+    }
+
+        .psx-find-row .psx-in {
+            flex: 1;
+            min-width: 200px
+        }
+
+        .psx-find-row select {
+            max-width: 190px
+        }
+
+    .psx-res {
+        margin-top: .5rem
+    }
+
+    .psx-it {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        padding: .5rem .6rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: .84rem
+    }
+
+        .psx-it:hover {
+            background: var(--bg)
+        }
+
+        .psx-it span {
+            color: var(--mut);
+            margin-left: auto;
+            font-size: .78rem
+        }
+
+    .psx-ov {
+        display: none;
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        background: rgba(20,35,58,.55);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem
+    }
+
+        .psx-ov.on {
+            display: flex
+        }
+
+    .psx-mod {
+        background: #fff;
+        border-radius: 16px;
+        width: 100%;
+        max-width: 720px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column
+    }
+
+    .psx-mh {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.2rem;
+        border-bottom: 1px solid var(--line)
+    }
+
+    .psx-x {
+        border: 0;
+        background: none;
+        font-size: 1.5rem;
+        line-height: 1;
+        color: var(--mut)
+    }
+
+    .psx-steps {
+        display: flex;
+        gap: .4rem;
+        padding: .7rem 1.2rem 0
+    }
+
+    .psx-st {
+        font-size: .75rem;
+        font-weight: 700;
+        color: var(--mut);
+        padding: .2rem .6rem;
+        border-radius: 999px;
+        background: var(--bg)
+    }
+
+        .psx-st.on {
+            background: var(--ink);
+            color: #fff
+        }
+
+    .psx-mb {
+        padding: 1rem 1.2rem;
+        overflow-y: auto
+    }
+
+    .psx-mf {
+        display: flex;
+        justify-content: space-between;
+        padding: .8rem 1.2rem;
+        border-top: 1px solid var(--line)
+    }
+
+    .psx-fg {
+        display: grid;
+        gap: .6rem;
+        grid-template-columns: repeat(auto-fit,minmax(200px,1fr))
+    }
+
+    .psx-fc {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: .7rem;
+        cursor: pointer;
+        font-size: .8rem
+    }
+
+        .psx-fc b {
+            display: block;
+            font-size: .88rem
+        }
+
+        .psx-fc span {
+            color: var(--mut)
+        }
+
+        .psx-fc:hover {
+            border-color: var(--b)
+        }
+
+        .psx-fc.on {
+            border-color: var(--b);
+            background: #eef4ff
+        }
+
+    .psx-fgrid {
+        display: grid;
+        gap: .7rem;
+        grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+        margin-top: .7rem
+    }
+
+    .psx-f span {
+        display: block;
+        font-size: .72rem;
+        font-weight: 700;
+        color: var(--mut);
+        text-transform: uppercase;
+        margin-bottom: .2rem
+    }
 </style>
 
 <section class="psx" id="psx">
-  <div class="psx-head">
-    <h5>Planilla Psicosocial 2026</h5>
-    <div><span class="psx-c warn">Datos ficticios de ejemplo</span>
-      <button class="psx-btn" disabled>Importar planilla</button>
-      <button class="psx-btn p" id="psxNew">+ Nuevo registro</button></div>
-  </div>
-  <div class="psx-card">
-    <h6>Buscar alumna</h6>
-    <div class="psx-find-row"><select id="sCur" class="psx-in"></select>
-      <input id="sTxt" class="psx-in" placeholder="Nombre, RUT o curso del módulo psicosocial..."></div>
-    <div id="sRes" class="psx-res"></div>
-  </div>
-  <div class="psx-tabs" id="psxTabs"></div>
-
-  <div class="psx-pane" data-p="Resumen">
-    
-    <div class="psx-grid">
-      <div class="psx-card"><h6>Alumnas en seguimiento por curso</h6><div id="gCur"></div></div>
-      <div class="psx-card"><h6>Informes judiciales de julio</h6><div id="gInf"></div>
-        <h6 style="margin-top:1rem">Periodicidad de informes</h6><div id="gPer"></div></div>
-      <div class="psx-card"><h6>Asistencia en monitoreo</h6><div id="gAs"></div>
-        <p class="psx-leg">Menciones de asistencia en la calendarización; bajo 85% se marca como riesgo.</p></div>
+    <div class="psx-head">
+        <h5>Planilla Psicosocial 2026</h5>
+        <div>
+            <span class="psx-c warn">Datos ficticios de ejemplo</span>
+            <button class="psx-btn" id="bImp">Importar planilla</button>
+            <button class="psx-btn" id="bAdd">+ Agregar alumnas</button>
+            <button class="psx-btn" id="bYear">Pasar de año</button>
+            <span class="psx-c ok" id="psxMsg" style="display:none"></span>
+            <button class="psx-btn p" id="psxNew">+ Nuevo registro</button>
+        </div>
     </div>
-  </div>
-
-  <div class="psx-pane" data-p="Seguimiento">
-    <div class="psx-card"><div class="psx-head"><h6>Calendarización de seguimiento</h6>
-      <select id="fCur" class="psx-btn"></select></div>
-      <div id="tSeg"></div>
-      <p class="psx-leg"><span class="psx-dots" style="display:inline-flex"><i class="d2"></i></span> realizado &nbsp;
-        <span class="psx-dots" style="display:inline-flex"><i class="d1"></i></span> pendiente &nbsp;
-        <span class="psx-dots" style="display:inline-flex"><i></i></span> sin acción &nbsp; (Mar a Dic)</p></div>
-  </div>
-
-  <div class="psx-pane" data-p="Judicial">
-    <div class="psx-grid" style="grid-template-columns:2fr 1fr">
-      <div class="psx-card"><h6>Casos judicializados</h6><div id="tJud"></div></div>
-      <div class="psx-card"><h6>Correlativo de informes</h6>
-        <p style="margin:0">Próximo N°: <b>FEMAR-62-2026</b></p>
-        <button class="psx-btn p" style="margin:.6rem 0" disabled>Generar correlativo</button><div id="tCor"></div></div>
+    <div class="psx-card">
+        <h6>Buscar alumna</h6>
+        <div class="psx-find-row">
+            <select id="sCur" class="psx-in"></select>
+            <input id="sTxt" class="psx-in" placeholder="Nombre, RUT o curso del módulo psicosocial...">
+        </div>
+        <div id="sRes" class="psx-res"></div>
     </div>
-  </div>
+    <div class="psx-tabs" id="psxTabs"></div>
 
-  <div class="psx-pane" data-p="Derivaciones">
-    <div class="psx-card"><h6>Derivación a convivencia escolar</h6><div id="tCon"></div></div>
-    <div class="psx-card"><h6>Derivación a profesores tutores</h6><div id="tTut"></div></div>
-  </div>
+    <div class="psx-pane" data-p="Resumen">
 
-  <div class="psx-pane" data-p="Terreno">
-    <div class="psx-card"><h6>Visitas domiciliarias (V.D.)</h6><div id="tVD"></div></div>
-  </div>
-
-  <div class="psx-pane" data-p="Beneficios">
-    <div class="psx-grid">
-      <div class="psx-card"><h6>Pro-retención</h6><div id="tPro"></div></div>
-      <div class="psx-card"><h6>Inventario de ropa</h6><div id="gInv"></div>
-        <p class="psx-leg">Stock bajo (3 o menos) se marca en rojo.</p></div>
+        <div class="psx-grid">
+            <div class="psx-card"><h6>Alumnas en seguimiento por curso</h6><div id="gCur"></div></div>
+            <div class="psx-card">
+                <h6>Informes judiciales de julio</h6><div id="gInf"></div>
+                <h6 style="margin-top:1rem">Periodicidad de informes</h6><div id="gPer"></div>
+            </div>
+            <div class="psx-card">
+                <h6>Asistencia en monitoreo</h6><div id="gAs"></div>
+                <p class="psx-leg">Menciones de asistencia en la calendarización; bajo 85% se marca como riesgo.</p>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div class="psx-pane" data-p="Egresos y plan">
-    <div class="psx-card"><h6>Egresos psicosociales</h6><div id="tEgr"></div></div>
-    <div class="psx-card"><h6>Plan de acción: estudiantes críticos</h6><div class="psx-kan" id="kan"></div></div>
-  </div>
-<div class="psx-ov" id="psxOv"><div class="psx-mod">
-    <div class="psx-mh"><b>Nuevo registro</b><button class="psx-x" id="mX">&times;</button></div>
-    <div class="psx-steps" id="mS"></div>
-    <div class="psx-mb" id="mB"></div>
-    <div class="psx-mf"><button class="psx-btn" id="mBack">Atrás</button><button class="psx-btn p" id="mNext">Siguiente</button></div>
-  </div></div>
+    <div class="psx-pane" data-p="Seguimiento">
+        <div class="psx-card">
+            <div class="psx-head">
+                <h6>Calendarización de seguimiento</h6>
+                <select id="fCur" class="psx-btn"></select>
+            </div>
+            <div id="tSeg"></div>
+            <p class="psx-leg">
+                <span class="psx-dots" style="display:inline-flex"><i class="d2"></i></span> realizado &nbsp;
+                <span class="psx-dots" style="display:inline-flex"><i class="d1"></i></span> pendiente &nbsp;
+                <span class="psx-dots" style="display:inline-flex"><i></i></span> sin acción &nbsp; (Mar a Dic)
+            </p>
+        </div>
+    </div>
+
+    <div class="psx-pane" data-p="Judicial">
+        <div class="psx-grid" style="grid-template-columns:2fr 1fr">
+            <div class="psx-card"><h6>Casos judicializados</h6><div id="tJud"></div></div>
+            <div class="psx-card">
+                <h6>Correlativo de informes</h6>
+                <p style="margin:0">Próximo N°: <b>FEMAR-62-2026</b></p>
+                <button class="psx-btn p" style="margin:.6rem 0" disabled>Generar correlativo</button><div id="tCor"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="psx-pane" data-p="Derivaciones">
+        <div class="psx-card"><h6>Derivación a convivencia escolar</h6><div id="tCon"></div></div>
+        <div class="psx-card"><h6>Derivación a profesores tutores</h6><div id="tTut"></div></div>
+    </div>
+
+    <div class="psx-pane" data-p="Terreno">
+        <div class="psx-card"><h6>Visitas domiciliarias (V.D.)</h6><div id="tVD"></div></div>
+    </div>
+
+    <div class="psx-pane" data-p="Beneficios">
+        <div class="psx-card">
+            <div class="psx-head">
+                <h6>Pro-retención: sets</h6>
+                <div><button class="psx-btn" id="bSetE">Editar sets</button> <button class="psx-btn" id="bStock">Registrar ingreso</button> <button class="psx-btn" id="bGI">Guía de ingreso</button> <button class="psx-btn p" id="bGD">Guía de despacho</button></div>
+            </div>
+            <div class="psx-fg" id="bSets"></div>
+        </div>
+        <div class="psx-grid">
+            <div class="psx-card"><h6>Entrega por alumna</h6><div id="tEnt"></div></div>
+            <div class="psx-card">
+                <h6>Inventario de ropa</h6><div id="tInv"></div>
+                <p class="psx-leg">Stock bajo = igual o menor al mínimo. En este módulo no se maneja dinero.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="psx-pane" data-p="Vacunación">
+        <div class="psx-card">
+            <div class="psx-head">
+                <h6>Listado para vacunación (CESFAM)</h6>
+                <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
+                    <select id="vCur" class="psx-btn"></select><span class="psx-c info" id="vN"></span>
+                    <button class="psx-btn" id="vCsv">Exportar Excel (CSV)</button> <button class="psx-btn p" id="vPrn">Imprimir</button>
+                </div>
+            </div>
+            <div id="tVac"></div>
+            <p class="psx-leg">Datos de menores: solo para personal autorizado. Nombres y RUT de ejemplo, ficticios.</p>
+        </div>
+    </div>
+
+    <div class="psx-pane" data-p="Egresos y plan">
+        <div class="psx-card"><h6>Egresos psicosociales</h6><div id="tEgr"></div></div>
+        <div class="psx-card"><h6>Plan de acción: estudiantes críticos</h6><div class="psx-kan" id="kan"></div></div>
+    </div>
+    <div class="psx-ov" id="psxOv">
+        <div class="psx-mod">
+            <div class="psx-mh"><b>Nuevo registro</b><button class="psx-x" id="mX">&times;</button></div>
+            <div class="psx-steps" id="mS"></div>
+            <div class="psx-mb" id="mB"></div>
+            <div class="psx-mf"><button class="psx-btn" id="mBack">Atrás</button><button class="psx-btn p" id="mNext">Siguiente</button></div>
+        </div>
+    </div>
+    <div class="psx-ov" id="dgOv">
+        <div class="psx-mod">
+            <div class="psx-mh"><b id="dgT"></b><button class="psx-x" id="dgX">&times;</button></div>
+            <div class="psx-mb" id="dgB"></div>
+            <div class="psx-mf"><button class="psx-btn" id="dgC">Cancelar</button><button class="psx-btn p" id="dgOk">Guardar</button></div>
+        </div>
+    </div>
 </section>
 
 <script>
-(function () {
-  var $ = function (id) { return document.getElementById(id); };
-  var c = function (t, k) { return '<span class="psx-c ' + k + '">' + t + '</span>'; };
-  var T = function (h, r) {
-    return '<table class="psx-t"><thead><tr>' + h.map(function (x) { return '<th>' + x + '</th>'; }).join('') +
-      '</tr></thead><tbody>' + r.map(function (a) { return '<tr>' + a.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
-  };
-  var B = function (rows, max, col) {
-    return rows.map(function (r) {
-      return '<div class="psx-row"><em>' + r[0] + '</em><div class="psx-bar"><i style="width:' + Math.round(r[1] / max * 100) + '%;' +
-        (r[2] || col ? 'background:' + (r[2] || col) : '') + '"></i></div><b>' + r[1] + '</b></div>';
-    }).join('');
-  };
-  var dots = function (a) { return '<div class="psx-dots">' + a.map(function (s) { return '<i class="d' + s + '"></i>'; }).join('') + '</div>'; };
-  var asis = function (n) { return c(n + '%', n < 85 ? 'bad' : 'ok'); };
+    (function () {
+      var $ = function (id) { return document.getElementById(id); };
+      var c = function (t, k) { return '<span class="psx-c ' + k + '">' + t + '</span>'; };
+      var T = function (h, r) {
+        return '<table class="psx-t"><thead><tr>' + h.map(function (x) { return '<th>' + x + '</th>'; }).join('') +
+          '</tr></thead><tbody>' + r.map(function (a) { return '<tr>' + a.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+      };
+      var B = function (rows, max, col) {
+        return rows.map(function (r) {
+          return '<div class="psx-row"><em>' + r[0] + '</em><div class="psx-bar"><i style="width:' + Math.round(r[1] / max * 100) + '%;' +
+            (r[2] || col ? 'background:' + (r[2] || col) : '') + '"></i></div><b>' + r[1] + '</b></div>';
+        }).join('');
+      };
+      var dots = function (a) { return '<div class="psx-dots">' + a.map(function (s) { return '<i class="d' + s + '"></i>'; }).join('') + '</div>'; };
+      var asis = function (n) { return c(n + '%', n < 85 ? 'bad' : 'ok'); };
 
-  // Totales reales de la planilla; nombres, RIT y fechas son ficticios
-  var cursos = [['1° Básico',7],['2° Básico',7],['3° Básico',5],['4° Básico',8],['5° Básico',21],['7° Básico',5],['8° Básico',9],['I° Medio',5],['II° Medio',10],['III° Medio',8],['IV° Medio',8]];
-  var seg = [
-    ['Camila R.','5° Básico','Monitorear caso individual y familiar',[2,2,2,1,2,2,1,0,0,0],64],
-    ['Sofía M.','1° Básico','Mejorar asistencia, citar apoderada',[2,2,2,2,2,2,2,1,0,0],82],
-    ['Valentina P.','II° Medio','Coordinación con programa externo',[0,2,2,2,2,1,1,0,0,0],91],
-    ['Isidora L.','8° Básico','Visualización social y grupo de pares',[2,0,2,2,2,2,0,0,0,0],77],
-    ['Javiera T.','5° Básico','Acompañamiento y rol del apoderado',[2,2,2,2,2,2,2,2,0,0],96]];
+      // Totales reales de la planilla; nombres, RIT y fechas son ficticios
+      var cursos = [['1° Básico',7],['2° Básico',7],['3° Básico',5],['4° Básico',8],['5° Básico',21],['7° Básico',5],['8° Básico',9],['I° Medio',5],['II° Medio',10],['III° Medio',8],['IV° Medio',8]];
+      var seg = [
+        ['Camila R.','5° Básico','Monitorear caso individual y familiar',[2,2,2,1,2,2,1,0,0,0],64],
+        ['Sofía M.','1° Básico','Mejorar asistencia, citar apoderada',[2,2,2,2,2,2,2,1,0,0],82],
+        ['Valentina P.','II° Medio','Coordinación con programa externo',[0,2,2,2,2,1,1,0,0,0],91],
+        ['Isidora L.','8° Básico','Visualización social y grupo de pares',[2,0,2,2,2,2,0,0,0,0],77],
+        ['Javiera T.','5° Básico','Acompañamiento y rol del apoderado',[2,2,2,2,2,2,2,2,0,0],96]];
 
-  if ($('k')) $('k').innerHTML = [['Alumnas en seguimiento','93','11 cursos'],['Causas judiciales','71','57 informes de julio enviados'],
-    ['Informes evacuados','61','FEMAR-61-2026'],['Visitas domiciliarias','20','2 responsables'],
-    ['Derivaciones convivencia','9','8 egresadas'],['Bajo 85% asistencia','42%','76 de 179 menciones']]
-    .map(function (k) { return '<div class="psx-kpi"><small>' + k[0] + '</small><b>' + k[1] + '</b><span>' + k[2] + '</span></div>'; }).join('');
-  $('gCur').innerHTML = B(cursos, 21);
-  $('gInf').innerHTML = B([['Enviado',57,'#22a35a'],['No procede',6,'#94a3b8'],['Sin dato',6,'#f0a500'],['Retirada',2,'#e25555']], 57);
-  $('gPer').innerHTML = B([['Semestral',21],['Trimestral',10],['Mensual',1],['Por oficio',1]], 21);
-  $('gAs').innerHTML = B([['Bajo 85%',76,'#e25555'],['85% o más',103,'#22a35a']], 103);
+      if ($('k')) $('k').innerHTML = [['Alumnas en seguimiento','93','11 cursos'],['Causas judiciales','71','57 informes de julio enviados'],
+        ['Informes evacuados','61','FEMAR-61-2026'],['Visitas domiciliarias','20','2 responsables'],
+        ['Derivaciones convivencia','9','8 egresadas'],['Bajo 85% asistencia','42%','76 de 179 menciones']]
+        .map(function (k) { return '<div class="psx-kpi"><small>' + k[0] + '</small><b>' + k[1] + '</b><span>' + k[2] + '</span></div>'; }).join('');
+      $('gCur').innerHTML = B(cursos, 21);
+      $('gInf').innerHTML = B([['Enviado',57,'#22a35a'],['No procede',6,'#94a3b8'],['Sin dato',6,'#f0a500'],['Retirada',2,'#e25555']], 57);
+      $('gPer').innerHTML = B([['Semestral',21],['Trimestral',10],['Mensual',1],['Por oficio',1]], 21);
+      $('gAs').innerHTML = B([['Bajo 85%',76,'#e25555'],['85% o más',103,'#22a35a']], 103);
 
-  var sel = $('fCur');
-  sel.innerHTML = '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('');
-  var drawSeg = function () {
-    var f = sel.value;
-    $('tSeg').innerHTML = T(['Alumna','Curso','Objetivo / acuerdo','Mar a Dic','Asistencia'],
-      seg.filter(function (r) { return !f || r[1] === f; }).map(function (r) { return [r[0], r[1], r[2], dots(r[3]), asis(r[4])]; }));
-  };
-  sel.onchange = drawSeg; drawSeg();
+      var sel = $('fCur');
+      sel.innerHTML = '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('');
+      var drawSeg = function () {
+        var f = sel.value;
+        $('tSeg').innerHTML = T(['Alumna','Curso','Objetivo / acuerdo','Mar a Dic','Asistencia'],
+          seg.filter(function (r) { return !f || r[1] === f; }).map(function (r) { return [r[0], r[1], r[2], dots(r[3]), asis(r[4])]; }));
+      };
+      sel.onchange = drawSeg; drawSeg();
 
-  $('tJud').innerHTML = T(['Alumna','Curso','Causa','RIT','Informe jul','Informe dic','Periodicidad'], [
-    ['Alumna A','1° Básico','Externo','X-000-2025',c('Enviado','ok'),c('Pendiente','warn'),'Semestral'],
-    ['Alumna B','2° Básico','Interno 2026','P-000-2026',c('Enviado','ok'),c('Pendiente','warn'),'Trimestral'],
-    ['Alumna C','5° Básico','Sin dato',c('Sin RIT','bad'),c('No procede','nil'),c('Cerrada','info'),'No procede']]);
-  $('tCor').innerHTML = T(['N°','Ord.','Fecha'], [['61','FEMAR-61-2026','29-07'],['60','FEMAR-60-2026','28-07'],['59','FEMAR-59-2026','27-07']]);
+      $('tJud').innerHTML = T(['Alumna','Curso','Causa','RIT','Informe jul','Informe dic','Periodicidad'], [
+        ['Alumna A','1° Básico','Externo','X-000-2025',c('Enviado','ok'),c('Pendiente','warn'),'Semestral'],
+        ['Alumna B','2° Básico','Interno 2026','P-000-2026',c('Enviado','ok'),c('Pendiente','warn'),'Trimestral'],
+        ['Alumna C','5° Básico','Sin dato',c('Sin RIT','bad'),c('No procede','nil'),c('Cerrada','info'),'No procede']]);
+      $('tCor').innerHTML = T(['N°','Ord.','Fecha'], [['61','FEMAR-61-2026','29-07'],['60','FEMAR-60-2026','28-07'],['59','FEMAR-59-2026','27-07']]);
 
-  $('tCon').innerHTML = T(['Fecha','Curso','Apoderada','Intervención','Mediación','Situación'], [
-    ['01-06','4° Básico','Registro en Lirmi',c('Procede','ok'),'Reparación y psicoeducación',c('Egreso','ok')],
-    ['01-06','1° Medio / 7° Básico','Registro en Lirmi',c('Procede','ok'),'Monitoreo y psicoeducación',c('Monitoreo','warn')]]);
-  $('tTut').innerHTML = T(['Curso','Estudiante','Objetivo / acuerdo','Estado'], [
-    ['3° Básico','Alumna D','Reforzar normas dentro del aula',c('En curso','info')],
-    ['6° Básico','Alumna E','Visualizar derivación a salud',c('En curso','info')],
-    ['7° Básico','Alumna F','Monitoreo de asistencia',c('Pendiente','warn')]]);
+      $('tCon').innerHTML = T(['Fecha','Curso','Apoderada','Intervención','Mediación','Situación'], [
+        ['01-06','4° Básico','Registro en Lirmi',c('Procede','ok'),'Reparación y psicoeducación',c('Egreso','ok')],
+        ['01-06','1° Medio / 7° Básico','Registro en Lirmi',c('Procede','ok'),'Monitoreo y psicoeducación',c('Monitoreo','warn')]]);
+      $('tTut').innerHTML = T(['Curso','Estudiante','Objetivo / acuerdo','Estado'], [
+        ['3° Básico','Alumna D','Reforzar normas dentro del aula',c('En curso','info')],
+        ['6° Básico','Alumna E','Visualizar derivación a salud',c('En curso','info')],
+        ['7° Básico','Alumna F','Monitoreo de asistencia',c('Pendiente','warn')]]);
 
-  $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], [
-    ['07-04','Alumna G','Pje. Ejemplo 1196',c('PM','info'),'Claudio Rivera',c('OK','ok')],
-    ['07-04','Alumna H','Calle Roble 9262',c('PM','info'),'Claudio Rivera',c('OK','ok')],
-    ['04-03','Alumna I','Sin dato',c('AM','info'),'Zadid Berrios',c('OK','ok')]]);
+      $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], [
+        ['07-04','Alumna G','Pje. Ejemplo 1196',c('PM','info'),'Claudio Rivera',c('OK','ok')],
+        ['07-04','Alumna H','Calle Roble 9262',c('PM','info'),'Claudio Rivera',c('OK','ok')],
+        ['04-03','Alumna I','Sin dato',c('AM','info'),'Zadid Berrios',c('OK','ok')]]);
 
-  $('tPro').innerHTML = T(['Curso','Beneficio','Estado'], [
-    ['8° Básico','Set 1',c('Entregado','ok')],['1° Medio','Set 2',c('Entregado','ok')],['2° Medio','Set 1',c('Entregado','ok')]]);
-  $('gInv').innerHTML = B([['Polera blanca',22],['Jumper',15],['Blazer',7],['Chaqueta polar',3,'#e25555'],['Camisa blanca',2,'#e25555']], 22);
 
-  $('tEgr').innerHTML = T(['Alumna','Curso','Motivo','Fecha'], [
-    ['Alumna J','6° Básico',c('Egreso','ok'),'27-05'],['Alumna K','8° Básico',c('Retirada del colegio','nil'),'—'],
-    ['Alumna L','3° Medio',c('Egreso con compromisos','info'),'29-05']]);
-  $('kan').innerHTML = [['Por iniciar','warn','Alumna M · Mejorar asistencia bajo 70%'],['En curso','info','Alumna N · Apoyo psicológico externo'],['Logrado','ok','Alumna O · Compromiso cumplido']]
-    .map(function (k) { return '<div class="psx-col"><h6>' + k[0] + '</h6><div class="psx-note">' + k[2] + '<br>' + c(k[0], k[1]) + '</div></div>'; }).join('');
 
-  // ---- Nuevo registro: fichas de la planilla + buscador de alumnas (visual) ----
-  var alu = [['Camila R.','5° Básico','24.000.001-1',64],['Sofía M.','1° Básico','24.000.002-2',82],['Valentina P.','II° Medio','24.000.003-3',91],['Isidora L.','8° Básico','24.000.004-4',77],['Javiera T.','5° Básico','24.000.005-5',96],['Antonia B.','4° Básico','24.000.006-6',80],['Renata C.','7° Básico','24.000.007-7',69],['Martina S.','III° Medio','24.000.008-8',88],['Emilia V.','2° Básico','24.000.009-9',73],['Josefa H.','I° Medio','24.000.010-0',85]];
-  var MES = ['Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  var F = [
-    {k:'seg',n:'Seguimiento mensual',d:'Calendarización: acciones y asistencia del mes',al:1,f:[['Mes','s',MES],['Tipo de acción','s',['Carta de compromiso','Monitoreo','Entrevista presencial','Citación a apoderado','Observación en aula','Coordinación con programa externo']],['Asistencia (%)','n'],['Objetivo / acuerdo','a'],['Observaciones','a']]},
-    {k:'jud',n:'Caso judicializado',d:'RIT, informes y resoluciones',al:1,f:[['Origen de la causa','s',['Interno','Externo']],['Año de apertura','n'],['RIT de la causa','t'],['Informe de julio','s',['Enviado','Pendiente','No procede']],['Informe de diciembre','s',['Pendiente','Enviado','Causa cerrada','No procede']],['Periodicidad','s',['Mensual','Trimestral','Semestral','Solo por oficio']],['Resumen de resoluciones','a']]},
-    {k:'inf',n:'Informe evacuado',d:'Correlativo FEMAR automático',al:1,f:[['N° correlativo','t','FEMAR-62-2026'],['Fecha','d'],['Destinatario','t'],['Detalle','a']]},
-    {k:'vd',n:'Visita domiciliaria',d:'Fecha, dirección, jornada y responsable',al:1,f:[['Fecha','d'],['Dirección','t'],['Jornada','s',['AM','PM']],['Responsable','t'],['Pago','s',['Pendiente','OK']],['Observaciones','a']]},
-    {k:'conv',n:'Derivación a convivencia escolar',d:'Entrevista, intervención y mediación',al:1,f:[['Fecha','d'],['Entrevista con apoderada','s',['Registro en Lirmi','Procede','No procede']],['Intervención con alumna','s',['Procede','No procede']],['Mediación / acciones','a'],['Situación actual','s',['Monitoreo','Egreso']]]},
-    {k:'tut',n:'Derivación a profesor tutor',d:'Objetivos y acuerdos con el tutor',al:1,f:[['Profesor tutor','t'],['Objetivos / acuerdos','a'],['Estado','s',['Pendiente','En curso','Logrado']]]},
-    {k:'plan',n:'Plan de acción (crítica)',d:'Objetivos, estrategias y estado',al:1,f:[['Objetivos de intervención','a'],['Estrategias','a'],['Estado de objetivos','s',['Por iniciar','En curso','Logrado']]]},
-    {k:'pro',n:'Beneficio pro-retención',d:'Entrega de sets y beneficios',al:1,f:[['Año','s',['2026','2025']],['Beneficio','s',['Set 1','Set 2','Tablet']],['Estado','s',['Pendiente','Entregado']]]},
-    {k:'ropa',n:'Movimiento de inventario',d:'Entrada o entrega de ropa',al:0,f:[['Prenda','s',['Blazer','Camisa blanca','Chaqueta polar','Jumper','Polera piqué','Zapatos','Calcetas','Mochila']],['Talla','t'],['Cantidad','n'],['Tipo','s',['Entrada','Entrega a alumna']]]},
-    {k:'egr',n:'Egreso psicosocial',d:'Motivo, fecha y citación final',al:1,f:[['Motivo','s',['Egreso','Egreso con compromisos','Retirada del colegio']],['Fecha','d'],['Citación a apoderada','d'],['Observaciones','a']]}
-  ];
-  var fld = function (f) {
-    var t = f[1], h = '<label class="psx-f"><span>' + f[0] + '</span>';
-    if (t === 's') h += '<select class="psx-in">' + f[2].map(function (o) { return '<option>' + o + '</option>'; }).join('') + '</select>';
-    else if (t === 'a') h += '<textarea class="psx-in" rows="3"></textarea>';
-    else h += '<input class="psx-in" type="' + (t === 'd' ? 'date' : t === 'n' ? 'number' : 'text') + '"' + (f[2] ? ' value="' + f[2] + '" readonly' : '') + '>';
-    return h + '</label>';
-  };
-  var curOpts = '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('');
-  var rows = function (q, cu) {
-    q = (q || '').toLowerCase();
-    return alu.filter(function (a) { return (!cu || a[1] === cu) && (!q || (a[0] + ' ' + a[1] + ' ' + a[2]).toLowerCase().indexOf(q) > -1); });
-  };
-  var list = function (l) {
-    return l.length ? l.map(function (a) { return '<div class="psx-it" data-n="' + a[2] + '"><b>' + a[0] + '</b><span>' + a[1] + ' · ' + a[2] + '</span>' + asis(a[3]) + '</div>'; }).join('')
-      : '<p class="psx-leg">Sin resultados</p>';
-  };
-  var byRut = function (n) { return alu.filter(function (a) { return a[2] === n; })[0]; };
-  var wireSearch = function (selId, txtId, resId, onPick) {
-    var s = $(selId), t = $(txtId), r = $(resId);
-    s.innerHTML = curOpts;
-    var go = function () {
-      r.innerHTML = (!s.value && !t.value) ? '<p class="psx-leg">Elige un curso o escribe un nombre, RUT o curso.</p>' : list(rows(t.value, s.value).slice(0, 6));
-    };
-    s.onchange = go; t.oninput = go; go();
-    r.onclick = function (e) { var it = e.target.closest('.psx-it'); if (it) onPick(byRut(it.getAttribute('data-n'))); };
-  };
+      $('tEgr').innerHTML = T(['Alumna','Curso','Motivo','Fecha'], [
+        ['Alumna J','6° Básico',c('Egreso','ok'),'27-05'],['Alumna K','8° Básico',c('Retirada del colegio','nil'),'—'],
+        ['Alumna L','3° Medio',c('Egreso con compromisos','info'),'29-05']]);
+      $('kan').innerHTML = [['Por iniciar','warn','Alumna M · Mejorar asistencia bajo 70%'],['En curso','info','Alumna N · Apoyo psicológico externo'],['Logrado','ok','Alumna O · Compromiso cumplido']]
+        .map(function (k) { return '<div class="psx-col"><h6>' + k[0] + '</h6><div class="psx-note">' + k[2] + '<br>' + c(k[0], k[1]) + '</div></div>'; }).join('');
 
-  var ov = $('psxOv'), mB = $('mB'), st = { s: 1, f: null, a: null, done: 0 };
-  var draw = function () {
-    $('mS').innerHTML = ['1 Ficha', '2 Alumna', '3 Datos'].map(function (x, i) { return '<span class="psx-st' + (st.s === i + 1 ? ' on' : '') + '">' + x + '</span>'; }).join('');
-    var h = '';
-    if (st.s === 1) {
-      h = '<p class="psx-leg" style="margin:0 0 .6rem">Elige la ficha que quieres completar</p><div class="psx-fg">' +
-        F.map(function (f) { return '<div class="psx-fc' + (st.f && st.f.k === f.k ? ' on' : '') + '" data-k="' + f.k + '"><b>' + f.n + '</b><span>' + f.d + '</span></div>'; }).join('') + '</div>';
-    } else if (st.s === 2) {
-      h = '<div class="psx-find-row"><select id="mCur" class="psx-in"></select><input id="mTxt" class="psx-in" placeholder="Buscar por nombre, RUT o curso"></div>' +
-        '<div id="mRes" class="psx-res"></div><div id="mSel" style="margin-top:.6rem">' + (st.a ? c('Seleccionada: ' + st.a[0] + ' · ' + st.a[1], 'ok') : '') + '</div>';
-    } else {
-      h = '<div>' + c(st.f.n, 'info') + (st.a ? ' ' + c(st.a[0] + ' · ' + st.a[1], 'nil') : '') + '</div><div class="psx-fgrid">' + st.f.f.map(fld).join('') + '</div>';
-    }
-    mB.innerHTML = h;
-    $('mBack').style.visibility = st.s > 1 ? 'visible' : 'hidden';
-    $('mNext').textContent = st.s === 3 ? 'Guardar ficha' : 'Siguiente';
-    $('mNext').disabled = (st.s === 1 && !st.f) || (st.s === 2 && !st.a);
-    if (st.s === 2) wireSearch('mCur', 'mTxt', 'mRes', function (a) {
-      st.a = a; $('mSel').innerHTML = c('Seleccionada: ' + a[0] + ' · ' + a[1], 'ok'); $('mNext').disabled = false;
-    });
-  };
-  var openM = function (a) { st = { s: 1, f: null, a: a || null, done: 0 }; ov.classList.add('on'); draw(); };
-  var closeM = function () { ov.classList.remove('on'); };
-  mB.onclick = function (e) {
-    var fc = e.target.closest('.psx-fc');
-    if (fc) { st.f = F.filter(function (f) { return f.k === fc.getAttribute('data-k'); })[0]; draw(); }
-  };
-  $('mNext').onclick = function () {
-    if (st.done) { closeM(); return; }
-    if (st.s === 1) st.s = st.f.al ? 2 : 3;
-    else if (st.s === 2) st.s = 3;
-    else {
-      st.done = 1;
-      mB.innerHTML = '<div class="psx-note">Vista previa: la ficha <b>' + st.f.n + '</b>' + (st.a ? ' de <b>' + st.a[0] + '</b>' : '') + ' todavía no se guarda en la base de datos.</div>';
-      $('mNext').textContent = 'Cerrar'; $('mBack').style.visibility = 'hidden'; return;
-    }
-    draw();
-  };
-  $('mBack').onclick = function () { st.s = (st.s === 3 && st.f.al) ? 2 : 1; draw(); };
-  $('mX').onclick = closeM;
-  ov.onclick = function (e) { if (e.target === ov) closeM(); };
-  $('psxNew').onclick = function () { openM(null); };
-  wireSearch('sCur', 'sTxt', 'sRes', function (a) { openM(a); });
-  var q0 = new URLSearchParams(window.location.search).get('q');
-  if (q0) { $('sTxt').value = q0; $('sTxt').oninput(); }
+      // ---- Nuevo registro: fichas de la planilla + buscador de alumnas (visual) ----
+      var alu = [['Camila R.','5° Básico','24.000.001-1',64],['Sofía M.','1° Básico','24.000.002-2',82],['Valentina P.','II° Medio','24.000.003-3',91],['Isidora L.','8° Básico','24.000.004-4',77],['Javiera T.','5° Básico','24.000.005-5',96],['Antonia B.','4° Básico','24.000.006-6',80],['Renata C.','7° Básico','24.000.007-7',69],['Martina S.','III° Medio','24.000.008-8',88],['Emilia V.','2° Básico','24.000.009-9',73],['Josefa H.','I° Medio','24.000.010-0',85]];
+      var MES = ['Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      var F = [
+        {k:'seg',n:'Seguimiento mensual',d:'Calendarización: acciones y asistencia del mes',al:1,f:[['Mes','s',MES],['Tipo de acción','s',['Carta de compromiso','Monitoreo','Entrevista presencial','Citación a apoderado','Observación en aula','Coordinación con programa externo']],['Asistencia (%)','n'],['Objetivo / acuerdo','a'],['Observaciones','a']]},
+        {k:'jud',n:'Caso judicializado',d:'RIT, informes y resoluciones',al:1,f:[['Origen de la causa','s',['Interno','Externo']],['Año de apertura','n'],['RIT de la causa','t'],['Informe de julio','s',['Enviado','Pendiente','No procede']],['Informe de diciembre','s',['Pendiente','Enviado','Causa cerrada','No procede']],['Periodicidad','s',['Mensual','Trimestral','Semestral','Solo por oficio']],['Resumen de resoluciones','a']]},
+        {k:'inf',n:'Informe evacuado',d:'Correlativo FEMAR automático',al:1,f:[['N° correlativo','t','FEMAR-62-2026'],['Fecha','d'],['Destinatario','t'],['Detalle','a']]},
+        {k:'vd',n:'Visita domiciliaria',d:'Fecha, dirección, jornada y responsable',al:1,f:[['Fecha','d'],['Dirección','t'],['Jornada','s',['AM','PM']],['Responsable','t'],['Pago','s',['Pendiente','OK']],['Observaciones','a']]},
+        {k:'conv',n:'Derivación a convivencia escolar',d:'Entrevista, intervención y mediación',al:1,f:[['Fecha','d'],['Entrevista con apoderada','s',['Registro en Lirmi','Procede','No procede']],['Intervención con alumna','s',['Procede','No procede']],['Mediación / acciones','a'],['Situación actual','s',['Monitoreo','Egreso']]]},
+        {k:'tut',n:'Derivación a profesor tutor',d:'Objetivos y acuerdos con el tutor',al:1,f:[['Profesor tutor','t'],['Objetivos / acuerdos','a'],['Estado','s',['Pendiente','En curso','Logrado']]]},
+        {k:'plan',n:'Plan de acción (crítica)',d:'Objetivos, estrategias y estado',al:1,f:[['Objetivos de intervención','a'],['Estrategias','a'],['Estado de objetivos','s',['Por iniciar','En curso','Logrado']]]},
+        {k:'pro',n:'Beneficio pro-retención',d:'Entrega de sets y beneficios',al:1,f:[['Año','s',['2026','2025']],['Beneficio','s',['Set 1','Set 2','Tablet']],['Estado','s',['Pendiente','Entregado']]]},
+        {k:'ropa',n:'Movimiento de inventario',d:'Entrada o entrega de ropa',al:0,f:[['Prenda','s',['Blazer','Camisa blanca','Chaqueta polar','Jumper','Polera piqué','Zapatos','Calcetas','Mochila']],['Talla','t'],['Cantidad','n'],['Tipo','s',['Entrada','Entrega a alumna']]]},
+        {k:'egr',n:'Egreso psicosocial',d:'Motivo, fecha y citación final',al:1,f:[['Motivo','s',['Egreso','Egreso con compromisos','Retirada del colegio']],['Fecha','d'],['Citación a apoderada','d'],['Observaciones','a']]}
+      ];
+      var fld = function (f) {
+        var t = f[1], h = '<label class="psx-f"><span>' + f[0] + '</span>';
+        if (t === 's') h += '<select class="psx-in">' + f[2].map(function (o) { return '<option>' + o + '</option>'; }).join('') + '</select>';
+        else if (t === 'a') h += '<textarea class="psx-in" rows="3"></textarea>';
+        else h += '<input class="psx-in" type="' + (t === 'd' ? 'date' : t === 'n' ? 'number' : 'text') + '"' + (f[2] ? ' value="' + f[2] + '" readonly' : '') + '>';
+        return h + '</label>';
+      };
+      var curOpts = '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('');
+      var rows = function (q, cu) {
+        q = (q || '').toLowerCase();
+        return alu.filter(function (a) { return (!cu || a[1] === cu) && (!q || (a[0] + ' ' + a[1] + ' ' + a[2]).toLowerCase().indexOf(q) > -1); });
+      };
+      var list = function (l) {
+        return l.length ? l.map(function (a) { return '<div class="psx-it" data-n="' + a[2] + '"><b>' + a[0] + '</b><span>' + a[1] + ' · ' + a[2] + '</span>' + asis(a[3]) + '</div>'; }).join('')
+          : '<p class="psx-leg">Sin resultados</p>';
+      };
+      var byRut = function (n) { return alu.filter(function (a) { return a[2] === n; })[0]; };
+      var wireSearch = function (selId, txtId, resId, onPick) {
+        var s = $(selId), t = $(txtId), r = $(resId);
+        s.innerHTML = curOpts;
+        var go = function () {
+          r.innerHTML = (!s.value && !t.value) ? '<p class="psx-leg">Elige un curso o escribe un nombre, RUT o curso.</p>' : list(rows(t.value, s.value).slice(0, 6));
+        };
+        s.onchange = go; t.oninput = go; go();
+        r.onclick = function (e) { var it = e.target.closest('.psx-it'); if (it) onPick(byRut(it.getAttribute('data-n'))); };
+      };
 
-  var tabs = $('psxTabs'), panes = document.querySelectorAll('#psx .psx-pane');
-  panes.forEach(function (p, i) {
-    var b = document.createElement('button');
-    b.className = 'psx-tab' + (i ? '' : ' on'); b.textContent = p.getAttribute('data-p');
-    b.onclick = function () {
-      tabs.querySelectorAll('.psx-tab').forEach(function (x) { x.classList.remove('on'); });
-      panes.forEach(function (x) { x.classList.remove('on'); });
-      b.classList.add('on'); p.classList.add('on');
-    };
-    tabs.appendChild(b); if (!i) p.classList.add('on');
-  });
-})();
+      var ov = $('psxOv'), mB = $('mB'), st = { s: 1, f: null, a: null, done: 0 };
+      var draw = function () {
+        $('mS').innerHTML = ['1 Ficha', '2 Alumna', '3 Datos'].map(function (x, i) { return '<span class="psx-st' + (st.s === i + 1 ? ' on' : '') + '">' + x + '</span>'; }).join('');
+        var h = '';
+        if (st.s === 1) {
+          h = '<p class="psx-leg" style="margin:0 0 .6rem">Elige la ficha que quieres completar</p><div class="psx-fg">' +
+            F.map(function (f) { return '<div class="psx-fc' + (st.f && st.f.k === f.k ? ' on' : '') + '" data-k="' + f.k + '"><b>' + f.n + '</b><span>' + f.d + '</span></div>'; }).join('') + '</div>';
+        } else if (st.s === 2) {
+          h = '<div class="psx-find-row"><select id="mCur" class="psx-in"></select><input id="mTxt" class="psx-in" placeholder="Buscar por nombre, RUT o curso"></div>' +
+            '<div id="mRes" class="psx-res"></div><div id="mSel" style="margin-top:.6rem">' + (st.a ? c('Seleccionada: ' + st.a[0] + ' · ' + st.a[1], 'ok') : '') + '</div>';
+        } else {
+          h = '<div>' + c(st.f.n, 'info') + (st.a ? ' ' + c(st.a[0] + ' · ' + st.a[1], 'nil') : '') + '</div><div class="psx-fgrid">' + st.f.f.map(fld).join('') + '</div>';
+        }
+        mB.innerHTML = h;
+        $('mBack').style.visibility = st.s > 1 ? 'visible' : 'hidden';
+        $('mNext').textContent = st.s === 3 ? 'Guardar ficha' : 'Siguiente';
+        $('mNext').disabled = (st.s === 1 && !st.f) || (st.s === 2 && !st.a);
+        if (st.s === 2) wireSearch('mCur', 'mTxt', 'mRes', function (a) {
+          st.a = a; $('mSel').innerHTML = c('Seleccionada: ' + a[0] + ' · ' + a[1], 'ok'); $('mNext').disabled = false;
+        });
+      };
+      var openM = function (a) { st = { s: 1, f: null, a: a || null, done: 0 }; ov.classList.add('on'); draw(); };
+      var closeM = function () { ov.classList.remove('on'); };
+      mB.onclick = function (e) {
+        var fc = e.target.closest('.psx-fc');
+        if (fc) { st.f = F.filter(function (f) { return f.k === fc.getAttribute('data-k'); })[0]; draw(); }
+      };
+      $('mNext').onclick = function () {
+        if (st.done) { closeM(); return; }
+        if (st.s === 1) st.s = st.f.al ? 2 : 3;
+        else if (st.s === 2) st.s = 3;
+        else {
+          st.done = 1;
+          mB.innerHTML = '<div class="psx-note">Vista previa: la ficha <b>' + st.f.n + '</b>' + (st.a ? ' de <b>' + st.a[0] + '</b>' : '') + ' todavía no se guarda en la base de datos.</div>';
+          $('mNext').textContent = 'Cerrar'; $('mBack').style.visibility = 'hidden'; return;
+        }
+        draw();
+      };
+      $('mBack').onclick = function () { st.s = (st.s === 3 && st.f.al) ? 2 : 1; draw(); };
+      $('mX').onclick = closeM;
+      ov.onclick = function (e) { if (e.target === ov) closeM(); };
+      $('psxNew').onclick = function () { openM(null); };
+      wireSearch('sCur', 'sTxt', 'sRes', function (a) { openM(a); });
+      var q0 = new URLSearchParams(window.location.search).get('q');
+      if (q0) { $('sTxt').value = q0; $('sTxt').oninput(); }
+
+      // ---- Diálogo genérico ----
+      var dgOk = null;
+      var dlg = function (t, html, ok, label) { $('dgT').textContent = t; $('dgB').innerHTML = html; $('dgOk').textContent = label || 'Guardar'; dgOk = ok; $('dgOv').classList.add('on'); };
+      var dgClose = function () { $('dgOv').classList.remove('on'); };
+      $('dgX').onclick = dgClose; $('dgC').onclick = dgClose;
+      $('dgOv').onclick = function (e) { if (e.target === $('dgOv')) dgClose(); };
+      $('dgOk').onclick = function () { if (dgOk && dgOk() === false) return; dgClose(); };
+      var msg = function (t) { var m = $('psxMsg'); m.textContent = t + ' (vista previa)'; m.style.display = ''; setTimeout(function () { m.style.display = 'none'; }, 4500); };
+      var descargar = function (nombre, texto) {
+        var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' })); a.download = nombre; a.click();
+      };
+
+      // ---- Guía imprimible (estilo guía de despacho) ----
+      var guia = function (titulo, cab, filas, sinFirma, caja, firmas) {
+        var w = window.open('', '_blank'); if (!w) return;
+        w.document.write('<html><head><title>' + titulo + '</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#14233a;font-size:13px}h2{margin:0}.top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #14233a;padding-bottom:10px}.nro{border:2px solid #14233a;padding:8px 14px;text-align:center;font-weight:bold}.box{border:1px solid #999;padding:10px;margin-top:12px;display:flex;gap:24px;flex-wrap:wrap}table{width:100%;border-collapse:collapse;margin:14px 0}th,td{border:1px solid #999;padding:8px;text-align:left}th{background:#eef2f7}.obs{border:1px solid #999;height:60px;padding:6px;margin-top:6px}.f{display:flex;justify-content:space-between;margin-top:60px}.f div{border-top:1px solid #000;width:40%;text-align:center;padding-top:6px}</style><\/head><body>' +
+          '<div class="top"><div><h2>AUKA · Módulo Psicosocial</h2><div>Establecimiento: ______________________</div><div>Fecha: ' + new Date().toLocaleDateString('es-CL') + '</div></div><div class="nro">' + titulo.toUpperCase() + '<br>N° 0001</div></div>' +
+          '<p><b>' + cab + '</b></p>' + (caja ? '<div class="box">' + caja + '</div>' : '') +
+          '<table><thead><tr>' + filas[0].map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          filas.slice(1).map(function (r) { return '<tr>' + r.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
+          (sinFirma ? '' : '<div>Observaciones:</div><div class="obs"></div><div class="f"><div>' + (firmas ? firmas[0] : 'Entrega') + '</div><div>' + (firmas ? firmas[1] : 'Recibe / retira conforme') + '</div></div>') + '<\/body><\/html>');
+        w.document.close(); w.focus(); w.print();
+      };
+
+      // ---- Sets de beneficios (editables) ----
+      var SETS = [{ n: 'Set 1', it: ['Mochila', 'Poleras', 'Parka', 'Zapatos', 'Útiles escolares'], e: 38, t: 52 }, { n: 'Set 2', it: ['Tablet'], e: 12, t: 20 }], ANIO = '2026';
+      var drawSets = function () {
+        $('bSets').innerHTML = SETS.map(function (x) {
+          var p = x.t ? Math.round(x.e / x.t * 100) : 0;
+          return '<div class="psx-fc" style="cursor:default"><b>' + x.n + ' · ' + ANIO + '</b><span>' + (x.it.join(' · ') || 'Sin artículos') + '</span><div class="psx-bar" style="margin:.5rem 0 .2rem"><i style="width:' + p + '%;background:#22a35a"></i></div><span>' + x.e + ' de ' + x.t + ' entregados (' + p + '%)</span></div>';
+        }).join('');
+      };
+      drawSets();
+      var setF = function (x) {
+        return '<div class="set" data-e="' + x.e + '" style="border:1px solid var(--line);border-radius:10px;padding:.6rem;margin-top:.6rem"><div class="psx-find-row"><input class="psx-in sn" placeholder="Nombre del set" value="' + x.n + '"><input class="psx-in st" type="number" placeholder="Cantidad a entregar" value="' + (x.t || '') + '" style="max-width:170px"></div><textarea class="psx-in si" rows="4" placeholder="Un artículo por línea" style="margin-top:.4rem">' + x.it.join('\n') + '</textarea></div>';
+      };
+      $('bSetE').onclick = function () {
+        dlg('Editar sets de beneficios', '<label class="psx-f"><span>Año de entrega</span><input class="psx-in" id="sA" value="' + ANIO + '"></label><div id="sL">' + SETS.map(setF).join('') + '</div><button class="psx-btn" id="sAdd" style="margin-top:.6rem">+ Nuevo set</button><p class="psx-leg">Escribe un artículo por línea. Lo que se entrega puede cambiar cada año.</p>', function () {
+          ANIO = $('sA').value || ANIO; var n = [];
+          document.querySelectorAll('#sL .set').forEach(function (d) {
+            var nm = d.querySelector('.sn').value.trim(); if (!nm) return;
+            n.push({ n: nm, it: d.querySelector('.si').value.split('\n').map(function (z) { return z.trim(); }).filter(Boolean), e: +d.getAttribute('data-e') || 0, t: +d.querySelector('.st').value || 0 });
+          });
+          SETS = n; drawSets(); msg('Sets actualizados');
+        });
+        $('sAdd').onclick = function () { $('sL').insertAdjacentHTML('beforeend', setF({ n: '', it: [], e: 0, t: 0 })); };
+      };
+
+      // ---- Entrega por alumna e inventario ----
+      var ENT = [['Camila R.', '5° Básico', 'Set 1', 1], ['Sofía M.', '1° Básico', 'Set 1', 1], ['Valentina P.', 'II° Medio', 'Set 2', 0], ['Isidora L.', '8° Básico', 'Set 1', 0], ['Javiera T.', '5° Básico', 'Set 2', 1]];
+      var drawEnt = function () {
+        $('tEnt').innerHTML = T(['Entregado', 'Alumna', 'Curso', 'Set', 'Estado'], ENT.map(function (e, i) {
+          return ['<input type="checkbox" data-i="' + i + '"' + (e[3] ? ' checked' : '') + '>', e[0], e[1], e[2], e[3] ? c('Entregado', 'ok') : c('Pendiente', 'warn')];
+        }));
+      };
+      drawEnt();
+      $('tEnt').onclick = function (e) { if (e.target.tagName === 'INPUT') { ENT[+e.target.getAttribute('data-i')][3] = e.target.checked ? 1 : 0; drawEnt(); } };
+      var INV = [['Polera blanca', '6 a XL', 22, 5], ['Jumper', '8 a 16', 15, 5], ['Blazer', '10 a 16', 7, 3], ['Chaqueta polar', '8 a 14', 3, 5], ['Camisa blanca', '8 a 16', 2, 5], ['Zapatos', '28 a 40', 9, 4]];
+      var drawInv = function () {
+        $('tInv').innerHTML = T(['Prenda', 'Tallas', 'Stock', 'Mínimo', 'Estado'], INV.map(function (r) {
+          return [r[0], r[1], '<b>' + r[2] + '</b>', r[3], r[2] <= r[3] ? c('Stock bajo', 'bad') : c('OK', 'ok')];
+        }));
+      };
+      drawInv();
+      $('bStock').onclick = function () {
+        dlg('Registrar ingreso de stock', '<label class="psx-f"><span>Prenda o artículo</span><input class="psx-in" id="iN" list="iL" placeholder="Ej: Polera blanca"><datalist id="iL">' + INV.map(function (r) { return '<option>' + r[0]; }).join('') + '</datalist></label><div class="psx-find-row" style="margin-top:.6rem"><label class="psx-f" style="flex:1"><span>Talla</span><input class="psx-in" id="iT"></label><label class="psx-f" style="flex:1"><span>Cantidad</span><input class="psx-in" id="iC" type="number" min="1"></label></div>', function () {
+          var n = $('iN').value.trim(), q = +$('iC').value; if (!n || !q) return false;
+          var r = INV.filter(function (x) { return x[0].toLowerCase() === n.toLowerCase(); })[0];
+          if (r) r[2] += q; else INV.push([n, $('iT').value || '—', q, 3]);
+          drawInv(); msg('Ingreso registrado');
+        }, 'Registrar ingreso');
+      };
+      $('bGD').onclick = function () {
+        var f = [['N°', 'Alumna', 'Curso', 'Artículo', 'Firma']];
+        ENT.filter(function (e) { return e[3]; }).forEach(function (e, i) { f.push([i + 1, e[0], e[1], e[2], '']); });
+        guia('Guía de despacho', 'Entrega de beneficios pro-retención ' + ANIO, f, false,
+          '<div>Retira: ______________________</div><div>RUT: ______________</div><div>Parentesco: ____________</div>', ['Entrega (equipo psicosocial)', 'Firma de quien retira']);
+      };
+      $('bGI').onclick = function () {
+        var f = [['N°', 'Prenda / artículo', 'Talla', 'Cantidad recibida']];
+        for (var i = 1; i <= 8; i++) f.push([i, '&nbsp;', '', '']);
+        guia('Guía de ingreso', 'Ingreso de artículos a bodega', f, false, '<div>Proveedor / origen: ______________________</div><div>Documento asociado: ______________</div>', ['Recibe en bodega', 'Firma proveedor / responsable']);
+      };
+
+      // ---- Agregar alumnas, importar planilla y pasar de año ----
+      var rowA = function () { return '<tr><td><input class="psx-in an" placeholder="Nombre completo"></td><td><input class="psx-in ar" placeholder="RUT"></td><td><select class="psx-in ac">' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('') + '</select></td><td><input class="psx-in af" type="date"></td></tr>'; };
+      $('bAdd').onclick = function () {
+        dlg('Agregar alumnas', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega una o varias alumnas; cada una queda en el curso elegido.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th></tr></thead><tbody id="aT">' + rowA() + rowA() + rowA() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button>', function () {
+          var n = 0;
+          document.querySelectorAll('#aT tr').forEach(function (tr) {
+            var nm = tr.querySelector('.an').value.trim();
+            if (nm) { alu.push([nm, tr.querySelector('.ac').value, tr.querySelector('.ar').value || '—', 100]); n++; }
+          });
+          msg(n + ' alumna(s) agregada(s)');
+        }, 'Agregar');
+        $('aMas').onclick = function () { $('aT').insertAdjacentHTML('beforeend', rowA()); };
+      };
+      $('bImp').onclick = function () {
+        dlg('Importar planilla de alumnas', '<p class="psx-leg" style="margin:0 0 .5rem">Columnas: Nombre, RUT, Curso y Fecha de nacimiento. Cada alumna se asigna sola a su curso.</p><input type="file" id="imF" accept=".csv,.xlsx" class="psx-in"><div style="margin:.5rem 0"><button class="psx-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div><label style="font-size:.8rem;display:block;margin-top:.4rem"><input type="checkbox" checked> Crear los cursos que no existan</label><label style="font-size:.8rem;display:block"><input type="checkbox" checked> Actualizar alumnas que ya existen (por RUT)</label>', function () { msg('Importación simulada'); }, 'Importar');
+        $('imP').onclick = function () { descargar('plantilla_alumnas.csv', '\ufeffNombre;RUT;Curso;Fecha de nacimiento\nCamila Ramírez Soto;24.000.001-1;5° Básico;2015-03-14\n'); };
+        var show = function (cnt, tot, nota) {
+          var rows = Object.keys(cnt).map(function (k) { return [k, cnt[k]]; });
+          $('imR').innerHTML = '<span class="psx-c ok">' + tot + ' alumnas detectadas en ' + rows.length + ' cursos</span>' + B(rows, Math.max.apply(null, rows.map(function (r) { return r[1]; }))) + (nota ? '<p class="psx-leg">' + nota + '</p>' : '');
+        };
+        $('imF').onchange = function () {
+          var f = this.files[0]; if (!f) return;
+          if (/\.csv$/i.test(f.name)) {
+            var r = new FileReader();
+            r.onload = function () {
+              var L = r.result.replace(/^\ufeff/, '').split(/\r?\n/).filter(Boolean), d = L[0].indexOf(';') > -1 ? ';' : ',';
+              var ci = L[0].toLowerCase().split(d).findIndex(function (x) { return x.indexOf('curso') > -1; }), cnt = {};
+              L.slice(1).forEach(function (l) { var k = (l.split(d)[ci] || 'Sin curso').trim(); cnt[k] = (cnt[k] || 0) + 1; });
+              show(cnt, L.length - 1, 'Agrupado automáticamente por la columna Curso.');
+            };
+            r.readAsText(f, 'utf-8');
+          } else {
+            var cnt = {}; cursos.forEach(function (x) { cnt[x[0]] = x[1]; });
+            show(cnt, 93, 'Vista previa de ejemplo: los archivos Excel se leerán en el servidor.');
+          }
+        };
+      };
+      var NIV = ['1° Básico', '2° Básico', '3° Básico', '4° Básico', '5° Básico', '6° Básico', '7° Básico', '8° Básico', 'I° Medio', 'II° Medio', 'III° Medio', 'IV° Medio'];
+      $('bYear').onclick = function () {
+        var cnt = {}; cursos.forEach(function (x) { cnt[x[0]] = x[1]; });
+        dlg('Pasar de año (vista previa)', '<p class="psx-leg" style="margin:0 0 .5rem">Cada curso sube al siguiente nivel y IV° Medio pasa a egresadas. No se borra nada.</p>' +
+          T(['Curso actual', 'Alumnas', 'Pasan a'], NIV.map(function (n, i) { return [n, cnt[n] || '—', i < NIV.length - 1 ? NIV[i + 1] : c('Egresan', 'info')]; })),
+          function () { msg('Cambio de año simulado'); }, 'Aplicar');
+      };
+
+      // ---- Vacunación: listado por curso, exportable ----
+      var VAC = [['Camila Andrea Ramírez Soto', '5° Básico', '24.000.001-1', '2015-03-14'], ['Sofía Paz Molina Vera', '1° Básico', '24.000.002-2', '2019-07-02'],
+        ['Valentina Isabel Pérez Rojas', 'II° Medio', '24.000.003-3', '2010-11-21'], ['Isidora Belén Lagos Mena', '8° Básico', '24.000.004-4', '2012-05-09'],
+        ['Javiera Constanza Tapia Díaz', '5° Básico', '24.000.005-5', '2015-09-30'], ['Antonia Ignacia Bravo Cruz', '4° Básico', '24.000.006-6', '2016-01-18'],
+        ['Renata Fernanda Castro Núñez', '7° Básico', '24.000.007-7', '2013-04-25'], ['Emilia Sofía Vidal Pinto', '2° Básico', '24.000.009-9', '2018-02-11']];
+      var edad = function (n) {
+        var p = n.split('-'), h = new Date(), a = h.getFullYear() - +p[0];
+        if (h < new Date(h.getFullYear(), +p[1] - 1, +p[2])) a--;
+        return a;
+      };
+      var vSel = $('vCur'); vSel.innerHTML = curOpts;
+      var vRows = function () { var f = vSel.value; return VAC.filter(function (x) { return !f || x[1] === f; }); };
+      var vFila = function (x, i) { return [i + 1, x[0], x[1], x[2], x[3].split('-').reverse().join('-'), edad(x[3]) + ' años']; };
+      var VH = ['N°', 'Nombre completo', 'Curso', 'RUT', 'Fecha de nacimiento', 'Edad'];
+      var drawVac = function () { var r = vRows(); $('tVac').innerHTML = T(VH, r.map(vFila)); $('vN').textContent = r.length + ' alumnas'; };
+      vSel.onchange = drawVac; drawVac();
+      $('vPrn').onclick = function () { guia('Listado para vacunación', 'Curso: ' + (vSel.value || 'Todos'), [VH].concat(vRows().map(vFila)), true); };
+      $('vCsv').onclick = function () {
+        descargar('vacunacion.csv', '\ufeff' + VH.join(';') + '\n' + vRows().map(function (x, i) { return vFila(x, i).join(';'); }).join('\n'));
+      };
+
+      var tabs = $('psxTabs'), panes = document.querySelectorAll('#psx .psx-pane');
+      panes.forEach(function (p, i) {
+        var b = document.createElement('button');
+        b.className = 'psx-tab' + (i ? '' : ' on'); b.textContent = p.getAttribute('data-p');
+        b.onclick = function () {
+          tabs.querySelectorAll('.psx-tab').forEach(function (x) { x.classList.remove('on'); });
+          panes.forEach(function (x) { x.classList.remove('on'); });
+          b.classList.add('on'); p.classList.add('on');
+        };
+        tabs.appendChild(b); if (!i) p.classList.add('on');
+      });
+    })();
 </script>

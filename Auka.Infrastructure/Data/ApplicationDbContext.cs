@@ -40,6 +40,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<AnotacionEliminada> AnotacionesEliminadas { get; set; } = null!;
     public DbSet<BitacoraPsicosocial> BitacorasPsicosociales { get; set; } = null!;
     public DbSet<Asistencia> Asistencias { get; set; } = null!;
+    public DbSet<EventoCalendario> EventosCalendario { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,6 +61,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<AnotacionEliminada>().ToTable("AnotacionesEliminadas");
         modelBuilder.Entity<BitacoraPsicosocial>().ToTable("BitacorasPsicosociales");
         modelBuilder.Entity<Asistencia>().ToTable("Asistencias");
+        modelBuilder.Entity<EventoCalendario>().ToTable("EventosCalendario");
 
         modelBuilder.Entity<EstudianteApoderado>()
             .ToTable("EstudiantesApoderados")

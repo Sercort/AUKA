@@ -56,7 +56,7 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#modalCitacion">Solicitar citación</button>
-            <button type="button" class="btn btn-outline-light rounded-pill px-4" disabled title="Disponible en una próxima etapa">Importar planilla</button>
+            <button type="button" class="btn btn-outline-light rounded-pill px-4" onclick="document.getElementById('bImp').click()">Importar planilla</button>
         </div>
     </div>
 
@@ -81,7 +81,7 @@
                 </div>
                 <div class="cal-leg mb-2" id="cLeg"></div>
                 <div id="cBody"></div>
-                <div class="small text-secondary mt-2">Marca la casilla cuando una tarea esté realizada. Vista previa: los cambios se compartirán entre psicóloga, orientadora y trabajador social cuando se conecte a la base de datos.</div>
+                <div class="small text-secondary mt-2">Marca la casilla cuando una tarea esté realizada. Los cambios se guardan y los ve todo el equipo psicosocial del colegio (se actualiza cada 30 segundos).</div>
             </div>
         </div>
 
@@ -230,17 +230,8 @@
   $('fNuevo').onclick = function () { setTimeout(function () { var b = $('psxNew'); if (b) b.click(); }, 300); };
 
   // ---- Calendario ----
-  var EV = [
-    [5,'09:45','Taller','Formación 5° B'],[6,'08:00','Taller','Taller 1° B'],[6,'13:45','Institucional','Debate'],[6,'16:30','Consejo','Consejo'],
-    [7,'08:30','Institucional','Eucaristía'],[7,'14:30','Citación','Citación apoderada · Alumna A'],
-    [8,'08:30','Citación','Citación apoderada · Alumna B',1],[8,'09:30','Citación','Citación apoderada · Alumna C',1],[8,'15:00','Coordinación','Coordinación con UTP'],
-    [9,'','Institucional','Peso y talla 1° M, 1° B, 5° B'],[12,'','Feriado','Feriado'],[13,'12:00','Coordinación','Coordinación de caso'],[13,'15:15','Citación','Citación apoderada · Alumna D'],
-    [14,'08:00','Reunión','Casos y reunión psicosocial'],[15,'08:00','Institucional','Celebración Día del Profesor'],[16,'','Feriado','Día libre'],
-    [19,'15:00','Citación','Citación apoderada · Alumna E'],[19,'15:40','Citación','Citación apoderada · Alumna F'],[20,'08:00','Taller','Taller 1° Básico'],[20,'16:30','Consejo','Consejo'],
-    [21,'08:15','Citación','Citación apoderada · Alumna G'],[21,'09:00','Coordinación','Coordinación de caso'],[22,'09:00','Coordinación','Coordinación de curso'],
-    [23,'','Institucional','Día de la familia'],[26,'08:00','Taller','Taller 1° Medio'],[27,'16:30','Consejo','Consejo'],[30,'','Institucional','Actividad pastoral']
-  ].map(function (e, i) { return { id: i + 1, f: '2026-10-' + String(e[0]).padStart(2, '0'), h: e[1], t: e[2], x: e[3], r: 'Equipo psicosocial', ok: !!e[4] }; });
-  var nextId = 100, Y = 2026, M = 9, vista = window.innerWidth < 768 ? 'hoy' : 'mes', cur = null;
+  var EV = [];
+  var Y = new Date().getFullYear(), M = new Date().getMonth(), vista = window.innerWidth < 768 ? 'hoy' : 'mes', cur = null;
   var notaM = bootstrap.Modal.getOrCreateInstance($('modalNota'));
   $('nT').innerHTML = Object.keys(TIPOS).map(function (t) { return '<option>' + t + '</option>'; }).join('');
   $('cLeg').innerHTML = Object.keys(TIPOS).map(function (t) { return '<span><i style="background:' + TIPOS[t] + '"></i>' + t + '</span>'; }).join('');
@@ -277,28 +268,52 @@
     $('nT').value = e ? e.t : 'Citación'; $('nR').value = e ? e.r : 'Psicóloga'; $('nOk').checked = e ? e.ok : false;
     $('nDel').style.display = e ? '' : 'none'; notaM.show();
   };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var post = function (url, datos) {
+    var body = new URLSearchParams(datos); body.append('__RequestVerificationToken', tok());
+    return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  };
+  var cargar = function () {
+    var d, h;
+    if (vista === 'hoy') { d = new Date(); h = new Date(); h.setDate(h.getDate() + 45); }
+    else { d = new Date(Y, M, 1); h = new Date(Y, M + 1, 0); }
+    return fetch('/Psychosocial/EventosCalendario?desde=' + iso(d) + '&hasta=' + iso(h), { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (lista) { EV = lista; draw(); })
+      .catch(function () { /* sin conexión: se mantiene lo que se ve */ });
+  };
+  var error = function () { alert('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'); cargar(); };
+
   $('cBody').onclick = function (ev) {
     var c = ev.target.closest('.cal-ev');
     if (c) {
       var e = EV.filter(function (x) { return x.id === +c.getAttribute('data-id'); })[0];
-      if (ev.target.tagName === 'INPUT') { e.ok = ev.target.checked; draw(); } else abrir(e);
+      if (ev.target.tagName === 'INPUT') {
+        e.ok = ev.target.checked; draw();
+        post('/Psychosocial/MarcarEvento', { id: e.id, realizada: e.ok }).catch(error);
+      } else abrir(e);
       return;
     }
     var day = ev.target.closest('.cal-day'); if (day && day.getAttribute('data-f')) abrir(null, day.getAttribute('data-f'));
   };
   $('nSave').onclick = function () {
     if (!$('nX').value.trim()) return;
-    var d = { f: $('nF').value, h: $('nH').value, t: $('nT').value, x: $('nX').value.trim(), r: $('nR').value, ok: $('nOk').checked };
-    if (cur) { Object.keys(d).forEach(function (k) { cur[k] = d[k]; }); } else { d.id = nextId++; EV.push(d); }
-    notaM.hide(); draw();
+    post('/Psychosocial/GuardarEvento', { id: cur ? cur.id : 0, fecha: $('nF').value, hora: $('nH').value, tipo: $('nT').value,
+      titulo: $('nX').value.trim(), responsable: $('nR').value, realizada: $('nOk').checked })
+      .then(function () { notaM.hide(); cargar(); }).catch(error);
   };
-  $('nDel').onclick = function () { EV = EV.filter(function (x) { return x !== cur; }); notaM.hide(); draw(); };
+  $('nDel').onclick = function () {
+    if (!cur) return;
+    post('/Psychosocial/EliminarEvento', { id: cur.id }).then(function () { notaM.hide(); cargar(); }).catch(error);
+  };
   $('cNueva').onclick = function () { abrir(null); };
-  $('cPrev').onclick = function () { M--; if (M < 0) { M = 11; Y--; } vista = 'mes'; draw(); };
-  $('cNext').onclick = function () { M++; if (M > 11) { M = 0; Y++; } vista = 'mes'; draw(); };
-  $('vMes').onclick = function () { vista = 'mes'; draw(); };
-  $('vHoy').onclick = function () { vista = 'hoy'; draw(); };
-  draw();
+  $('cPrev').onclick = function () { M--; if (M < 0) { M = 11; Y--; } vista = 'mes'; cargar(); };
+  $('cNext').onclick = function () { M++; if (M > 11) { M = 0; Y++; } vista = 'mes'; cargar(); };
+  $('vMes').onclick = function () { vista = 'mes'; cargar(); };
+  $('vHoy').onclick = function () { vista = 'hoy'; cargar(); };
+  setInterval(function () { if (!document.hidden && !document.querySelector('.modal.show')) cargar(); }, 30000);
+  draw(); cargar();
 })();
 </script>
 }

@@ -189,14 +189,23 @@ namespace Auka.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("EstudianteId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("FechaAtencion")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("FechaUltimaModificacion")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<int?>("ModificadoPorId")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Observaciones")
                         .IsRequired()
@@ -364,11 +373,17 @@ namespace Auka.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("CursoId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("FechaMatricula")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("FechaNacimiento")
+                        .HasColumnType("date");
 
                     b.Property<bool>("FueCambiadoPorExcepcion")
                         .HasColumnType("boolean");
@@ -463,6 +478,58 @@ namespace Auka.Infrastructure.Migrations
                     b.HasIndex("CursoId");
 
                     b.ToTable("Evaluaciones", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.EventoCalendario", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CreadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("FechaUltimaModificacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeOnly?>("Hora")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("ModificadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Realizada")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Responsable")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("EventosCalendario", (string)null);
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.HorarioClase", b =>
