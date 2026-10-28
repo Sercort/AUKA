@@ -4,6 +4,7 @@
 @{
     ViewData["Title"] = "Personal y Equipo Docente";
     string tabActual = ViewBag.TabActual ?? "activos";
+    bool planPsico = User.FindFirst("PlanPsicosocial")?.Value == "true";
 }
 
 <div class="container py-4">
@@ -148,6 +149,10 @@
 
                                             @if (item.Activo)
                                             {
+                                                <form asp-action="RestablecerClave" asp-route-id="@item.Id" method="post" class="d-inline" onsubmit="return confirm('Se generará una clave provisoria nueva y la anterior dejará de servir. ¿Continuar?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-outline-secondary btn-sm rounded-pill px-3" title="Generar nueva clave provisoria">🔑 Nueva clave</button>
+                                                </form>
                                                 @if (item.Rol == RolUsuario.Inspector && !item.EsInspectorGeneral)
                                                 {
                                                     <form asp-action="AsignarInspectorGeneral" method="post" class="d-inline">
@@ -212,6 +217,11 @@
                                 <option value="Inspector">Inspector / Convivencia</option>
                                 <option value="Psicologo">Psicólogo/a Escolar</option>
                                 <option value="Psicopedagogo">Psicopedagogo/a (PIE)</option>
+                                @if (planPsico)
+                                {
+                                    <option value="TrabajadorSocial">Trabajador/a Social</option>
+                                    <option value="Orientadora">Orientador/a</option>
+                                }
                             </select>
                         </div>
 
@@ -264,7 +274,7 @@
 
                         <div class="col-md-12">
                             <div class="alert alert-info py-2 mb-0" role="alert">
-                                <small>🔒 <strong>Clave Inicial:</strong> La contraseña asignada por defecto será <code>123456</code>. El sistema solicitará un cambio obligatorio al iniciar sesión.</small>
+                                <small>🔒 <strong>Clave Inicial:</strong> El sistema genera una clave provisoria distinta para cada persona y te la muestra una sola vez al guardar. Deberá cambiarla al iniciar sesión.</small>
                             </div>
                         </div>
                     </div>

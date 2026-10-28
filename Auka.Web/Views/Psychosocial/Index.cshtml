@@ -35,6 +35,8 @@
     .al-row:hover { background:#F3F7FB; }
     .al-row span { color:#64748b; font-size:.74rem; margin-left:auto; }
     .al-bad { color:#B4402F; font-weight:800; }
+    .kpi-go { cursor:pointer; transition:box-shadow .15s; }
+    .kpi-go:hover { box-shadow:0 4px 14px rgba(18,38,58,.16); }
 
     @@media (max-width:767px) {
         .cal-grid { grid-template-columns:1fr; }
@@ -52,7 +54,6 @@
             <p class="mb-0 small" style="color:#C9D6E6;">
                 Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento estudiantil
             </p>
-            <span class="ps-pill mt-2" style="background:#2B4764;color:#fff;">Datos de ejemplo</span>
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#modalCitacion">Solicitar citación</button>
@@ -109,7 +110,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:16px;">
             <div class="modal-header border-0">
-                <h5 class="modal-title fw-bold">Ficha de la alumna</h5>
+                <h5 class="modal-title fw-bold">Ficha de la alumno/a</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body d-flex flex-column gap-3">
@@ -176,7 +177,7 @@
                 <label class="ps-label mb-1">CITAR A</label>
                 <select class="form-select mb-3"><option>Alumno</option><option>Apoderado</option><option>Profesor jefe</option><option>Alumno + apoderado</option></select>
                 <label class="ps-label mb-1">ESTUDIANTE</label>
-                <input type="text" class="form-control mb-3" value="Matías Rojas P." />
+                <input type="text" class="form-control mb-3" placeholder="Nombre del alumno/a" />
                 <div class="row g-2 mb-3">
                     <div class="col-6"><label class="ps-label mb-1">FECHA</label><input type="date" class="form-control" /></div>
                     <div class="col-6"><label class="ps-label mb-1">HORA</label><input type="time" class="form-control" /></div>
@@ -200,33 +201,46 @@
   var MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var TIPOS = { 'Citación':'#0d6efd', 'Taller':'#7c3aed', 'Consejo':'#64748b', 'Coordinación':'#0f9d8a', 'Reunión':'#d98a00', 'Institucional':'#22a35a', 'Feriado':'#d64545' };
 
-  // ---- Números clave (arriba) ----
-  var K = [['Alumnas en seguimiento','93','11 cursos',''],['Alumnas en alerta','9','3 en nivel rojo','#B4402F'],['Derivaciones sin gestionar','3','desde profesores','#B4402F'],
-           ['Citas esta semana','7','2 sin confirmar',''],['Causas judiciales','71','57 informes de julio',''],['Informes evacuados','61','FEMAR-61-2026','']];
-  $('kpis').innerHTML = K.map(function (k) {
-    return '<div class="col-6 col-lg-2"><div class="ps-card p-3 h-100"><div class="ps-label" style="font-size:.66rem">' + k[0].toUpperCase() +
+  // ---- Números clave: todo parte en cero y se llena con los datos reales del colegio ----
+  var kpiCard = function (k) {
+    return '<div class="col-6 col-lg-2"><div class="ps-card p-3 h-100 kpi-go" data-go="' + k[4] + '" role="button" title="Ver detalle"><div class="ps-label" style="font-size:.66rem">' + k[0].toUpperCase() +
       '</div><div class="ps-kpi mt-1"' + (k[3] ? ' style="color:' + k[3] + '"' : '') + '>' + k[1] + '</div><div class="small text-secondary">' + k[2] + '</div></div></div>';
-  }).join('');
-
-  // ---- Alertas compactas ----
-  var A = [['Matías Rojas P.','7° A',71,5],['Valentina Soto M.','8° B',78,3],['Benjamín Leiva C.','6° A',83,2],['Catalina Muñoz R.','7° B',84,1]];
-  $('alTot').textContent = '9 alumnas';
-  $('alAs').innerHTML = A.map(function (a, i) { return '<div class="al-row" data-i="' + i + '"><b>' + a[0] + '</b><span>' + a[1] + '</span><i class="al-bad" style="font-style:normal">' + a[2] + '%</i></div>'; }).join('');
-  $('alDer').innerHTML = [['Alumna D','3° Básico','hace 3 días'],['Alumna E','6° Básico','hace 5 días'],['Alumna F','7° Básico','hace 8 días']]
-    .map(function (d) { return '<div class="al-row"><b>' + d[0] + '</b><span>' + d[1] + ' · ' + d[2] + '</span></div>'; }).join('');
-  $('alCit').innerHTML = [['Jue 15 · 15:00','Alumno'],['Lun 19 · 15:00','Apoderada']]
-    .map(function (c) { return '<div class="al-row"><b>' + c[0] + '</b><span>' + c[1] + '</span></div>'; }).join('');
-
-  // ---- Ficha de la alumna ----
-  var fichaM = bootstrap.Modal.getOrCreateInstance($('modalFicha'));
-  $('alAs').onclick = function (e) {
-    var r = e.target.closest('.al-row'); if (!r) return; var a = A[+r.getAttribute('data-i')];
-    $('fNom').textContent = a[0]; $('fCur').textContent = a[1] + ' · Profesor jefe por asignar';
-    $('fAs').textContent = a[2] + '%'; $('fAn').textContent = a[3];
-    $('fLock').style.display = ''; $('fOpen').style.display = 'none'; $('fClave').value = '';
-    fichaM.show();
   };
-  $('fUnlock').onclick = function () { if ($('fClave').value.length > 0) { $('fLock').style.display = 'none'; $('fOpen').style.display = ''; } };
+  var pintarKpis = function (d) {
+    var K = [['Alumnos/as en seguimiento', d.alumnos, d.cursos + (d.cursos === 1 ? ' curso' : ' cursos'), '', 'Alumnos/as'],
+             ['Alumnos/as en alerta', 0, 'sin alertas', '', 'alert'],
+             ['Derivaciones sin gestionar', 0, 'sin pendientes', '', 'Derivaciones'],
+             ['Citas esta semana', d.citasSemana, d.citasSinConfirmar + ' sin confirmar', '', 'cal'],
+             ['Causas judiciales', 0, 'sin casos', '', 'Judicial'],
+             ['Informes evacuados', 0, 'sin informes', '', 'Judicial']];
+    $('kpis').innerHTML = K.map(kpiCard).join('');
+    $('alTot').textContent = '0 alumnos/as';
+    $('alAs').innerHTML = '<div class="small text-secondary px-2">Sin alumnos/as bajo 85% de asistencia.</div>';
+    $('alDer').innerHTML = '<div class="small text-secondary px-2">Sin derivaciones pendientes.</div>';
+    $('alCit').innerHTML = d.proximasCitas.length
+      ? d.proximasCitas.map(function (c) { return '<div class="al-row"><b>' + c.f + (c.h ? ' · ' + c.h : '') + '</b><span>' + c.x + '</span></div>'; }).join('')
+      : '<div class="small text-secondary px-2">Sin citas por confirmar.</div>';
+  };
+  pintarKpis({ alumnos: 0, cursos: 0, citasSemana: 0, citasSinConfirmar: 0, proximasCitas: [] });
+  var cargarResumen = function () {
+    fetch('/Psychosocial/Resumen', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(pintarKpis).catch(function () { });
+  };
+  cargarResumen();
+  document.addEventListener('psx-alumnos', cargarResumen);
+  document.addEventListener('psx-calendario', cargarResumen);
+
+  $('kpis').onclick = function (e) {
+    var k = e.target.closest('.kpi-go'); if (!k) return; var g = k.getAttribute('data-go');
+    if (g === 'alert') $('alAs').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    else if (g === 'cal') { $('vHoy').click(); $('cBody').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    else {
+      var t = Array.prototype.filter.call(document.querySelectorAll('.psx-tab'), function (b) { return b.textContent === g; })[0];
+      if (t) { t.click(); $('psx').scrollIntoView({ behavior: 'smooth' }); }
+    }
+  };
+
+  var fichaM = bootstrap.Modal.getOrCreateInstance($('modalFicha'));
   $('fNuevo').onclick = function () { setTimeout(function () { var b = $('psxNew'); if (b) b.click(); }, 300); };
 
   // ---- Calendario ----
@@ -280,7 +294,7 @@
     else { d = new Date(Y, M, 1); h = new Date(Y, M + 1, 0); }
     return fetch('/Psychosocial/EventosCalendario?desde=' + iso(d) + '&hasta=' + iso(h), { credentials: 'same-origin' })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (lista) { EV = lista; draw(); })
+      .then(function (lista) { EV = lista; draw(); document.dispatchEvent(new CustomEvent('psx-calendario')); })
       .catch(function () { /* sin conexión: se mantiene lo que se ve */ });
   };
   var error = function () { alert('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'); cargar(); };

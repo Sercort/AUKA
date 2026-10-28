@@ -22,6 +22,31 @@ namespace Auka.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Auka.Application.Entities.AccesoExpediente", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstudianteId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AccesosExpediente", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.Anotacion", b =>
                 {
                     b.Property<int>("Id")
@@ -110,6 +135,45 @@ namespace Auka.Infrastructure.Migrations
                     b.HasIndex("UsuarioId");
 
                     b.ToTable("Apoderados", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.ArticuloInventario", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FechaUltimaModificacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Minimo")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ModificadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Stock")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tallas")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ArticulosInventario", (string)null);
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.Asignatura", b =>
@@ -569,6 +633,86 @@ namespace Auka.Infrastructure.Migrations
                     b.ToTable("HorarioClase");
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.MovimientoInventario", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ArticuloInventarioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CreadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Detalle")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MovimientosInventario", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.SetBeneficio", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Anio")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Articulos")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("CantidadAEntregar")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Entregados")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FechaUltimaModificacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("ModificadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SetsBeneficio", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.Taller", b =>
                 {
                     b.Property<int>("Id")
@@ -626,6 +770,15 @@ namespace Auka.Infrastructure.Migrations
 
                     b.Property<string>("CargoInstitucional")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("ClaveFichaBloqueadaHasta")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ClaveFichaHash")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ClaveFichaIntentos")
+                        .HasColumnType("integer");
 
                     b.Property<int>("ColegioId")
                         .HasColumnType("integer");

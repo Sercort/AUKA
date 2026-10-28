@@ -41,6 +41,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<BitacoraPsicosocial> BitacorasPsicosociales { get; set; } = null!;
     public DbSet<Asistencia> Asistencias { get; set; } = null!;
     public DbSet<EventoCalendario> EventosCalendario { get; set; } = null!;
+    public DbSet<AccesoExpediente> AccesosExpediente { get; set; } = null!;
+    public DbSet<SetBeneficio> SetsBeneficio { get; set; } = null!;
+    public DbSet<ArticuloInventario> ArticulosInventario { get; set; } = null!;
+    public DbSet<MovimientoInventario> MovimientosInventario { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -62,6 +66,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<BitacoraPsicosocial>().ToTable("BitacorasPsicosociales");
         modelBuilder.Entity<Asistencia>().ToTable("Asistencias");
         modelBuilder.Entity<EventoCalendario>().ToTable("EventosCalendario");
+        modelBuilder.Entity<AccesoExpediente>().ToTable("AccesosExpediente");
+        modelBuilder.Entity<SetBeneficio>().ToTable("SetsBeneficio");
+        modelBuilder.Entity<ArticuloInventario>().ToTable("ArticulosInventario");
+        modelBuilder.Entity<MovimientoInventario>().ToTable("MovimientosInventario");
 
         modelBuilder.Entity<EstudianteApoderado>()
             .ToTable("EstudiantesApoderados")

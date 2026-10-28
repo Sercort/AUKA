@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Auka.Application.Interfaces;
 using Auka.Application.Services;
 using Auka.Infrastructure.Data;
@@ -13,6 +14,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 // Multitenant: el colegio sale del claim "ColegioId" de la sesión
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ITenantProvider, HttpTenantProvider>();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -71,6 +73,23 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// El equipo psicosocial (con el módulo activo) va siempre a su panel, no al Home institucional
+var rolesPsicosociales = new[] { "Psicologo", "Psicopedagogo", "TrabajadorSocial", "Orientadora" };
+app.Use(async (context, next) =>
+{
+    var ruta = context.Request.Path.Value ?? "/";
+    var esHome = ruta == "/" || ruta.Equals("/Home", StringComparison.OrdinalIgnoreCase) || ruta.Equals("/Home/Index", StringComparison.OrdinalIgnoreCase);
+    if (esHome
+        && context.User.Identity?.IsAuthenticated == true
+        && context.User.FindFirst("PlanPsicosocial")?.Value == "true"
+        && rolesPsicosociales.Contains(context.User.FindFirst(ClaimTypes.Role)?.Value ?? ""))
+    {
+        context.Response.Redirect("/Psychosocial");
+        return;
+    }
+    await next();
+});
 
 app.MapControllerRoute(
     name: "default",

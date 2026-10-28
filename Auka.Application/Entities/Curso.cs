@@ -3,11 +3,9 @@
 public class Curso
 {
     public int Id { get; set; }
-    public string Nombre { get; set; } = string.Empty;
-    public string Letra { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;   // Ej: "5° Básico", "II° Medio"
+    public string Letra { get; set; } = string.Empty;    // Ej: "A" (vacía si el curso no tiene letra)
     public int AnioAcademico { get; set; } = DateTime.Now.Year;
-
-    // 🟢 ESTA ES LA LÍNEA QUE TE FALTA Y HACE QUE FALLE EL CONTROLADOR
     public int CapacidadMaxima { get; set; } = 35;
 
     public int ColegioId { get; set; }

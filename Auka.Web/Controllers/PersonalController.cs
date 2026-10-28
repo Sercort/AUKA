@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
@@ -14,20 +15,62 @@ public class PersonalController : Controller
 {
     private readonly ApplicationDbContext _context;
 
+    // Roles que se pueden asignar a un funcionario desde esta pantalla
+    private static readonly HashSet<RolUsuario> RolesDelPersonal = new()
+    {
+        RolUsuario.Director, RolUsuario.UTP, RolUsuario.Docente, RolUsuario.Inspector,
+        RolUsuario.Psicologo, RolUsuario.Psicopedagogo, RolUsuario.TrabajadorSocial, RolUsuario.Orientadora
+    };
+
+    // Roles que solo existen en colegios con el módulo Psicosocial activo
+    private static readonly HashSet<RolUsuario> RolesSoloPsicosocial = new()
+    {
+        RolUsuario.TrabajadorSocial, RolUsuario.Orientadora
+    };
+
     public PersonalController(ApplicationDbContext context)
     {
         _context = context;
+    }
+
+    private int ColegioActual() => int.TryParse(User.FindFirst("ColegioId")?.Value, out var id) ? id : 0;
+
+    private int UsuarioActualId() => int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+
+    // Valida qué roles puede asignar quien está usando la pantalla
+    private bool PuedeAsignarRol(RolUsuario rol, out string error)
+    {
+        error = "";
+        if (rol == RolUsuario.SuperAdmin)
+        {
+            if (!User.IsInRole("SuperAdmin")) { error = "Solo el administrador del colegio puede crear a otro administrador."; return false; }
+            return true;
+        }
+        if (!RolesDelPersonal.Contains(rol)) { error = "Ese rol no se puede asignar desde esta pantalla."; return false; }
+        if (RolesSoloPsicosocial.Contains(rol) && User.FindFirst("PlanPsicosocial")?.Value != "true")
+        {
+            error = "El módulo Psicosocial no está activo en este colegio.";
+            return false;
+        }
+        return true;
+    }
+
+    private static string GenerarClave()
+    {
+        const string alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+        return new string(Enumerable.Range(0, 8).Select(_ => alfabeto[RandomNumberGenerator.GetInt32(alfabeto.Length)]).ToArray());
     }
 
     // 1. VISTA PRINCIPAL: Directorio de Personal
     [HttpGet]
     public async Task<IActionResult> Index(string? search, string tab = "activos")
     {
-        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
-        int.TryParse(colegioIdClaim, out int colegioId);
+        var colegioId = ColegioActual();
 
+        // El directorio es solo del personal: no incluye alumnos/as ni apoderados/as
         var query = _context.Usuarios
             .Where(u => u.ColegioId == colegioId || colegioId == 0)
+            .Where(u => u.Rol != RolUsuario.Estudiante && u.Rol != RolUsuario.Apoderado && u.Rol != RolUsuario.AdminPlataforma)
             .AsQueryable();
 
         bool mostrarActivos = (tab ?? "activos").ToLower() != "inactivos";
@@ -60,8 +103,7 @@ public class PersonalController : Controller
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
     public async Task<IActionResult> Editar(int id)
     {
-        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
-        int.TryParse(colegioIdClaim, out int colegioId);
+        var colegioId = ColegioActual();
 
         var usuario = await _context.Usuarios
             .FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
@@ -84,8 +126,7 @@ public class PersonalController : Controller
         string? emailPersonal, string? telefono, string? direccion,
         RolUsuario rol, string? cargoEspecifico, string? asignaturasImpartidas)
     {
-        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
-        int.TryParse(colegioIdClaim, out int colegioId);
+        var colegioId = ColegioActual();
 
         var usuario = await _context.Usuarios
             .FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
@@ -93,6 +134,13 @@ public class PersonalController : Controller
         if (usuario == null)
         {
             TempData["Error"] = "❌ El funcionario no fue encontrado.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // Si el rol cambia, se valida que se pueda asignar
+        if (rol != usuario.Rol && !PuedeAsignarRol(rol, out var errorRol))
+        {
+            TempData["Error"] = $"❌ {errorRol}";
             return RedirectToAction(nameof(Index));
         }
 
@@ -154,7 +202,7 @@ public class PersonalController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    // 4. POST: CREAR FUNCIONARIO
+    // 4. POST: CREAR FUNCIONARIO (con clave provisoria distinta para cada persona)
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
@@ -164,8 +212,7 @@ public class PersonalController : Controller
         string? telefono, string? direccion, RolUsuario rol,
         string? cargoEspecifico, string? asignaturasImpartidas, bool esInspectorGeneral)
     {
-        var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
-        int.TryParse(colegioIdClaim, out int colegioId);
+        var colegioId = ColegioActual();
         colegioId = colegioId > 0 ? colegioId : 1;
 
         if (!Regex.IsMatch(rut ?? string.Empty, @"^[0-9]+-[0-9kK]{1}$"))
@@ -174,20 +221,29 @@ public class PersonalController : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        bool existeEmail = await _context.Usuarios.AnyAsync(u => u.Email.ToLower() == emailInstitucional.Trim().ToLower());
+        if (!PuedeAsignarRol(rol, out var errorRol))
+        {
+            TempData["Error"] = $"❌ {errorRol}";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // El correo es el usuario de ingreso: debe ser único en TODOS los colegios
+        var correo = emailInstitucional.Trim().ToLower();
+        bool existeEmail = await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == correo);
         if (existeEmail)
         {
             TempData["Error"] = "❌ El correo institucional ya se encuentra registrado en el sistema.";
             return RedirectToAction(nameof(Index));
         }
 
+        var clave = GenerarClave();
         var hasher = new PasswordHasher<string>();
         var nuevoPersonal = new Usuario
         {
-            Rut = rut.Trim(),
+            Rut = rut!.Trim(),
             Nombre = nombre.Trim(),
             Apellido = apellido.Trim(),
-            Email = emailInstitucional.Trim().ToLower(),
+            Email = correo,
             EmailPersonal = emailPersonal?.Trim().ToLower(),
             Telefono = telefono?.Trim(),
             Direccion = direccion?.Trim(),
@@ -201,11 +257,13 @@ public class PersonalController : Controller
             FechaCreacion = DateTime.UtcNow
         };
 
-        nuevoPersonal.PasswordHash = hasher.HashPassword(nuevoPersonal.Email, "123456");
+        nuevoPersonal.PasswordHash = hasher.HashPassword(nuevoPersonal.Email, clave);
         _context.Usuarios.Add(nuevoPersonal);
         await _context.SaveChangesAsync();
 
-        TempData["SuccessMessage"] = $"✅ {nuevoPersonal.Nombre} {nuevoPersonal.Apellido} fue registrado con éxito.";
+        TempData["SuccessMessage"] =
+            $"✅ {nuevoPersonal.Nombre} {nuevoPersonal.Apellido} fue registrado/a. Correo: {nuevoPersonal.Email} · " +
+            $"Clave provisoria: {clave} (anótala ahora: no se vuelve a mostrar; deberá cambiarla al iniciar sesión).";
         return RedirectToAction(nameof(Index));
     }
 
@@ -215,9 +273,15 @@ public class PersonalController : Controller
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
     public async Task<IActionResult> Desactivar(int id)
     {
-        var user = await _context.Usuarios.FindAsync(id);
+        var colegioId = ColegioActual();
+        var user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
         if (user != null)
         {
+            if (user.Id == UsuarioActualId())
+            {
+                TempData["Error"] = "❌ No puedes desactivar tu propia cuenta.";
+                return RedirectToAction(nameof(Index));
+            }
             user.Activo = false;
             _context.Usuarios.Update(user);
             await _context.SaveChangesAsync();
@@ -232,7 +296,8 @@ public class PersonalController : Controller
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
     public async Task<IActionResult> Reactivar(int id)
     {
-        var user = await _context.Usuarios.FindAsync(id);
+        var colegioId = ColegioActual();
+        var user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
         if (user != null)
         {
             user.Activo = true;
@@ -241,5 +306,44 @@ public class PersonalController : Controller
             TempData["SuccessMessage"] = $"✅ El funcionario {user.Nombre} {user.Apellido} fue reactivado.";
         }
         return RedirectToAction(nameof(Index), new { tab = "inactivos" });
+    }
+
+    // 7. POST: HACER INSPECTOR GENERAL
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
+    public async Task<IActionResult> AsignarInspectorGeneral(int id)
+    {
+        var colegioId = ColegioActual();
+        var user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id && u.Rol == RolUsuario.Inspector && (u.ColegioId == colegioId || colegioId == 0));
+        if (user != null)
+        {
+            user.EsInspectorGeneral = true;
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = $"⭐ {user.Nombre} {user.Apellido} fue designado/a Inspector/a General.";
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    // 8. POST: GENERAR NUEVA CLAVE PROVISORIA (para quien no puede entrar)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
+    public async Task<IActionResult> RestablecerClave(int id)
+    {
+        var colegioId = ColegioActual();
+        var user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
+        if (user == null || user.Rol == RolUsuario.Estudiante || user.Rol == RolUsuario.Apoderado || user.Rol == RolUsuario.AdminPlataforma)
+        {
+            TempData["Error"] = "❌ No se encontró al funcionario.";
+            return RedirectToAction(nameof(Index));
+        }
+        var clave = GenerarClave();
+        user.PasswordHash = new PasswordHasher<string>().HashPassword(user.Email, clave);
+        user.DebeCambiarPassword = true;
+        user.Activo = true;
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = $"🔑 Nueva clave de {user.Nombre} {user.Apellido}: correo {user.Email} · clave provisoria {clave} (anótala: no se vuelve a mostrar).";
+        return RedirectToAction(nameof(Index));
     }
 }

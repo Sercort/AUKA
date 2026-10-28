@@ -27,7 +27,7 @@ public class Estudiante
     public ICollection<EstudianteApoderado> Apoderados { get; set; } = new List<EstudianteApoderado>();
 
     public TipoMatricula TipoMatricula { get; set; } = TipoMatricula.Nuevo;
-    public DateTime FechaMatricula { get; set; } = DateTime.Now;
+    public DateTime FechaMatricula { get; set; } = DateTime.UtcNow;
 
     // Campos para el registro de reasignación
     public bool FueCambiadoPorExcepcion { get; set; } = false;

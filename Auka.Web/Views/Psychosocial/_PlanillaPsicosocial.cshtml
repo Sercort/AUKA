@@ -455,16 +455,15 @@
     <div class="psx-head">
         <h5>Planilla Psicosocial 2026</h5>
         <div>
-            <span class="psx-c warn">Datos ficticios de ejemplo</span>
             <button class="psx-btn" id="bImp">Importar planilla</button>
-            <button class="psx-btn" id="bAdd">+ Agregar alumnas</button>
+            <button class="psx-btn" id="bAdd">+ Agregar alumnos/as</button>
             <button class="psx-btn" id="bYear">Pasar de año</button>
             <span class="psx-c ok" id="psxMsg" style="display:none"></span>
             <button class="psx-btn p" id="psxNew">+ Nuevo registro</button>
         </div>
     </div>
     <div class="psx-card">
-        <h6>Buscar alumna</h6>
+        <h6>Buscar alumno/a</h6>
         <div class="psx-find-row">
             <select id="sCur" class="psx-in"></select>
             <input id="sTxt" class="psx-in" placeholder="Nombre, RUT o curso del módulo psicosocial...">
@@ -476,7 +475,7 @@
     <div class="psx-pane" data-p="Resumen">
 
         <div class="psx-grid">
-            <div class="psx-card"><h6>Alumnas en seguimiento por curso</h6><div id="gCur"></div></div>
+            <div class="psx-card"><h6>Alumnos/as en seguimiento por curso</h6><div id="gCur"></div></div>
             <div class="psx-card">
                 <h6>Informes judiciales de julio</h6><div id="gInf"></div>
                 <h6 style="margin-top:1rem">Periodicidad de informes</h6><div id="gPer"></div>
@@ -485,6 +484,20 @@
                 <h6>Asistencia en monitoreo</h6><div id="gAs"></div>
                 <p class="psx-leg">Menciones de asistencia en la calendarización; bajo 85% se marca como riesgo.</p>
             </div>
+        </div>
+    </div>
+
+    <div class="psx-pane" data-p="Alumnos/as">
+        <div class="psx-card">
+            <div class="psx-head">
+                <h6>Alumnos/as matriculados</h6>
+                <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
+                    <select id="rCur" class="psx-btn"></select>
+                    <input id="rTxt" class="psx-in" placeholder="Buscar nombre o RUT" style="max-width:220px"><span class="psx-c info" id="rN"></span><button class="psx-btn" id="rClaves">Claves provisorias</button>
+                </div>
+            </div>
+            <div id="tRos"><p class="psx-leg">Cargando…</p></div>
+            <p class="psx-leg">Se muestran hasta 100 a la vez; usa el curso o el buscador para acotar.</p>
         </div>
     </div>
 
@@ -508,8 +521,8 @@
             <div class="psx-card"><h6>Casos judicializados</h6><div id="tJud"></div></div>
             <div class="psx-card">
                 <h6>Correlativo de informes</h6>
-                <p style="margin:0">Próximo N°: <b>FEMAR-62-2026</b></p>
-                <button class="psx-btn p" style="margin:.6rem 0" disabled>Generar correlativo</button><div id="tCor"></div>
+                <p style="margin:0">Próximo N°: <b id="corNext">FEMAR-1-2026</b></p>
+                <button class="psx-btn p" style="margin:.6rem 0" id="bCor">Generar correlativo</button><div id="tCor"></div>
             </div>
         </div>
     </div>
@@ -532,7 +545,7 @@
             <div class="psx-fg" id="bSets"></div>
         </div>
         <div class="psx-grid">
-            <div class="psx-card"><h6>Entrega por alumna</h6><div id="tEnt"></div></div>
+            <div class="psx-card"><h6>Entrega por alumno/a</h6><div id="tEnt"></div></div>
             <div class="psx-card">
                 <h6>Inventario de ropa</h6><div id="tInv"></div>
                 <p class="psx-leg">Stock bajo = igual o menor al mínimo. En este módulo no se maneja dinero.</p>
@@ -550,7 +563,7 @@
                 </div>
             </div>
             <div id="tVac"></div>
-            <p class="psx-leg">Datos de menores: solo para personal autorizado. Nombres y RUT de ejemplo, ficticios.</p>
+            <p class="psx-leg">Datos de menores: solo para personal autorizado.</p>
         </div>
     </div>
 
@@ -581,9 +594,10 @@
       var c = function (t, k) { return '<span class="psx-c ' + k + '">' + t + '</span>'; };
       var T = function (h, r) {
         return '<table class="psx-t"><thead><tr>' + h.map(function (x) { return '<th>' + x + '</th>'; }).join('') +
-          '</tr></thead><tbody>' + r.map(function (a) { return '<tr>' + a.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+          '</tr></thead><tbody>' + (r.length ? r.map(function (a) { return '<tr>' + a.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="' + h.length + '" style="color:var(--mut);text-align:center;padding:1rem">Sin registros todavía.</td></tr>') + '</tbody></table>';
       };
       var B = function (rows, max, col) {
+        if (!rows.length || !max) return '<p class="psx-leg">Sin datos todavía.</p>';
         return rows.map(function (r) {
           return '<div class="psx-row"><em>' + r[0] + '</em><div class="psx-bar"><i style="width:' + Math.round(r[1] / max * 100) + '%;' +
             (r[2] || col ? 'background:' + (r[2] || col) : '') + '"></i></div><b>' + r[1] + '</b></div>';
@@ -592,73 +606,52 @@
       var dots = function (a) { return '<div class="psx-dots">' + a.map(function (s) { return '<i class="d' + s + '"></i>'; }).join('') + '</div>'; };
       var asis = function (n) { return c(n + '%', n < 85 ? 'bad' : 'ok'); };
 
-      // Totales reales de la planilla; nombres, RIT y fechas son ficticios
-      var cursos = [['1° Básico',7],['2° Básico',7],['3° Básico',5],['4° Básico',8],['5° Básico',21],['7° Básico',5],['8° Básico',9],['I° Medio',5],['II° Medio',10],['III° Medio',8],['IV° Medio',8]];
-      var seg = [
-        ['Camila R.','5° Básico','Monitorear caso individual y familiar',[2,2,2,1,2,2,1,0,0,0],64],
-        ['Sofía M.','1° Básico','Mejorar asistencia, citar apoderada',[2,2,2,2,2,2,2,1,0,0],82],
-        ['Valentina P.','II° Medio','Coordinación con programa externo',[0,2,2,2,2,1,1,0,0,0],91],
-        ['Isidora L.','8° Básico','Visualización social y grupo de pares',[2,0,2,2,2,2,0,0,0,0],77],
-        ['Javiera T.','5° Básico','Acompañamiento y rol del apoderado',[2,2,2,2,2,2,2,2,0,0],96]];
-
-      if ($('k')) $('k').innerHTML = [['Alumnas en seguimiento','93','11 cursos'],['Causas judiciales','71','57 informes de julio enviados'],
-        ['Informes evacuados','61','FEMAR-61-2026'],['Visitas domiciliarias','20','2 responsables'],
-        ['Derivaciones convivencia','9','8 egresadas'],['Bajo 85% asistencia','42%','76 de 179 menciones']]
-        .map(function (k) { return '<div class="psx-kpi"><small>' + k[0] + '</small><b>' + k[1] + '</b><span>' + k[2] + '</span></div>'; }).join('');
-      $('gCur').innerHTML = B(cursos, 21);
-      $('gInf').innerHTML = B([['Enviado',57,'#22a35a'],['No procede',6,'#94a3b8'],['Sin dato',6,'#f0a500'],['Retirada',2,'#e25555']], 57);
-      $('gPer').innerHTML = B([['Semestral',21],['Trimestral',10],['Mensual',1],['Por oficio',1]], 21);
-      $('gAs').innerHTML = B([['Bajo 85%',76,'#e25555'],['85% o más',103,'#22a35a']], 103);
+      // Todo parte vacío: los cursos salen de los alumnos/as realmente cargados
+      var NIV = ['1° Básico', '2° Básico', '3° Básico', '4° Básico', '5° Básico', '6° Básico', '7° Básico', '8° Básico', 'I° Medio', 'II° Medio', 'III° Medio', 'IV° Medio'];
+      var cursos = [];
+      var seg = [];
+      $('gCur').innerHTML = B(cursos, 1);
+      $('gInf').innerHTML = B([], 0);
+      $('gPer').innerHTML = B([], 0);
+      $('gAs').innerHTML = B([], 0);
 
       var sel = $('fCur');
-      sel.innerHTML = '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('');
+      var opcCursos = function () { return '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join(''); };
+      sel.innerHTML = opcCursos();
       var drawSeg = function () {
         var f = sel.value;
-        $('tSeg').innerHTML = T(['Alumna','Curso','Objetivo / acuerdo','Mar a Dic','Asistencia'],
+        $('tSeg').innerHTML = T(['Alumno/a','Curso','Objetivo / acuerdo','Mar a Dic','Asistencia'],
           seg.filter(function (r) { return !f || r[1] === f; }).map(function (r) { return [r[0], r[1], r[2], dots(r[3]), asis(r[4])]; }));
       };
       sel.onchange = drawSeg; drawSeg();
 
-      $('tJud').innerHTML = T(['Alumna','Curso','Causa','RIT','Informe jul','Informe dic','Periodicidad'], [
-        ['Alumna A','1° Básico','Externo','X-000-2025',c('Enviado','ok'),c('Pendiente','warn'),'Semestral'],
-        ['Alumna B','2° Básico','Interno 2026','P-000-2026',c('Enviado','ok'),c('Pendiente','warn'),'Trimestral'],
-        ['Alumna C','5° Básico','Sin dato',c('Sin RIT','bad'),c('No procede','nil'),c('Cerrada','info'),'No procede']]);
-      $('tCor').innerHTML = T(['N°','Ord.','Fecha'], [['61','FEMAR-61-2026','29-07'],['60','FEMAR-60-2026','28-07'],['59','FEMAR-59-2026','27-07']]);
+      var JUD = [];
+      var drawJud = function () { $('tJud').innerHTML = T(['Alumno/a','Curso','Causa','RIT','Informe jul','Informe dic','Periodicidad'], JUD); };
+      drawJud();
+      var COR = [], sigCor = 1;
+      var drawCor = function () { $('tCor').innerHTML = T(['N°','Ord.','Fecha'], COR); $('corNext').textContent = 'FEMAR-' + sigCor + '-2026'; };
+      drawCor();
 
-      $('tCon').innerHTML = T(['Fecha','Curso','Apoderada','Intervención','Mediación','Situación'], [
-        ['01-06','4° Básico','Registro en Lirmi',c('Procede','ok'),'Reparación y psicoeducación',c('Egreso','ok')],
-        ['01-06','1° Medio / 7° Básico','Registro en Lirmi',c('Procede','ok'),'Monitoreo y psicoeducación',c('Monitoreo','warn')]]);
-      $('tTut').innerHTML = T(['Curso','Estudiante','Objetivo / acuerdo','Estado'], [
-        ['3° Básico','Alumna D','Reforzar normas dentro del aula',c('En curso','info')],
-        ['6° Básico','Alumna E','Visualizar derivación a salud',c('En curso','info')],
-        ['7° Básico','Alumna F','Monitoreo de asistencia',c('Pendiente','warn')]]);
+      $('tCon').innerHTML = T(['Fecha','Curso','Apoderada','Intervención','Mediación','Situación'], []);
+      $('tTut').innerHTML = T(['Curso','Estudiante','Objetivo / acuerdo','Estado'], []);
+      $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], []);
+      $('tEgr').innerHTML = T(['Alumno/a','Curso','Motivo','Fecha'], []);
+      $('kan').innerHTML = [['Por iniciar'],['En curso'],['Logrado']]
+        .map(function (k) { return '<div class="psx-col"><h6>' + k[0] + '</h6><div class="psx-leg">Sin estudiantes.</div></div>'; }).join('');
 
-      $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], [
-        ['07-04','Alumna G','Pje. Ejemplo 1196',c('PM','info'),'Claudio Rivera',c('OK','ok')],
-        ['07-04','Alumna H','Calle Roble 9262',c('PM','info'),'Claudio Rivera',c('OK','ok')],
-        ['04-03','Alumna I','Sin dato',c('AM','info'),'Zadid Berrios',c('OK','ok')]]);
-
-
-
-      $('tEgr').innerHTML = T(['Alumna','Curso','Motivo','Fecha'], [
-        ['Alumna J','6° Básico',c('Egreso','ok'),'27-05'],['Alumna K','8° Básico',c('Retirada del colegio','nil'),'—'],
-        ['Alumna L','3° Medio',c('Egreso con compromisos','info'),'29-05']]);
-      $('kan').innerHTML = [['Por iniciar','warn','Alumna M · Mejorar asistencia bajo 70%'],['En curso','info','Alumna N · Apoyo psicológico externo'],['Logrado','ok','Alumna O · Compromiso cumplido']]
-        .map(function (k) { return '<div class="psx-col"><h6>' + k[0] + '</h6><div class="psx-note">' + k[2] + '<br>' + c(k[0], k[1]) + '</div></div>'; }).join('');
-
-      // ---- Nuevo registro: fichas de la planilla + buscador de alumnas (visual) ----
-      var alu = [['Camila R.','5° Básico','24.000.001-1',64],['Sofía M.','1° Básico','24.000.002-2',82],['Valentina P.','II° Medio','24.000.003-3',91],['Isidora L.','8° Básico','24.000.004-4',77],['Javiera T.','5° Básico','24.000.005-5',96],['Antonia B.','4° Básico','24.000.006-6',80],['Renata C.','7° Básico','24.000.007-7',69],['Martina S.','III° Medio','24.000.008-8',88],['Emilia V.','2° Básico','24.000.009-9',73],['Josefa H.','I° Medio','24.000.010-0',85]];
+      // ---- Nuevo registro: fichas de la planilla + buscador de alumnos/as (visual) ----
+      var alu = [];
       var MES = ['Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
       var F = [
         {k:'seg',n:'Seguimiento mensual',d:'Calendarización: acciones y asistencia del mes',al:1,f:[['Mes','s',MES],['Tipo de acción','s',['Carta de compromiso','Monitoreo','Entrevista presencial','Citación a apoderado','Observación en aula','Coordinación con programa externo']],['Asistencia (%)','n'],['Objetivo / acuerdo','a'],['Observaciones','a']]},
         {k:'jud',n:'Caso judicializado',d:'RIT, informes y resoluciones',al:1,f:[['Origen de la causa','s',['Interno','Externo']],['Año de apertura','n'],['RIT de la causa','t'],['Informe de julio','s',['Enviado','Pendiente','No procede']],['Informe de diciembre','s',['Pendiente','Enviado','Causa cerrada','No procede']],['Periodicidad','s',['Mensual','Trimestral','Semestral','Solo por oficio']],['Resumen de resoluciones','a']]},
-        {k:'inf',n:'Informe evacuado',d:'Correlativo FEMAR automático',al:1,f:[['N° correlativo','t','FEMAR-62-2026'],['Fecha','d'],['Destinatario','t'],['Detalle','a']]},
+        {k:'inf',n:'Informe evacuado',d:'Correlativo FEMAR automático',al:1,f:[['N° correlativo','t','FEMAR-1-2026'],['Fecha','d'],['Destinatario','t'],['Detalle','a']]},
         {k:'vd',n:'Visita domiciliaria',d:'Fecha, dirección, jornada y responsable',al:1,f:[['Fecha','d'],['Dirección','t'],['Jornada','s',['AM','PM']],['Responsable','t'],['Pago','s',['Pendiente','OK']],['Observaciones','a']]},
-        {k:'conv',n:'Derivación a convivencia escolar',d:'Entrevista, intervención y mediación',al:1,f:[['Fecha','d'],['Entrevista con apoderada','s',['Registro en Lirmi','Procede','No procede']],['Intervención con alumna','s',['Procede','No procede']],['Mediación / acciones','a'],['Situación actual','s',['Monitoreo','Egreso']]]},
+        {k:'conv',n:'Derivación a convivencia escolar',d:'Entrevista, intervención y mediación',al:1,f:[['Fecha','d'],['Entrevista con apoderada','s',['Registro en Lirmi','Procede','No procede']],['Intervención con alumno/a','s',['Procede','No procede']],['Mediación / acciones','a'],['Situación actual','s',['Monitoreo','Egreso']]]},
         {k:'tut',n:'Derivación a profesor tutor',d:'Objetivos y acuerdos con el tutor',al:1,f:[['Profesor tutor','t'],['Objetivos / acuerdos','a'],['Estado','s',['Pendiente','En curso','Logrado']]]},
         {k:'plan',n:'Plan de acción (crítica)',d:'Objetivos, estrategias y estado',al:1,f:[['Objetivos de intervención','a'],['Estrategias','a'],['Estado de objetivos','s',['Por iniciar','En curso','Logrado']]]},
         {k:'pro',n:'Beneficio pro-retención',d:'Entrega de sets y beneficios',al:1,f:[['Año','s',['2026','2025']],['Beneficio','s',['Set 1','Set 2','Tablet']],['Estado','s',['Pendiente','Entregado']]]},
-        {k:'ropa',n:'Movimiento de inventario',d:'Entrada o entrega de ropa',al:0,f:[['Prenda','s',['Blazer','Camisa blanca','Chaqueta polar','Jumper','Polera piqué','Zapatos','Calcetas','Mochila']],['Talla','t'],['Cantidad','n'],['Tipo','s',['Entrada','Entrega a alumna']]]},
+        {k:'ropa',n:'Movimiento de inventario',d:'Entrada o entrega de ropa',al:0,f:[['Prenda','s',['Blazer','Camisa blanca','Chaqueta polar','Jumper','Polera piqué','Zapatos','Calcetas','Mochila']],['Talla','t'],['Cantidad','n'],['Tipo','s',['Entrada','Entrega a alumno/a']]]},
         {k:'egr',n:'Egreso psicosocial',d:'Motivo, fecha y citación final',al:1,f:[['Motivo','s',['Egreso','Egreso con compromisos','Retirada del colegio']],['Fecha','d'],['Citación a apoderada','d'],['Observaciones','a']]}
       ];
       var fld = function (f) {
@@ -668,13 +661,13 @@
         else h += '<input class="psx-in" type="' + (t === 'd' ? 'date' : t === 'n' ? 'number' : 'text') + '"' + (f[2] ? ' value="' + f[2] + '" readonly' : '') + '>';
         return h + '</label>';
       };
-      var curOpts = '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('');
+      var curOpts = opcCursos();
       var rows = function (q, cu) {
         q = (q || '').toLowerCase();
-        return alu.filter(function (a) { return (!cu || a[1] === cu) && (!q || (a[0] + ' ' + a[1] + ' ' + a[2]).toLowerCase().indexOf(q) > -1); });
+        return alu.filter(function (a) { return (!cu || a[1].indexOf(cu) === 0) && (!q || (a[0] + ' ' + a[1] + ' ' + a[2]).toLowerCase().indexOf(q) > -1); });
       };
       var list = function (l) {
-        return l.length ? l.map(function (a) { return '<div class="psx-it" data-n="' + a[2] + '"><b>' + a[0] + '</b><span>' + a[1] + ' · ' + a[2] + '</span>' + asis(a[3]) + '</div>'; }).join('')
+        return l.length ? l.map(function (a) { return '<div class="psx-it" data-n="' + a[2] + '"><b>' + a[0] + '</b><span>' + a[1] + ' · ' + a[2] + '</span>' + (a[3] == null ? '' : asis(a[3])) + '</div>'; }).join('')
           : '<p class="psx-leg">Sin resultados</p>';
       };
       var byRut = function (n) { return alu.filter(function (a) { return a[2] === n; })[0]; };
@@ -690,7 +683,7 @@
 
       var ov = $('psxOv'), mB = $('mB'), st = { s: 1, f: null, a: null, done: 0 };
       var draw = function () {
-        $('mS').innerHTML = ['1 Ficha', '2 Alumna', '3 Datos'].map(function (x, i) { return '<span class="psx-st' + (st.s === i + 1 ? ' on' : '') + '">' + x + '</span>'; }).join('');
+        $('mS').innerHTML = ['1 Ficha', '2 Alumno/a', '3 Datos'].map(function (x, i) { return '<span class="psx-st' + (st.s === i + 1 ? ' on' : '') + '">' + x + '</span>'; }).join('');
         var h = '';
         if (st.s === 1) {
           h = '<p class="psx-leg" style="margin:0 0 .6rem">Elige la ficha que quieres completar</p><div class="psx-fg">' +
@@ -741,7 +734,7 @@
       $('dgX').onclick = dgClose; $('dgC').onclick = dgClose;
       $('dgOv').onclick = function (e) { if (e.target === $('dgOv')) dgClose(); };
       $('dgOk').onclick = function () { if (dgOk && dgOk() === false) return; dgClose(); };
-      var msg = function (t) { var m = $('psxMsg'); m.textContent = t + ' (vista previa)'; m.style.display = ''; setTimeout(function () { m.style.display = 'none'; }, 4500); };
+      var msg = function (t, real) { var m = $('psxMsg'); m.textContent = t + (real ? '' : ' (vista previa)'); m.style.display = ''; setTimeout(function () { m.style.display = 'none'; }, 4500); };
       var descargar = function (nombre, texto) {
         var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' })); a.download = nombre; a.click();
       };
@@ -759,7 +752,7 @@
       };
 
       // ---- Sets de beneficios (editables) ----
-      var SETS = [{ n: 'Set 1', it: ['Mochila', 'Poleras', 'Parka', 'Zapatos', 'Útiles escolares'], e: 38, t: 52 }, { n: 'Set 2', it: ['Tablet'], e: 12, t: 20 }], ANIO = '2026';
+      var SETS = [], ANIO = String(new Date().getFullYear());
       var drawSets = function () {
         $('bSets').innerHTML = SETS.map(function (x) {
           var p = x.t ? Math.round(x.e / x.t * 100) : 0;
@@ -768,46 +761,50 @@
       };
       drawSets();
       var setF = function (x) {
-        return '<div class="set" data-e="' + x.e + '" style="border:1px solid var(--line);border-radius:10px;padding:.6rem;margin-top:.6rem"><div class="psx-find-row"><input class="psx-in sn" placeholder="Nombre del set" value="' + x.n + '"><input class="psx-in st" type="number" placeholder="Cantidad a entregar" value="' + (x.t || '') + '" style="max-width:170px"></div><textarea class="psx-in si" rows="4" placeholder="Un artículo por línea" style="margin-top:.4rem">' + x.it.join('\n') + '</textarea></div>';
+        return '<div class="set" data-e="' + x.e + '" data-id="' + (x.id || 0) + '" style="border:1px solid var(--line);border-radius:10px;padding:.6rem;margin-top:.6rem"><div class="psx-find-row"><input class="psx-in sn" placeholder="Nombre del set" value="' + x.n + '"><input class="psx-in st" type="number" placeholder="Cantidad a entregar" value="' + (x.t || '') + '" style="max-width:170px"><input class="psx-in se" type="number" min="0" placeholder="Entregados" value="' + (x.e || 0) + '" style="max-width:130px"></div><textarea class="psx-in si" rows="4" placeholder="Un artículo por línea" style="margin-top:.4rem">' + x.it.join('\n') + '</textarea></div>';
       };
       $('bSetE').onclick = function () {
         dlg('Editar sets de beneficios', '<label class="psx-f"><span>Año de entrega</span><input class="psx-in" id="sA" value="' + ANIO + '"></label><div id="sL">' + SETS.map(setF).join('') + '</div><button class="psx-btn" id="sAdd" style="margin-top:.6rem">+ Nuevo set</button><p class="psx-leg">Escribe un artículo por línea. Lo que se entrega puede cambiar cada año.</p>', function () {
           ANIO = $('sA').value || ANIO; var n = [];
           document.querySelectorAll('#sL .set').forEach(function (d) {
             var nm = d.querySelector('.sn').value.trim(); if (!nm) return;
-            n.push({ n: nm, it: d.querySelector('.si').value.split('\n').map(function (z) { return z.trim(); }).filter(Boolean), e: +d.getAttribute('data-e') || 0, t: +d.querySelector('.st').value || 0 });
+            n.push({ id: +d.getAttribute('data-id') || 0, n: nm, it: d.querySelector('.si').value.split('\n').map(function (z) { return z.trim(); }).filter(Boolean), e: +d.querySelector('.se').value || 0, t: +d.querySelector('.st').value || 0 });
           });
-          SETS = n; drawSets(); msg('Sets actualizados');
+          post('/Psychosocial/GuardarSets', { anio: ANIO, setsJson: JSON.stringify(n) }).then(function () { cargarBen(); msg('Sets guardados', 1); }).catch(errBen);
         });
         $('sAdd').onclick = function () { $('sL').insertAdjacentHTML('beforeend', setF({ n: '', it: [], e: 0, t: 0 })); };
       };
 
-      // ---- Entrega por alumna e inventario ----
-      var ENT = [['Camila R.', '5° Básico', 'Set 1', 1], ['Sofía M.', '1° Básico', 'Set 1', 1], ['Valentina P.', 'II° Medio', 'Set 2', 0], ['Isidora L.', '8° Básico', 'Set 1', 0], ['Javiera T.', '5° Básico', 'Set 2', 1]];
+      // ---- Entrega por alumno/a e inventario ----
+      var ENT = [];
       var drawEnt = function () {
-        $('tEnt').innerHTML = T(['Entregado', 'Alumna', 'Curso', 'Set', 'Estado'], ENT.map(function (e, i) {
+        $('tEnt').innerHTML = T(['Entregado', 'Alumno/a', 'Curso', 'Set', 'Estado'], ENT.map(function (e, i) {
           return ['<input type="checkbox" data-i="' + i + '"' + (e[3] ? ' checked' : '') + '>', e[0], e[1], e[2], e[3] ? c('Entregado', 'ok') : c('Pendiente', 'warn')];
         }));
       };
       drawEnt();
       $('tEnt').onclick = function (e) { if (e.target.tagName === 'INPUT') { ENT[+e.target.getAttribute('data-i')][3] = e.target.checked ? 1 : 0; drawEnt(); } };
-      var INV = [['Polera blanca', '6 a XL', 22, 5], ['Jumper', '8 a 16', 15, 5], ['Blazer', '10 a 16', 7, 3], ['Chaqueta polar', '8 a 14', 3, 5], ['Camisa blanca', '8 a 16', 2, 5], ['Zapatos', '28 a 40', 9, 4]];
+      var INV = [];
       var drawInv = function () {
-        $('tInv').innerHTML = T(['Prenda', 'Tallas', 'Stock', 'Mínimo', 'Estado'], INV.map(function (r) {
-          return [r[0], r[1], '<b>' + r[2] + '</b>', r[3], r[2] <= r[3] ? c('Stock bajo', 'bad') : c('OK', 'ok')];
+        var ed = function (i, k, v) { return '<input class="psx-in iv" type="number" min="0" data-i="' + i + '" data-k="' + k + '" value="' + v + '" style="max-width:80px">'; };
+        $('tInv').innerHTML = T(['Prenda', 'Tallas', 'Stock', 'Mínimo', 'Estado'], INV.map(function (r, i) {
+          return [r[0], r[1], ed(i, 2, r[2]), ed(i, 3, r[3]), r[2] <= r[3] ? c('Stock bajo', 'bad') : c('OK', 'ok')];
         }));
       };
       drawInv();
+      $('tInv').onchange = function (e) {
+        var t = e.target; if (!t.classList.contains('iv')) return;
+        var r = INV[+t.getAttribute('data-i')]; r[+t.getAttribute('data-k')] = Math.max(0, +t.value || 0); drawInv();
+        post('/Psychosocial/AjustarInventario', { id: r[4], stock: r[2], minimo: r[3] }).catch(errBen);
+      };
       $('bStock').onclick = function () {
         dlg('Registrar ingreso de stock', '<label class="psx-f"><span>Prenda o artículo</span><input class="psx-in" id="iN" list="iL" placeholder="Ej: Polera blanca"><datalist id="iL">' + INV.map(function (r) { return '<option>' + r[0]; }).join('') + '</datalist></label><div class="psx-find-row" style="margin-top:.6rem"><label class="psx-f" style="flex:1"><span>Talla</span><input class="psx-in" id="iT"></label><label class="psx-f" style="flex:1"><span>Cantidad</span><input class="psx-in" id="iC" type="number" min="1"></label></div>', function () {
-          var n = $('iN').value.trim(), q = +$('iC').value; if (!n || !q) return false;
-          var r = INV.filter(function (x) { return x[0].toLowerCase() === n.toLowerCase(); })[0];
-          if (r) r[2] += q; else INV.push([n, $('iT').value || '—', q, 3]);
-          drawInv(); msg('Ingreso registrado');
+          var n = $('iN').value.trim(), q = +$('iC').value; if (!n || q < 1) return false;
+          post('/Psychosocial/IngresarStock', { nombre: n, tallas: $('iT').value, cantidad: q }).then(function () { cargarBen(); msg('Ingreso registrado', 1); }).catch(errBen);
         }, 'Registrar ingreso');
       };
       $('bGD').onclick = function () {
-        var f = [['N°', 'Alumna', 'Curso', 'Artículo', 'Firma']];
+        var f = [['N°', 'Alumno/a', 'Curso', 'Artículo', 'Firma']];
         ENT.filter(function (e) { return e[3]; }).forEach(function (e, i) { f.push([i + 1, e[0], e[1], e[2], '']); });
         guia('Guía de despacho', 'Entrega de beneficios pro-retención ' + ANIO, f, false,
           '<div>Retira: ______________________</div><div>RUT: ______________</div><div>Parentesco: ____________</div>', ['Entrega (equipo psicosocial)', 'Firma de quien retira']);
@@ -818,25 +815,35 @@
         guia('Guía de ingreso', 'Ingreso de artículos a bodega', f, false, '<div>Proveedor / origen: ______________________</div><div>Documento asociado: ______________</div>', ['Recibe en bodega', 'Firma proveedor / responsable']);
       };
 
-      // ---- Agregar alumnas, importar planilla y pasar de año ----
-      var rowA = function () { return '<tr><td><input class="psx-in an" placeholder="Nombre completo"></td><td><input class="psx-in ar" placeholder="RUT"></td><td><select class="psx-in ac">' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join('') + '</select></td><td><input class="psx-in af" type="date"></td></tr>'; };
+      // ---- Agregar alumnos/as, importar planilla y pasar de año ----
+      var rowA = function () { return '<tr><td><input class="psx-in an" placeholder="Nombre completo"></td><td><input class="psx-in ar" placeholder="RUT"></td><td><select class="psx-in ac">' + NIV.map(function (n) { return '<option>' + n + '</option>'; }).join('') + '</select></td><td><input class="psx-in af" type="date"></td></tr>'; };
       $('bAdd').onclick = function () {
-        dlg('Agregar alumnas', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega una o varias alumnas; cada una queda en el curso elegido.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th></tr></thead><tbody id="aT">' + rowA() + rowA() + rowA() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button>', function () {
-          var n = 0;
+        dlg('Agregar alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega una o varias alumnos/as; cada una queda en el curso elegido.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th></tr></thead><tbody id="aT">' + rowA() + rowA() + rowA() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button><div id="aR"></div>', function () {
+          var l = [];
           document.querySelectorAll('#aT tr').forEach(function (tr) {
             var nm = tr.querySelector('.an').value.trim();
-            if (nm) { alu.push([nm, tr.querySelector('.ac').value, tr.querySelector('.ar').value || '—', 100]); n++; }
+            if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), c: tr.querySelector('.ac').value, f: tr.querySelector('.af').value });
           });
-          msg(n + ' alumna(s) agregada(s)');
+          if (!l.length) { msg('Escribe al menos un alumno/a'); return false; }
+          var b = new URLSearchParams({ alumnosJson: JSON.stringify(l) }); b.append('__RequestVerificationToken', tok());
+          enviarAlumnos('/Psychosocial/AgregarAlumnos', b, 'aR');
+          return false;
         }, 'Agregar');
         $('aMas').onclick = function () { $('aT').insertAdjacentHTML('beforeend', rowA()); };
       };
       $('bImp').onclick = function () {
-        dlg('Importar planilla de alumnas', '<p class="psx-leg" style="margin:0 0 .5rem">Columnas: Nombre, RUT, Curso y Fecha de nacimiento. Cada alumna se asigna sola a su curso.</p><input type="file" id="imF" accept=".csv,.xlsx" class="psx-in"><div style="margin:.5rem 0"><button class="psx-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div><label style="font-size:.8rem;display:block;margin-top:.4rem"><input type="checkbox" checked> Crear los cursos que no existan</label><label style="font-size:.8rem;display:block"><input type="checkbox" checked> Actualizar alumnas que ya existen (por RUT)</label>', function () { msg('Importación simulada'); }, 'Importar');
+        dlg('Importar planilla de alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Columnas: Nombre, RUT, Curso y Fecha de nacimiento. Cada alumno/a se asigna automáticamente a su curso.</p><input type="file" id="imF" accept=".csv,.xlsx" class="psx-in"><div style="margin:.5rem 0"><button class="psx-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div><label style="font-size:.8rem;display:block;margin-top:.4rem"><input type="checkbox" id="imCrear" checked> Crear los cursos que no existan</label><label style="font-size:.8rem;display:block"><input type="checkbox" id="imAct" checked> Actualizar alumnos/as que ya existen (por RUT)</label>', function () {
+          var f = $('imF').files[0];
+          if (!f) { msg('Elige un archivo CSV primero'); return false; }
+          if (!/\.csv$/i.test(f.name)) { msg('Por ahora la importación real solo lee CSV'); return false; }
+          var fd = new FormData(); fd.append('archivo', f); fd.append('crearCursos', $('imCrear').checked); fd.append('actualizar', $('imAct').checked); fd.append('__RequestVerificationToken', tok());
+          enviarAlumnos('/Psychosocial/ImportarAlumnos', fd, 'imR');
+          return false;
+        }, 'Importar');
         $('imP').onclick = function () { descargar('plantilla_alumnas.csv', '\ufeffNombre;RUT;Curso;Fecha de nacimiento\nCamila Ramírez Soto;24.000.001-1;5° Básico;2015-03-14\n'); };
         var show = function (cnt, tot, nota) {
           var rows = Object.keys(cnt).map(function (k) { return [k, cnt[k]]; });
-          $('imR').innerHTML = '<span class="psx-c ok">' + tot + ' alumnas detectadas en ' + rows.length + ' cursos</span>' + B(rows, Math.max.apply(null, rows.map(function (r) { return r[1]; }))) + (nota ? '<p class="psx-leg">' + nota + '</p>' : '');
+          $('imR').innerHTML = '<span class="psx-c ok">' + tot + ' alumnos/as detectadas en ' + rows.length + ' cursos</span>' + B(rows, Math.max.apply(null, rows.map(function (r) { return r[1]; }))) + (nota ? '<p class="psx-leg">' + nota + '</p>' : '');
         };
         $('imF').onchange = function () {
           var f = this.files[0]; if (!f) return;
@@ -850,38 +857,223 @@
             };
             r.readAsText(f, 'utf-8');
           } else {
-            var cnt = {}; cursos.forEach(function (x) { cnt[x[0]] = x[1]; });
-            show(cnt, 93, 'Vista previa de ejemplo: los archivos Excel se leerán en el servidor.');
+            $('imR').innerHTML = '<p class="psx-leg">Por ahora solo se importan archivos CSV. En Excel usa Archivo → Guardar como → CSV (delimitado por comas o punto y coma).</p>';
           }
         };
       };
-      var NIV = ['1° Básico', '2° Básico', '3° Básico', '4° Básico', '5° Básico', '6° Básico', '7° Básico', '8° Básico', 'I° Medio', 'II° Medio', 'III° Medio', 'IV° Medio'];
       $('bYear').onclick = function () {
-        var cnt = {}; cursos.forEach(function (x) { cnt[x[0]] = x[1]; });
-        dlg('Pasar de año (vista previa)', '<p class="psx-leg" style="margin:0 0 .5rem">Cada curso sube al siguiente nivel y IV° Medio pasa a egresadas. No se borra nada.</p>' +
-          T(['Curso actual', 'Alumnas', 'Pasan a'], NIV.map(function (n, i) { return [n, cnt[n] || '—', i < NIV.length - 1 ? NIV[i + 1] : c('Egresan', 'info')]; })),
-          function () { msg('Cambio de año simulado'); }, 'Aplicar');
+        var cnt = {}; cursos.forEach(function (x) { cnt[x[0].replace(/ [A-Za-z]$/, '')] = (cnt[x[0].replace(/ [A-Za-z]$/, '')] || 0) + x[1]; });
+        dlg('Pasar de año', '<p class="psx-leg" style="margin:0 0 .5rem">Cada curso sube al siguiente nivel y IV° Medio egresa. Corrige los números si no calzan: cuántos alumnos/as pasan desde cada curso y cuántos ingresan nuevos a 1° Básico. No se borra nada.</p>' +
+          T(['Curso actual', 'Alumnos/as que pasan', 'Pasan a'], NIV.map(function (n, i) {
+            return [n, '<input class="psx-in yc" type="number" min="0" data-n="' + n + '" value="' + (cnt[n] || 0) + '" style="max-width:110px">', i < NIV.length - 1 ? NIV[i + 1] : c('Egresan', 'info')];
+          })) + '<label class="psx-f" style="margin-top:.6rem"><span>Ingreso nuevo a 1° Básico (alumnos/as)</span><input class="psx-in" id="yN" type="number" min="0" value="0" style="max-width:140px"></label>',
+          function () {
+            var nuevo = {};
+            NIV.forEach(function (n, i) { if (i < NIV.length - 1) nuevo[NIV[i + 1]] = +document.querySelector('.yc[data-n="' + n + '"]').value || 0; });
+            nuevo[NIV[0]] = +$('yN').value || 0;
+            msg('El cambio de año real se conecta en el siguiente paso; por ahora es solo una vista previa.');
+          }, 'Aplicar');
       };
 
       // ---- Vacunación: listado por curso, exportable ----
-      var VAC = [['Camila Andrea Ramírez Soto', '5° Básico', '24.000.001-1', '2015-03-14'], ['Sofía Paz Molina Vera', '1° Básico', '24.000.002-2', '2019-07-02'],
-        ['Valentina Isabel Pérez Rojas', 'II° Medio', '24.000.003-3', '2010-11-21'], ['Isidora Belén Lagos Mena', '8° Básico', '24.000.004-4', '2012-05-09'],
-        ['Javiera Constanza Tapia Díaz', '5° Básico', '24.000.005-5', '2015-09-30'], ['Antonia Ignacia Bravo Cruz', '4° Básico', '24.000.006-6', '2016-01-18'],
-        ['Renata Fernanda Castro Núñez', '7° Básico', '24.000.007-7', '2013-04-25'], ['Emilia Sofía Vidal Pinto', '2° Básico', '24.000.009-9', '2018-02-11']];
+      var VAC = [];
       var edad = function (n) {
         var p = n.split('-'), h = new Date(), a = h.getFullYear() - +p[0];
         if (h < new Date(h.getFullYear(), +p[1] - 1, +p[2])) a--;
         return a;
       };
       var vSel = $('vCur'); vSel.innerHTML = curOpts;
-      var vRows = function () { var f = vSel.value; return VAC.filter(function (x) { return !f || x[1] === f; }); };
-      var vFila = function (x, i) { return [i + 1, x[0], x[1], x[2], x[3].split('-').reverse().join('-'), edad(x[3]) + ' años']; };
+      var vRows = function () { var f = vSel.value; return VAC.filter(function (x) { return !f || x[1].indexOf(f) === 0; }); };
+      var vFila = function (x, i) { return [i + 1, x[0], x[1], x[2], x[3] ? x[3].split('-').reverse().join('-') : '—', x[3] ? edad(x[3]) + ' años' : '—']; };
       var VH = ['N°', 'Nombre completo', 'Curso', 'RUT', 'Fecha de nacimiento', 'Edad'];
-      var drawVac = function () { var r = vRows(); $('tVac').innerHTML = T(VH, r.map(vFila)); $('vN').textContent = r.length + ' alumnas'; };
+      var drawVac = function () { var r = vRows(); $('tVac').innerHTML = T(VH, r.map(vFila)); $('vN').textContent = r.length + ' alumnos/as'; };
       vSel.onchange = drawVac; drawVac();
       $('vPrn').onclick = function () { guia('Listado para vacunación', 'Curso: ' + (vSel.value || 'Todos'), [VH].concat(vRows().map(vFila)), true); };
       $('vCsv').onclick = function () {
         descargar('vacunacion.csv', '\ufeff' + VH.join(';') + '\n' + vRows().map(function (x, i) { return vFila(x, i).join(';'); }).join('\n'));
+      };
+
+      // ---- Generar correlativo: queda en el listado y, si es judicial, también en Casos judicializados ----
+      $('bCor').onclick = function () {
+        dlg('Generar correlativo de informe', '<label class="psx-f"><span>Alumno/a</span><input class="psx-in" id="cA" list="cL" placeholder="Nombre"><datalist id="cL">' + alu.map(function (a) { return '<option>' + a[0]; }).join('') + '</datalist></label>' +
+          '<div class="psx-find-row" style="margin-top:.6rem"><label class="psx-f" style="flex:1"><span>Tipo de informe</span><select class="psx-in" id="cT"><option>Judicial (tribunal)</option><option>Escolar</option><option>Derivación a red de salud</option><option>Otro</option></select></label>' +
+          '<label class="psx-f" style="flex:1"><span>Destinatario</span><input class="psx-in" id="cD"></label></div>' +
+          '<label class="psx-f" style="margin-top:.6rem"><span>Detalle</span><textarea class="psx-in" id="cX" rows="3"></textarea></label>' +
+          '<p class="psx-leg">Se asigna <b>FEMAR-' + sigCor + '-2026</b>. Si es judicial, también queda en Casos judicializados.</p>', function () {
+            var nom = $('cA').value.trim(); if (!nom) return false;
+            var f = new Date(), fs = String(f.getDate()).padStart(2, '0') + '-' + String(f.getMonth() + 1).padStart(2, '0'), ord = 'FEMAR-' + sigCor + '-2026';
+            COR.unshift([sigCor, ord, fs]);
+            if ($('cT').value.indexOf('Judicial') === 0) {
+              var a = alu.filter(function (x) { return x[0].toLowerCase() === nom.toLowerCase(); })[0];
+              var ya = JUD.filter(function (r) { return r[0].toLowerCase() === nom.toLowerCase(); })[0];
+              if (ya) { ya[2] = ya[2] + ' · ' + ord; ya[4] = c('Enviado', 'ok'); }
+              else JUD.unshift([nom, a ? a[1] : '—', 'Informe ' + ord, c('Sin RIT', 'bad'), c('Enviado', 'ok'), c('Pendiente', 'warn'), 'Por definir']);
+              drawJud();
+            }
+            sigCor++; drawCor();
+            document.dispatchEvent(new CustomEvent('psx-informe', { detail: { ord: ord } }));
+            msg('Correlativo ' + ord + ' generado');
+          }, 'Generar');
+      };
+
+      // ---- Conexión con el servidor: sets e inventario compartidos por el equipo ----
+      var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+      var post = function (url, datos) {
+        var body = new URLSearchParams(datos); body.append('__RequestVerificationToken', tok());
+        return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+      };
+      var cargarBen = function () {
+        return fetch('/Psychosocial/Beneficios', { credentials: 'same-origin' })
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(function (d) { ANIO = String(d.anio); SETS = d.sets; INV = d.inv.map(function (a) { return [a.n, a.ta, a.s, a.m, a.id]; }); drawSets(); drawInv(); })
+          .catch(function () { /* sin conexión: se mantiene lo que se ve */ });
+      };
+      var errBen = function () { alert('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'); cargarBen(); };
+      cargarBen();
+      setInterval(function () {
+        var ed = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('iv');
+        if (!document.hidden && !$('dgOv').classList.contains('on') && !ed) cargarBen();
+      }, 30000);
+
+      // ---- Listado real de alumnos/as matriculados ----
+      var ROS = null, ROSerr = '';
+      var ordenCurso = function (c) { var i = NIV.indexOf(c.replace(/ [A-Za-z]$/, '')); return i < 0 ? 99 : i; };
+      var llenarRos = function () {
+        var cur = $('rCur').value, uniq = {};
+        ROS.forEach(function (a) { uniq[a.c] = (uniq[a.c] || 0) + 1; });
+        var nombres = Object.keys(uniq).sort(function (x, y) { return ordenCurso(x) - ordenCurso(y) || (x < y ? -1 : 1); });
+        $('rCur').innerHTML = '<option value="">Todos los cursos</option>' + nombres.map(function (n) { return '<option value="' + n + '">' + n + ' (' + uniq[n] + ')</option>'; }).join('');
+        $('rCur').value = cur; drawRos();
+      };
+      var drawRos = function () {
+        if (ROS === 'error') { $('tRos').innerHTML = '<p class="psx-leg" style="color:#b42323">No se pudo cargar el listado (' + ROSerr + '). Abre la consola del navegador (F12) y revisa la pestaña Network.</p>'; return; }
+        if (!ROS) return;
+        if (!ROS.length) { $('rN').textContent = '0'; $('tRos').innerHTML = '<p class="psx-leg">Aún no hay alumnos/as cargados. Usa «Importar planilla» o «+ Agregar alumnos/as».</p>'; return; }
+        var f = $('rCur').value, q = $('rTxt').value.trim().toLowerCase();
+        var r = ROS.filter(function (a) { return (!f || a.c === f) && (!q || (a.n + ' ' + a.r).toLowerCase().indexOf(q) > -1); });
+        $('rN').textContent = r.length + ' de ' + ROS.length + ' alumnos/as';
+        $('tRos').innerHTML = T(['N°', 'Nombre', 'RUT', 'Curso', 'Nacimiento', 'Edad', 'Ficha'], r.slice(0, 100).map(function (a, i) {
+          return [i + 1, '<a href="#" class="ros-a" data-id="' + a.id + '" style="font-weight:600;color:#0d6efd;text-decoration:none">' + esc(a.n) + '</a>', a.r, a.c, a.f ? a.f.split('-').reverse().join('-') : '—', a.f ? edad(a.f) + ' años' : '—',
+            '<button class="psx-btn ros-a" data-id="' + a.id + '">Abrir ficha</button>'];
+        }));
+      };
+      $('rCur').onchange = drawRos; $('rTxt').oninput = drawRos;
+
+      // ---- Ficha confidencial del alumno/a (pide la segunda clave) ----
+      var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+      var fichaId = 0;
+      var abrirFicha = function (id) {
+        fichaId = id;
+        dlg('Ficha del alumno/a', '<div id="fiB"><p class="psx-leg">Cargando…</p></div>', function () {}, 'Cerrar');
+        cargarFicha();
+      };
+      var cargarFicha = function () {
+        fetch('/Psychosocial/Expediente/' + fichaId, { credentials: 'same-origin' })
+          .then(function (r) { if (r.status === 403) throw 'bloqueada'; if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(dibujarFicha)
+          .catch(function (e) { if (e === 'bloqueada') pedirClave(); else $('fiB').innerHTML = '<p class="psx-leg" style="color:#b42323">No se pudo abrir la ficha (' + esc(e.message || e) + ').</p>'; });
+      };
+      var pedirClave = function () {
+        fetch('/Psychosocial/EstadoClaveFicha', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (st) {
+          var nueva = !st.tieneClave;
+          $('fiB').innerHTML = '<div class="psx-note"><b>' + (nueva ? 'Crea tu segunda clave' : 'Ingresa tu segunda clave') + '</b>' +
+            '<p class="psx-leg" style="margin:.3rem 0">' + (nueva ? 'Protege las fichas confidenciales. Debe tener al menos 6 caracteres y ser distinta de tu clave de ingreso.' : 'Las fichas son confidenciales. Se vuelve a pedir cada 15 minutos.') + '</p>' +
+            '<input class="psx-in" type="password" id="fiK" placeholder="Segunda clave">' + (nueva ? '<input class="psx-in" type="password" id="fiK2" placeholder="Repite la segunda clave" style="margin-top:.4rem">' : '') +
+            '<button class="psx-btn p" id="fiGo" style="margin-top:.5rem">' + (nueva ? 'Crear y abrir' : 'Desbloquear') + '</button><p class="psx-leg" id="fiE" style="color:#b42323;margin:.3rem 0 0"></p></div>';
+          $('fiK').focus();
+          $('fiGo').onclick = function () {
+            post(nueva ? '/Psychosocial/CrearClaveFicha' : '/Psychosocial/DesbloquearFichas', nueva ? { clave: $('fiK').value, confirmar: $('fiK2').value } : { clave: $('fiK').value })
+              .then(cargarFicha).catch(function (e) { $('fiE').textContent = e.message; });
+          };
+        });
+      };
+      var falloFicha = function (e) { if (/segunda clave/i.test(e.message)) pedirClave(); else alert(e.message); };
+      var dibujarFicha = function (f) {
+        var lista = f.bit.map(function (x) {
+          return '<div class="psx-note"><div class="psx-leg" style="margin:0">' + new Date(x.f).toLocaleString('es-CL') + ' · ' + esc(x.a) + (x.m ? ' · editada' : '') + '</div>' +
+            '<div id="bt' + x.id + '" style="white-space:pre-wrap;margin:.25rem 0">' + esc(x.t) + '</div><button class="psx-btn" data-ed="' + x.id + '">Editar</button></div>';
+        }).join('') || '<p class="psx-leg">Sin anotaciones todavía.</p>';
+        $('fiB').innerHTML = '<div><b style="font-size:1.05rem">' + esc(f.n) + '</b><div class="psx-leg">' + esc(f.c) + ' · RUT ' + esc(f.r) +
+          (f.f ? ' · Nacimiento ' + f.f.split('-').reverse().join('-') + ' (' + edad(f.f) + ' años)' : '') + '</div></div>' +
+          '<h6 style="margin:.9rem 0 .4rem">Bitácora confidencial</h6><textarea class="psx-in" id="fiT" rows="3" placeholder="Nueva anotación…"></textarea>' +
+          '<button class="psx-btn p" id="fiAdd" style="margin:.4rem 0">Agregar anotación</button><div id="fiL">' + lista + '</div>' +
+          '<h6 style="margin:.9rem 0 .4rem">Cuenta del alumno/a</h6><p class="psx-leg">Usuario: ' + esc(f.email) + '. La clave de ingreso se guarda cifrada y no se puede ver; si se perdió, genera una nueva provisoria.</p>' +
+          '<button class="psx-btn" id="fiRes">Generar nueva clave provisoria</button><div id="fiC"></div>';
+        $('fiAdd').onclick = function () {
+          post('/Psychosocial/AgregarBitacora', { estudianteId: f.id, observaciones: $('fiT').value }).then(cargarFicha).catch(falloFicha);
+        };
+        $('fiL').onclick = function (e) {
+          var ed = e.target.getAttribute('data-ed'), sv = e.target.getAttribute('data-sv');
+          if (ed) {
+            var cont = $('bt' + ed), txt = cont.textContent;
+            cont.innerHTML = '<textarea class="psx-in" rows="3" id="be' + ed + '"></textarea>'; $('be' + ed).value = txt;
+            e.target.textContent = 'Guardar'; e.target.removeAttribute('data-ed'); e.target.setAttribute('data-sv', ed);
+          } else if (sv) {
+            post('/Psychosocial/EditarBitacora', { id: sv, observaciones: $('be' + sv).value }).then(cargarFicha).catch(falloFicha);
+          }
+        };
+        $('fiRes').onclick = function () {
+          post('/Psychosocial/RestablecerClaveAlumno', { estudianteId: f.id }).then(function (j) {
+            $('fiC').innerHTML = '<div class="psx-note">Usuario: <b>' + esc(j.email) + '</b><br>Clave provisoria: <b style="font-size:1.1rem">' + esc(j.clave) + '</b>' +
+              '<p class="psx-leg" style="margin:.3rem 0 0">Anótala ahora: no se vuelve a mostrar. Deberá cambiarla al ingresar.</p></div>';
+          }).catch(falloFicha);
+        };
+      };
+      $('tRos').onclick = function (e) { var a = e.target.closest('.ros-a'); if (a) { e.preventDefault(); abrirFicha(+a.getAttribute('data-id')); } };
+
+      var resultadoAlu = function (j, cont) {
+        var h = '<div style="margin-top:.6rem"><span class="psx-c ok">' + j.creados + ' creados</span> <span class="psx-c info">' + j.actualizados + ' actualizados</span> ' +
+          (j.omitidos ? '<span class="psx-c nil">' + j.omitidos + ' omitidos</span> ' : '') + (j.cursosCreados ? '<span class="psx-c nil">' + j.cursosCreados + ' cursos nuevos</span> ' : '') +
+          (j.totalErrores ? '<span class="psx-c bad">' + j.totalErrores + ' con error</span>' : '') + '</div>';
+        if (j.errores && j.errores.length) h += '<ul class="psx-leg" style="margin:.4rem 0 0 1rem">' + j.errores.map(function (e) { return '<li>' + e + '</li>'; }).join('') + '</ul>';
+        if (j.credenciales && j.credenciales.length) h += '<p class="psx-leg">Las cuentas nuevas tienen una clave provisoria que deben cambiar al entrar. <b>Descárgala ahora: no se vuelve a mostrar.</b></p><button class="psx-btn p" id="bCred">Descargar claves provisorias (CSV)</button>';
+        $(cont).innerHTML = h;
+        if ($('bCred')) $('bCred').onclick = function () {
+          descargar('claves_provisorias.csv', '\ufeffRUT;Nombre;Correo;Clave provisoria\n' + j.credenciales.map(function (c) { return [c.rut, c.n, c.e, c.c].join(';'); }).join('\n'));
+        };
+        msg(j.creados + ' creados, ' + j.actualizados + ' actualizados' + (j.totalErrores ? ', ' + j.totalErrores + ' con error' : ''), 1);
+        $('dgOk').textContent = 'Cerrar';
+        dgOk = function () { var t = Array.prototype.filter.call(document.querySelectorAll('.psx-tab'), function (b) { return b.textContent === 'Alumnos/as'; })[0]; if (t) t.click(); };
+        cargarAlu();
+      };
+      var enviarAlumnos = function (url, cuerpo, cont) {
+        $('dgOk').disabled = true; $(cont).innerHTML = '<p class="psx-leg">Procesando…</p>';
+        fetch(url, { method: 'POST', credentials: 'same-origin', body: cuerpo })
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+          .then(function (j) { resultadoAlu(j, cont); })
+          .catch(function (e) { $(cont).innerHTML = '<p class="psx-leg" style="color:#b42323">No se pudo completar: ' + e.message + '</p>'; })
+          .then(function () { $('dgOk').disabled = false; });
+      };
+      var cargarAlu = function () {
+        return fetch('/Psychosocial/Alumnos', { credentials: 'same-origin' })
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(function (l) {
+            ROS = l; llenarRos();
+            var cnt = {}; l.forEach(function (a) { cnt[a.c] = (cnt[a.c] || 0) + 1; });
+            cursos = Object.keys(cnt).sort(function (x, y) { return ordenCurso(x) - ordenCurso(y) || (x < y ? -1 : 1); }).map(function (k) { return [k, cnt[k]]; });
+            $('gCur').innerHTML = B(cursos, Math.max.apply(null, cursos.map(function (x) { return x[1]; })) || 1);
+            alu = l.map(function (a) { return [a.n, a.c, a.r, null]; });
+            VAC = l.map(function (a) { return [a.n, a.c, a.r, a.f]; });
+            var v1 = sel.value, v2 = vSel.value, v3 = $('sCur').value;
+            sel.innerHTML = opcCursos(); sel.value = v1; vSel.innerHTML = opcCursos(); vSel.value = v2; $('sCur').innerHTML = opcCursos(); $('sCur').value = v3;
+            drawSeg(); drawVac(); if ($('sTxt').oninput) $('sTxt').oninput();
+            document.dispatchEvent(new CustomEvent('psx-alumnos'));
+          }).catch(function (e) { ROS = 'error'; ROSerr = e.message; drawRos(); });
+      };
+      cargarAlu();
+
+      // ---- Claves provisorias nuevas para alumnos/as que aún no cambian la suya ----
+      $('rClaves').onclick = function () {
+        var f = $('rCur').value;
+        if (!confirm('Se generarán claves provisorias nuevas para los alumnos/as' + (f ? ' de ' + f : '') + ' que aún no han cambiado la suya. Las anteriores dejan de servir. ¿Continuar?')) return;
+        post('/Psychosocial/RegenerarClavesAlumnos', { curso: f }).then(function (j) {
+          if (!j.total) { msg('Todos ya cambiaron su clave', 1); return; }
+          descargar('claves_provisorias.csv', '\ufeffRUT;Nombre;Correo;Clave provisoria\n' + j.credenciales.map(function (c) { return [c.rut, c.n, c.e, c.c].join(';'); }).join('\n'));
+          msg(j.total + ' claves nuevas generadas', 1);
+        }).catch(function (e) {
+          alert(String(e && e.message) === '403' ? 'Primero desbloquea tus fichas: abre la ficha de cualquier alumno/a e ingresa tu segunda clave.' : 'No se pudo completar (' + (e && e.message) + ').');
+        });
       };
 
       var tabs = $('psxTabs'), panes = document.querySelectorAll('#psx .psx-pane');

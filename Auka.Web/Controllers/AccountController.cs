@@ -42,9 +42,12 @@ public class AccountController : Controller
     public async Task<IActionResult> Login(string email, string password)
     {
         // A) Antes de iniciar sesión no hay colegio en la sesión: se busca en todos los colegios
+        email = (email ?? string.Empty).Trim();
+        password = password ?? string.Empty;
+        var emailNorm = email.ToLower();
         var usuario = await _context.Usuarios
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Email == email && u.Activo);
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == emailNorm && u.Activo);
 
         if (usuario == null)
         {
@@ -60,7 +63,7 @@ public class AccountController : Controller
             var hasher = new PasswordHasher<string>();
             try
             {
-                var result = hasher.VerifyHashedPassword(email, usuario.PasswordHash, password);
+                var result = hasher.VerifyHashedPassword(usuario.Email, usuario.PasswordHash, password.Trim());
                 if (result == PasswordVerificationResult.Success || result == PasswordVerificationResult.SuccessRehashNeeded)
                 {
                     esValido = true;
@@ -265,10 +268,10 @@ public class AccountController : Controller
     // =====================================================================
 
     // Alterna el plan Psicosocial del colegio del usuario actual y cierra la sesión.
-    // Uso: https://localhost:7157/Account/AlternarPlanPsicosocial
+    // Uso: /Account/AlternarPlanPsicosocial?activo=true  (o ?activo=false; sin parámetro lo alterna)
     [Authorize]
     [HttpGet]
-    public async Task<IActionResult> AlternarPlanPsicosocial([FromServices] IWebHostEnvironment env)
+    public async Task<IActionResult> AlternarPlanPsicosocial(bool? activo, [FromServices] IWebHostEnvironment env)
     {
         if (!env.IsDevelopment()) return NotFound();
 
@@ -278,7 +281,8 @@ public class AccountController : Controller
         var colegio = await _context.Colegios.FindAsync(colegioId);
         if (colegio == null) return NotFound();
 
-        colegio.PlanPsicosocialActivo = !colegio.PlanPsicosocialActivo;
+        // ?activo=true o ?activo=false fija el estado; sin parámetro, lo alterna
+        colegio.PlanPsicosocialActivo = activo ?? !colegio.PlanPsicosocialActivo;
         await _context.SaveChangesAsync();
 
         await HttpContext.SignOutAsync("AukaAuthCookie");
@@ -291,7 +295,7 @@ public class AccountController : Controller
 
     // Crea un usuario de prueba con el rol indicado, en el colegio del usuario actual.
     // Uso: /Account/CrearUsuarioPrueba?rol=Psicologo   (o TrabajadorSocial, Orientadora, Psicopedagogo)
-    // Resultado: correo <rol en minúsculas>.prueba@auka.cl  /  clave Test1234
+    // Resultado: <rol>.prueba@auka.cl (o <rol>.prueba<N° colegio>@auka.cl si ya existe en otro colegio)  /  clave Test1234
     [Authorize]
     [HttpGet]
     public async Task<IActionResult> CrearUsuarioPrueba(string rol, [FromServices] IWebHostEnvironment env)
@@ -307,11 +311,24 @@ public class AccountController : Controller
         if (!int.TryParse(User.FindFirst("ColegioId")?.Value, out int colegioId))
             return RedirectToAction(nameof(Login));
 
-        var email = $"{rolUsuario.ToString().ToLower()}.prueba@auka.cl";
-        if (await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Email == email))
+        // El correo debe ser único en TODOS los colegios (es el usuario de ingreso).
+        // Si ya existe en otro colegio, se le agrega el N° del colegio actual.
+        var baseEmail = $"{rolUsuario.ToString().ToLower()}.prueba@auka.cl";
+        var email = baseEmail;
+        var existente = await _context.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == baseEmail);
+        if (existente != null && existente.ColegioId == colegioId)
         {
-            TempData["SuccessMessage"] = $"El usuario de prueba {email} ya existe.";
+            TempData["SuccessMessage"] = $"El usuario de prueba {baseEmail} ya existe en este colegio.";
             return RedirectToAction("Index", "Home");
+        }
+        if (existente != null)
+        {
+            email = $"{rolUsuario.ToString().ToLower()}.prueba{colegioId}@auka.cl";
+            if (await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Email == email))
+            {
+                TempData["SuccessMessage"] = $"El usuario de prueba {email} ya existe.";
+                return RedirectToAction("Index", "Home");
+            }
         }
 
         var hasher = new PasswordHasher<string>();
@@ -357,11 +374,12 @@ public class AccountController : Controller
     // Construye los claims de sesión; lee el plan del colegio desde la BD
     private async Task<List<SystemClaim>> ConstruirClaimsAsync(Usuario usuario)
     {
-        var planPsicosocial = await _context.Colegios
+        var colegio = await _context.Colegios
             .AsNoTracking()
             .Where(c => c.Id == usuario.ColegioId)
-            .Select(c => c.PlanPsicosocialActivo)
+            .Select(c => new { c.PlanPsicosocialActivo, c.Nombre })
             .FirstOrDefaultAsync();
+        var planPsicosocial = colegio?.PlanPsicosocialActivo ?? false;
 
         return new List<SystemClaim>
         {
@@ -370,7 +388,8 @@ public class AccountController : Controller
             new SystemClaim(SystemClaimTypes.Email, usuario.Email),
             new SystemClaim(SystemClaimTypes.Role, usuario.Rol.ToString()),
             new SystemClaim("ColegioId", usuario.ColegioId.ToString()),
-            new SystemClaim("PlanPsicosocial", planPsicosocial ? "true" : "false")
+            new SystemClaim("PlanPsicosocial", planPsicosocial ? "true" : "false"),
+            new SystemClaim("ColegioNombre", colegio?.Nombre ?? "")
         };
     }
 

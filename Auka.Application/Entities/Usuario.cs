@@ -43,4 +43,9 @@ public class Usuario
     // Flag clave: 'true' fuerza el cambio de contraseña en el primer login
     public bool DebeCambiarPassword { get; set; } = true;
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+
+    // Segunda clave para abrir fichas confidenciales (la crea cada profesional; se guarda cifrada)
+    public string? ClaveFichaHash { get; set; }
+    public int ClaveFichaIntentos { get; set; } = 0;
+    public DateTime? ClaveFichaBloqueadaHasta { get; set; }
 }
