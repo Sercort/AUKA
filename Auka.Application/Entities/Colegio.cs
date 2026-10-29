@@ -16,6 +16,9 @@ public class Colegio
     // Plan contratado: true = el colegio tiene el módulo Auka Psicosocial
     public bool PlanPsicosocialActivo { get; set; } = false;
 
+    // true = Plan Psicosocial (solo el módulo psicosocial). false (por defecto) = Plan Premium, la plataforma completa.
+    public bool SoloPsicosocial { get; set; } = false;
+
     // Relaciones
     public ICollection<Usuario> Usuarios { get; set; } = new List<Usuario>();
     public ICollection<Curso> Cursos { get; set; } = new List<Curso>();

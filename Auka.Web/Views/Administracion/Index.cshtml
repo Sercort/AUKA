@@ -1,0 +1,156 @@
+﻿@model Auka.Web.Controllers.AdministracionVM
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Inicio";
+    Layout = "_LayoutAdminPsico";
+    var hayEquipo = Model.ListaEquipo.Any(m => m.Activo);
+    var hayAlumnos = Model.Alumnos > 0;
+    var equipoActivo = Model.ListaEquipo.Where(m => m.Activo && m.UsaFichas).ToList();
+    var todosConClave = equipoActivo.Any() && equipoActivo.All(m => m.TieneSegundaClave);
+    var pasos = new[] { hayEquipo, hayAlumnos, todosConClave };
+    var hechos = pasos.Count(p => p);
+    var maxCurso = Model.PorCurso.Any() ? Model.PorCurso.Max(c => c.Cantidad) : 1;
+}
+
+<style>
+    .ad-hero{background:linear-gradient(120deg,#1a319b 0%,#2459b0 55%,#1fb5c5 100%);color:#fff;border-radius:20px;padding:1.6rem 1.8rem;position:relative;overflow:hidden}
+    .ad-hero::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(63,218,218,.45),rgba(63,218,218,0) 70%)}
+    .ad-hero h2{font-weight:800;margin:0 0 .2rem}
+    .ad-hero p{margin:0;color:#dbeafe}
+    .ad-hero .btn{border-radius:999px;font-weight:700;padding:.5rem 1.2rem}
+    .ad-kpis{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:1.1rem 0}
+    .ad-kpi{background:#fff;border:1px solid var(--a-line);border-radius:16px;padding:1rem 1.1rem;border-top:4px solid var(--c,var(--a-blue))}
+    .ad-kpi small{display:block;font-size:.68rem;font-weight:800;letter-spacing:.05em;color:var(--a-mut);text-transform:uppercase}
+    .ad-kpi b{display:block;font-size:2rem;line-height:1.15;color:var(--a-navy)}
+    .ad-kpi span{font-size:.78rem;color:var(--a-mut)}
+    .ad-sec{padding:1.2rem 1.3rem;margin-bottom:1rem}
+    .ad-sec h5{font-weight:800;color:var(--a-navy);font-size:1.02rem;margin:0 0 .8rem}
+    .ad-t{width:100%;border-collapse:collapse;font-size:.86rem}
+    .ad-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--a-mut);padding:.4rem .5rem;border-bottom:1px solid var(--a-line);text-align:left}
+    .ad-t td{padding:.6rem .5rem;border-bottom:1px solid #f0f4fa;vertical-align:middle}
+    .ad-chip{display:inline-block;padding:.15rem .6rem;border-radius:999px;font-size:.7rem;font-weight:700;background:#e9f0fb;color:var(--a-blue)}
+    .ad-chip.ok{background:#dcf5e6;color:#15803d}.ad-chip.warn{background:#fdf1d3;color:#8a5a00}.ad-chip.nil{background:#eef2f7;color:var(--a-mut)}
+    .ad-bar{height:10px;border-radius:6px;background:#edf2f9;overflow:hidden;flex:1}
+    .ad-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--a-blue),var(--a-teal));border-radius:6px}
+    .ad-row{display:flex;align-items:center;gap:.7rem;font-size:.84rem;margin:.45rem 0}
+    .ad-row em{font-style:normal;width:96px;flex:none;color:var(--a-mut)}
+    .ad-row b{width:30px;text-align:right}
+    .ad-step{display:flex;align-items:flex-start;gap:.7rem;padding:.55rem 0;border-bottom:1px solid #f0f4fa}
+    .ad-step:last-child{border-bottom:0}
+    .ad-dot{width:26px;height:26px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;background:#edf2f9;color:var(--a-mut)}
+    .ad-dot.ok{background:linear-gradient(120deg,var(--a-blue),var(--a-teal));color:#fff}
+    .ad-prem{display:flex;flex-wrap:wrap;gap:.4rem}
+    .ad-prem span{font-size:.75rem;background:#f3f6fb;border:1px dashed #c9d5e6;color:var(--a-mut);border-radius:999px;padding:.2rem .7rem}
+    .ad-empty{color:var(--a-mut);font-size:.85rem;padding:.4rem 0}
+</style>
+
+<!-- BIENVENIDA -->
+<section class="ad-hero mb-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3" style="position:relative;z-index:1">
+        <div>
+            <h2>Hola, @Model.Nombre</h2>
+            <p>@Model.Colegio · Administración del Plan Psicosocial</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-light" asp-controller="Personal" asp-action="Index">+ Agregar al equipo</a>
+            <a class="btn btn-outline-light" asp-controller="Administracion" asp-action="Alumnos">Importar alumnos/as</a>
+        </div>
+    </div>
+</section>
+
+<!-- NÚMEROS CLAVE -->
+<div class="ad-kpis">
+    <div class="ad-kpi" style="--c:var(--a-navy)"><small>Alumnos/as</small><b>@Model.Alumnos</b><span>@Model.Cursos @(Model.Cursos == 1 ? "curso" : "cursos")</span></div>
+    <div class="ad-kpi" style="--c:var(--a-blue)"><small>Equipo</small><b>@Model.Equipo</b><span>personas activas</span></div>
+    <div class="ad-kpi" style="--c:var(--a-teal)"><small>Citas esta semana</small><b>@Model.CitasSemana</b><span>agenda compartida del equipo</span></div>
+    <div class="ad-kpi" style="--c:#e0a100"><small>Cuentas por activar</small><b>@Model.CuentasPendientes</b><span>aún no cambian su clave</span></div>
+    <div class="ad-kpi" style="--c:#7c3aed"><small>Anotaciones (30 días)</small><b>@(Model.AnotacionesPositivas30d + Model.AnotacionesNegativas30d)</b><span>@Model.AnotacionesPositivas30d positivas · @Model.AnotacionesNegativas30d negativas</span></div>
+    <div class="ad-kpi" style="--c:var(--a-aqua)"><small>Fichas abiertas (7 días)</small><b>@Model.FichasAbiertas7d</b><span>solo la cantidad, nunca el contenido</span></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        @if (hechos < 3)
+        {
+            <section class="ad-card ad-sec">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">Primeros pasos</h5><span class="ad-chip">@hechos de 3</span>
+                </div>
+                <div class="ad-step"><span class="ad-dot @(hayEquipo ? "ok" : "")">@(hayEquipo ? "✓" : "1")</span>
+                    <div><b>Agrega a tu equipo</b><div class="small text-secondary">Psicólogo/a, trabajador/a social, orientador/a y profesores/as jefe. <a asp-controller="Personal" asp-action="Index">Ir a Equipo</a></div></div></div>
+                <div class="ad-step"><span class="ad-dot @(hayAlumnos ? "ok" : "")">@(hayAlumnos ? "✓" : "2")</span>
+                    <div><b>Carga a los alumnos/as</b><div class="small text-secondary">Importa tu planilla: cada alumno/a queda en su curso automáticamente. <a asp-controller="Administracion" asp-action="Alumnos">Ir a Alumnos/as</a></div></div></div>
+                <div class="ad-step"><span class="ad-dot @(todosConClave ? "ok" : "")">@(todosConClave ? "✓" : "3")</span>
+                    <div><b>El equipo crea su segunda clave</b><div class="small text-secondary">Cada profesional la crea al abrir su primera ficha. Así las fichas quedan protegidas.</div></div></div>
+            </section>
+        }
+
+        <section class="ad-card ad-sec">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Equipo del colegio</h5>
+                <a class="btn btn-sm btn-outline-primary rounded-pill px-3" asp-controller="Personal" asp-action="Index">Administrar equipo</a>
+            </div>
+            @if (!Model.ListaEquipo.Any())
+            {
+                <div class="ad-empty">Aún no has agregado a nadie. Usa «+ Agregar al equipo».</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="ad-t">
+                        <thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th><th>Segunda clave</th><th style="text-align:right">Fichas (7 d)</th></tr></thead>
+                        <tbody>
+                        @foreach (var m in Model.ListaEquipo)
+                        {
+                            <tr>
+                                <td><b>@m.Nombre</b><div class="small text-secondary">@m.Email</div></td>
+                                <td><span class="ad-chip">@AdministracionVM.NombreRol(m.Rol)</span></td>
+                                <td>
+                                    @if (!m.Activo) { <span class="ad-chip nil">Inactivo</span> }
+                                    else if (m.PendienteActivar) { <span class="ad-chip warn">Por activar</span> }
+                                    else { <span class="ad-chip ok">Activo</span> }
+                                </td>
+                                <td>
+                                    @if (!m.UsaFichas) { <span class="text-secondary small">No aplica</span> }
+                                    else if (m.TieneSegundaClave) { <span class="ad-chip ok">Creada</span> }
+                                    else { <span class="ad-chip warn">Pendiente</span> }
+                                </td>
+                                <td style="text-align:right">@(m.UsaFichas ? m.FichasAbiertas7d.ToString() : "—")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+
+    <div class="col-lg-4">
+        <section class="ad-card ad-sec">
+            <h5>Alumnos/as por curso</h5>
+            @if (!Model.PorCurso.Any())
+            {
+                <div class="ad-empty">Sin alumnos/as todavía.</div>
+            }
+            else
+            {
+                foreach (var c in Model.PorCurso)
+                {
+                    <div class="ad-row"><em>@c.Curso</em><div class="ad-bar"><i style="width:@(Math.Round(c.Cantidad * 100.0 / maxCurso))%"></i></div><b>@c.Cantidad</b></div>
+                }
+            }
+        </section>
+
+        <section class="ad-card ad-sec">
+            <h5>Privacidad de las fichas</h5>
+            <p class="small text-secondary mb-0">Como administrador/a gestionas al equipo y a los alumnos/as. El contenido de las fichas y bitácoras es solo del equipo psicosocial, protegido con su segunda clave. Aquí ves únicamente cantidades.</p>
+        </section>
+
+        <section class="ad-card ad-sec">
+            <h5>Incluido en el Plan Premium</h5>
+            <div class="ad-prem">
+                <span>Clubes y talleres</span><span>Evaluaciones</span><span>Libro de notas</span><span>Horarios</span><span>Inspectoría</span><span>Directivos y UTP</span>
+            </div>
+        </section>
+    </div>
+</div>

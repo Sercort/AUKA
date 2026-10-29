@@ -108,7 +108,7 @@ public class AnotacionesController : Controller
             DocenteId = profesorId,
             Tipo = tipo,
             Detalle = detalle,
-            Fecha = DateTime.Now
+            Fecha = DateTime.UtcNow
         };
 
         _context.Anotaciones.Add(nuevaAnotacion);

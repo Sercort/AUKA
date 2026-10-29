@@ -32,7 +32,7 @@ public class AccountController : Controller
         if (User.Identity != null && User.Identity.IsAuthenticated)
         {
             var planActivo = User.FindFirst("PlanPsicosocial")?.Value == "true";
-            return RedirigirSegunRol(User.FindFirst(SystemClaimTypes.Role)?.Value ?? "", planActivo);
+            return RedirigirSegunRol(User.FindFirst(SystemClaimTypes.Role)?.Value ?? "", planActivo, User.FindFirst("PlanPremium")?.Value != "false");
         }
         return View();
     }
@@ -102,7 +102,8 @@ public class AccountController : Controller
             return RedirectToAction(nameof(CambiarPasswordObligatorio));
         }
 
-        return RedirigirSegunRol(usuario.Rol.ToString(), planPsicosocial);
+        var premium = !claims.Any(c => c.Type == "PlanPremium" && c.Value == "false");
+        return RedirigirSegunRol(usuario.Rol.ToString(), planPsicosocial, premium);
     }
 
     // 3. GET: Cambiar Password Obligatorio
@@ -150,7 +151,7 @@ public class AccountController : Controller
         TempData["SuccessMessage"] = "¡Contraseña actualizada con éxito! Bienvenido a la plataforma.";
 
         var planActivo = User.FindFirst("PlanPsicosocial")?.Value == "true";
-        return RedirigirSegunRol(usuario.Rol.ToString(), planActivo);
+        return RedirigirSegunRol(usuario.Rol.ToString(), planActivo, User.FindFirst("PlanPremium")?.Value != "false");
     }
 
     // 5. GET: Cambiar Password Opcional (Desde el Menú Desplegable)
@@ -293,6 +294,30 @@ public class AccountController : Controller
         return RedirectToAction(nameof(Login));
     }
 
+    // Cambia el plan del colegio actual para probar. Uso: /Account/CambiarPlan?plan=psicosocial  o  ?plan=premium
+    [Authorize]
+    [HttpGet]
+    public async Task<IActionResult> CambiarPlan(string plan, [FromServices] IWebHostEnvironment env)
+    {
+        if (!env.IsDevelopment()) return NotFound();
+        if (!int.TryParse(User.FindFirst("ColegioId")?.Value, out int colegioId))
+            return RedirectToAction(nameof(Login));
+
+        var colegio = await _context.Colegios.FindAsync(colegioId);
+        if (colegio == null) return NotFound();
+
+        if (string.Equals(plan, "psicosocial", StringComparison.OrdinalIgnoreCase))
+        { colegio.PlanPsicosocialActivo = true; colegio.SoloPsicosocial = true; }
+        else if (string.Equals(plan, "premium", StringComparison.OrdinalIgnoreCase))
+        { colegio.PlanPsicosocialActivo = true; colegio.SoloPsicosocial = false; }
+        else return BadRequest("Usa ?plan=psicosocial o ?plan=premium");
+
+        await _context.SaveChangesAsync();
+        await HttpContext.SignOutAsync("AukaAuthCookie");
+        TempData["SuccessMessage"] = $"Plan {plan.ToUpper()} aplicado. Inicia sesión de nuevo.";
+        return RedirectToAction(nameof(Login));
+    }
+
     // Crea un usuario de prueba con el rol indicado, en el colegio del usuario actual.
     // Uso: /Account/CrearUsuarioPrueba?rol=Psicologo   (o TrabajadorSocial, Orientadora, Psicopedagogo)
     // Resultado: <rol>.prueba@auka.cl (o <rol>.prueba<N° colegio>@auka.cl si ya existe en otro colegio)  /  clave Test1234
@@ -361,8 +386,14 @@ public class AccountController : Controller
 
     // Decide a qué panel va cada rol después de autenticarse.
     // El equipo psicosocial va al panel psicosocial solo si el colegio tiene el módulo activo.
-    private IActionResult RedirigirSegunRol(string rol, bool planPsicosocial = false)
+    private IActionResult RedirigirSegunRol(string rol, bool planPsicosocial = false, bool planPremium = true)
     {
+        // Plan Psicosocial (sin Premium): el administrador del colegio va a su panel de administración
+        if (planPsicosocial && !planPremium && rol == "SuperAdmin")
+        {
+            return RedirectToAction("Index", "Administracion");
+        }
+
         if (planPsicosocial && RolesPsicosociales.Contains(rol))
         {
             return RedirectToAction("Index", "Psychosocial");
@@ -377,7 +408,7 @@ public class AccountController : Controller
         var colegio = await _context.Colegios
             .AsNoTracking()
             .Where(c => c.Id == usuario.ColegioId)
-            .Select(c => new { c.PlanPsicosocialActivo, c.Nombre })
+            .Select(c => new { c.PlanPsicosocialActivo, c.SoloPsicosocial, c.Nombre })
             .FirstOrDefaultAsync();
         var planPsicosocial = colegio?.PlanPsicosocialActivo ?? false;
 
@@ -389,6 +420,7 @@ public class AccountController : Controller
             new SystemClaim(SystemClaimTypes.Role, usuario.Rol.ToString()),
             new SystemClaim("ColegioId", usuario.ColegioId.ToString()),
             new SystemClaim("PlanPsicosocial", planPsicosocial ? "true" : "false"),
+            new SystemClaim("PlanPremium", (colegio?.SoloPsicosocial ?? false) ? "false" : "true"),
             new SystemClaim("ColegioNombre", colegio?.Nombre ?? "")
         };
     }
@@ -450,7 +482,8 @@ public class AccountController : Controller
         await HttpContext.SignInAsync("AukaAuthCookie", principal);
 
         var planActivo = claims.Any(c => c.Type == "PlanPsicosocial" && c.Value == "true");
-        return RedirigirSegunRol(usuario.Rol.ToString(), planActivo);
+        var esPremium = !claims.Any(c => c.Type == "PlanPremium" && c.Value == "false");
+        return RedirigirSegunRol(usuario.Rol.ToString(), planActivo, esPremium);
     }
 
     // GET: /Account/Registrar

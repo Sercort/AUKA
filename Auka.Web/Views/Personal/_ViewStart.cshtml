@@ -1,0 +1,9 @@
+﻿@* Auka.Web/Views/Personal/_ViewStart.cshtml
+   En colegios con Plan Psicosocial (sin Premium) las pantallas de Personal usan el diseño de administración psicosocial.
+   En los demás colegios no cambia nada: se mantiene el layout normal. *@
+@{
+    if (User.FindFirst("PlanPsicosocial")?.Value == "true" && User.FindFirst("PlanPremium")?.Value == "false")
+    {
+        Layout = "_LayoutAdminPsico";
+    }
+}

@@ -28,6 +28,15 @@ public class PersonalController : Controller
         RolUsuario.TrabajadorSocial, RolUsuario.Orientadora
     };
 
+    // Plan Psicosocial: solo se puede agregar personal del área psicosocial y profesores/as jefe (guía)
+    private static readonly RolUsuario[] AreaPsicosocial =
+    {
+        RolUsuario.Psicologo, RolUsuario.Psicopedagogo, RolUsuario.TrabajadorSocial, RolUsuario.Orientadora, RolUsuario.Docente
+    };
+
+    private bool SoloPsicosocial() =>
+        User.FindFirst("PlanPsicosocial")?.Value == "true" && User.FindFirst("PlanPremium")?.Value == "false";
+
     public PersonalController(ApplicationDbContext context)
     {
         _context = context;
@@ -47,6 +56,11 @@ public class PersonalController : Controller
             return true;
         }
         if (!RolesDelPersonal.Contains(rol)) { error = "Ese rol no se puede asignar desde esta pantalla."; return false; }
+        if (SoloPsicosocial() && !AreaPsicosocial.Contains(rol))
+        {
+            error = "Tu Plan Psicosocial solo permite agregar psicólogos/as, trabajadores/as sociales, orientadores/as, psicopedagogos/as y profesores/as jefe. Los demás cargos son del Plan Premium.";
+            return false;
+        }
         if (RolesSoloPsicosocial.Contains(rol) && User.FindFirst("PlanPsicosocial")?.Value != "true")
         {
             error = "El módulo Psicosocial no está activo en este colegio.";
@@ -72,6 +86,12 @@ public class PersonalController : Controller
             .Where(u => u.ColegioId == colegioId || colegioId == 0)
             .Where(u => u.Rol != RolUsuario.Estudiante && u.Rol != RolUsuario.Apoderado && u.Rol != RolUsuario.AdminPlataforma)
             .AsQueryable();
+
+        if (SoloPsicosocial())
+        {
+            var permitidos = AreaPsicosocial;
+            query = query.Where(u => permitidos.Contains(u.Rol));
+        }
 
         bool mostrarActivos = (tab ?? "activos").ToLower() != "inactivos";
         query = query.Where(u => u.Activo == mostrarActivos);

@@ -48,6 +48,25 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser()
               .RequireClaim("PlanPsicosocial", "true"));
 
+    // Administrador de un colegio con Plan Psicosocial (sin Premium)
+    options.AddPolicy("AdminPsicosocial", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole("SuperAdmin")
+              .RequireClaim("PlanPsicosocial", "true")
+              .RequireClaim("PlanPremium", "false"));
+
+    // Quien puede usar los servicios del módulo: el equipo psicosocial o el administrador del Plan Psicosocial
+    options.AddPolicy("AccesoPsicosocial", policy =>
+        policy.RequireAssertion(ctx =>
+        {
+            var u = ctx.User;
+            if (u.Identity?.IsAuthenticated != true) return false;
+            if (u.FindFirst("PlanPsicosocial")?.Value != "true") return false;
+            var rol = u.FindFirst(ClaimTypes.Role)?.Value ?? "";
+            if (rol is "Psicologo" or "Psicopedagogo" or "TrabajadorSocial" or "Orientadora") return true;
+            return rol == "SuperAdmin" && u.FindFirst("PlanPremium")?.Value == "false";
+        }));
+
     // Equipo psicosocial: el rol correcto Y el colegio con el módulo activo
     options.AddPolicy("EquipoPsicosocial", policy =>
         policy.RequireAuthenticatedUser()
@@ -74,16 +93,34 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// El equipo psicosocial (con el módulo activo) va siempre a su panel, no al Home institucional
+// Reglas de plan:
+//  - Equipo psicosocial (con el módulo activo) va siempre a su panel, no al Home institucional.
+//  - Plan Psicosocial (sin Premium): solo existen las secciones del módulo; todo lo demás se bloquea.
 var rolesPsicosociales = new[] { "Psicologo", "Psicopedagogo", "TrabajadorSocial", "Orientadora" };
+var rutasPlanPsicosocial = new[] { "/Administracion", "/Personal", "/Psychosocial", "/Account", "/Home/Error" };
 app.Use(async (context, next) =>
 {
     var ruta = context.Request.Path.Value ?? "/";
+    var user = context.User;
+    if (user.Identity?.IsAuthenticated != true) { await next(); return; }
+
+    var rol = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
+    var planPsico = user.FindFirst("PlanPsicosocial")?.Value == "true";
+    var soloPsico = planPsico && user.FindFirst("PlanPremium")?.Value == "false";
     var esHome = ruta == "/" || ruta.Equals("/Home", StringComparison.OrdinalIgnoreCase) || ruta.Equals("/Home/Index", StringComparison.OrdinalIgnoreCase);
-    if (esHome
-        && context.User.Identity?.IsAuthenticated == true
-        && context.User.FindFirst("PlanPsicosocial")?.Value == "true"
-        && rolesPsicosociales.Contains(context.User.FindFirst(ClaimTypes.Role)?.Value ?? ""))
+
+    if (soloPsico)
+    {
+        var destino = rol == "SuperAdmin" ? "/Administracion" : "/Psychosocial";
+        var permitida = rutasPlanPsicosocial.Any(p => ruta.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        var soloAdmin = ruta.StartsWith("/Administracion", StringComparison.OrdinalIgnoreCase) || ruta.StartsWith("/Personal", StringComparison.OrdinalIgnoreCase);
+        if (esHome || !permitida || (soloAdmin && rol != "SuperAdmin"))
+        {
+            context.Response.Redirect(destino);
+            return;
+        }
+    }
+    else if (esHome && planPsico && rolesPsicosociales.Contains(rol))
     {
         context.Response.Redirect("/Psychosocial");
         return;

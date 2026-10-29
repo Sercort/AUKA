@@ -383,6 +383,9 @@ namespace Auka.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("SoloPsicosocial")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Telefono")
                         .IsRequired()
                         .HasColumnType("text");

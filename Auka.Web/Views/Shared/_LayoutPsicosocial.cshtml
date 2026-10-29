@@ -105,27 +105,27 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script>
-        // El buscador de la barra alimenta el buscador del panel psicosocial
-        (function () {
-            var form = document.getElementById('psxTopForm');
-            if (!form) return;
-            var box = document.getElementById('psxTopQ');
-            var sync = function (scroll) {
-                var t = document.getElementById('sTxt');
-                if (!t) return false;
-                t.value = box.value.trim();
-                t.dispatchEvent(new Event('input'));
-                if (scroll) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return true;
-            };
-            box.addEventListener('input', function () { sync(false); });
-            form.addEventListener('submit', function (e) {
-                e.preventDefault();
-                if (!sync(true)) {
-                    window.location.href = '@Url.Action("Index", "Psychosocial")' + '?q=' + encodeURIComponent(box.value.trim());
-                }
-            });
-        })();
+            // El buscador de la barra alimenta el buscador del panel psicosocial
+            (function () {
+                var form = document.getElementById('psxTopForm');
+                if (!form) return;
+                var box = document.getElementById('psxTopQ');
+                var sync = function (scroll) {
+                    var t = document.getElementById('sTxt');
+                    if (!t) return false;
+                    t.value = box.value.trim();
+                    t.dispatchEvent(new Event('input'));
+                    if (scroll) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return true;
+                };
+                box.addEventListener('input', function () { sync(false); });
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    if (!sync(true)) {
+                        window.location.href = '@Url.Action("Index", "Psychosocial")' + '?q=' + encodeURIComponent(box.value.trim());
+                    }
+                });
+            })();
     </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

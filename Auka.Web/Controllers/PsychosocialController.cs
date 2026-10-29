@@ -9,14 +9,33 @@ using Auka.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Auka.Web.Controllers;
 
-[Authorize(Policy = "EquipoPsicosocial")]
+[Authorize(Policy = "AccesoPsicosocial")]
 public class PsychosocialController : Controller
 {
+    // El administrador del Plan Psicosocial solo gestiona alumnos/as: nunca ve fichas, bitácoras ni calendario clínico
+    private static readonly HashSet<string> AccionesAdministrador = new() { "Alumnos", "ImportarAlumnos", "AgregarAlumnos", "RegenerarClavesAlumnos" };
+    private bool EsAdministrador => User.FindFirst(ClaimTypes.Role)?.Value == "SuperAdmin";
+
+    public override void OnActionExecuting(ActionExecutingContext context)
+    {
+        if (EsAdministrador)
+        {
+            var accion = context.ActionDescriptor.RouteValues["action"] ?? "";
+            if (!AccionesAdministrador.Contains(accion))
+            {
+                context.Result = accion == "Index" ? RedirectToAction("Index", "Administracion") : StatusCode(403);
+                return;
+            }
+        }
+        base.OnActionExecuting(context);
+    }
+
     private static readonly HashSet<string> TiposValidos = new()
     {
         "Citación", "Taller", "Consejo", "Coordinación", "Reunión", "Institucional", "Feriado"
@@ -84,6 +103,58 @@ public class PsychosocialController : Controller
                 x = e.Titulo
             })
         });
+    }
+
+    // ---------------------------------------------------------------
+    // ANOTACIONES DE CONDUCTA (el mismo libro que usan profesores e inspectores)
+    // Las ven profesores/as y apoderados/as; no son confidenciales como la bitácora.
+    // ---------------------------------------------------------------
+
+    // GET: /Psychosocial/Anotaciones?estudianteId=5
+    [HttpGet]
+    public async Task<IActionResult> Anotaciones(int estudianteId)
+    {
+        // Estudiantes tiene filtro multitenant: si el alumno/a es de otro colegio, no existe para esta sesión
+        if (!await _context.Estudiantes.AnyAsync(e => e.Id == estudianteId)) return NotFound();
+
+        var lista = await _context.Anotaciones.AsNoTracking()
+            .Include(a => a.Docente)
+            .Where(a => a.EstudianteId == estudianteId)
+            .OrderByDescending(a => a.Fecha)
+            .Take(30)
+            .ToListAsync();
+
+        return Json(lista.Select(a => new
+        {
+            id = a.Id,
+            t = (int)a.Tipo,
+            d = a.Detalle,
+            f = a.Fecha.ToString("o", CultureInfo.InvariantCulture),
+            a = a.Docente != null ? $"{a.Docente.Nombre} {a.Docente.Apellido}".Trim() : ""
+        }));
+    }
+
+    // POST: /Psychosocial/CrearAnotacion
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CrearAnotacion(int estudianteId, TipoAnotacion tipo, string? detalle)
+    {
+        detalle = (detalle ?? "").Trim();
+        if (detalle.Length < 3) return BadRequest(new { error = "Escribe el detalle de la anotación." });
+        if (detalle.Length > 500) return BadRequest(new { error = "El detalle es muy largo (máximo 500 caracteres)." });
+        if (!Enum.IsDefined(tipo)) return BadRequest(new { error = "Tipo de anotación no válido." });
+        if (!await _context.Estudiantes.AnyAsync(e => e.Id == estudianteId)) return NotFound(new { error = "Alumno/a no encontrado." });
+
+        _context.Anotaciones.Add(new Anotacion
+        {
+            EstudianteId = estudianteId,
+            DocenteId = UsuarioActualId(),
+            Tipo = tipo,
+            Detalle = detalle,
+            Fecha = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true });
     }
 
     // ---------------------------------------------------------------
@@ -723,7 +794,7 @@ public class PsychosocialController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RegenerarClavesAlumnos(string? curso)
     {
-        if (!FichasDesbloqueadas()) return Bloqueado();
+        if (!EsAdministrador && !FichasDesbloqueadas()) return Bloqueado();
         var lista = await _context.Estudiantes.Include(e => e.Usuario).Include(e => e.Curso)
             .Where(e => e.Usuario != null && e.Usuario.Activo && e.Usuario.DebeCambiarPassword && e.Curso != null)
             .ToListAsync();

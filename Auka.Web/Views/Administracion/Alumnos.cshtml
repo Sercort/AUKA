@@ -1,0 +1,168 @@
+﻿@{
+    ViewData["Title"] = "Alumnos/as";
+    Layout = "_LayoutAdminPsico";
+}
+@Html.AntiForgeryToken()
+
+<style>
+    .al-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem;margin-bottom:1rem}
+    .al-head h3{margin:0;font-weight:800;color:var(--a-navy)}
+    .al-head p{margin:0;color:var(--a-mut);font-size:.9rem}
+    .al-btn{border-radius:999px;font-weight:700;font-size:.85rem;padding:.45rem 1.1rem;border:1px solid var(--a-line);background:#fff;color:var(--a-navy)}
+    .al-btn.p{background:linear-gradient(120deg,var(--a-navy),var(--a-blue));border-color:transparent;color:#fff}
+    .al-card{padding:1.2rem 1.3rem}
+    .al-t{width:100%;border-collapse:collapse;font-size:.86rem}
+    .al-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--a-mut);padding:.4rem .5rem;border-bottom:1px solid var(--a-line);text-align:left}
+    .al-t td{padding:.55rem .5rem;border-bottom:1px solid #f0f4fa}
+    .al-chip{display:inline-block;padding:.15rem .6rem;border-radius:999px;font-size:.72rem;font-weight:700;background:#e9f0fb;color:var(--a-blue)}
+    .al-chip.ok{background:#dcf5e6;color:#15803d}.al-chip.bad{background:#fde2e2;color:#b42323}.al-chip.nil{background:#eef2f7;color:var(--a-mut)}
+    .al-note{font-size:.78rem;color:var(--a-mut)}
+    #alMsg{display:none}
+</style>
+
+<div class="al-head">
+    <div>
+        <h3>Alumnos/as</h3>
+        <p>Agrégalos uno a uno o importa tu planilla: cada alumno/a queda en su curso automáticamente.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+        <span class="al-chip ok" id="alMsg"></span>
+        <button class="al-btn" id="bClaves">Claves provisorias</button>
+        <button class="al-btn" id="bAdd">+ Agregar alumnos/as</button>
+        <button class="al-btn p" id="bImp">Importar planilla</button>
+    </div>
+</div>
+
+<section class="ad-card al-card">
+    <div class="d-flex gap-2 flex-wrap mb-2 align-items-center">
+        <select id="rCur" class="form-select" style="max-width:230px"></select>
+        <input id="rTxt" class="form-control" placeholder="Buscar por nombre o RUT" style="max-width:280px">
+        <span class="al-chip" id="rN"></span>
+    </div>
+    <div class="table-responsive"><div id="tRos"><p class="al-note">Cargando…</p></div></div>
+    <p class="al-note mb-0">Se muestran hasta 100 a la vez; usa el curso o el buscador para acotar. Las fichas confidenciales las ve solo el equipo psicosocial.</p>
+</section>
+
+<div class="modal fade" id="mdG" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius:16px">
+            <div class="modal-header border-0"><h5 class="modal-title fw-bold" id="mdT"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body" id="mdB"></div>
+            <div class="modal-footer border-0"><button class="al-btn" data-bs-dismiss="modal">Cerrar</button><button class="al-btn p" id="mdOk">Guardar</button></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var NIV = ['1° Básico','2° Básico','3° Básico','4° Básico','5° Básico','6° Básico','7° Básico','8° Básico','I° Medio','II° Medio','III° Medio','IV° Medio'];
+  var ROS = [], modal = bootstrap.Modal.getOrCreateInstance($('mdG')), accion = null;
+  var edad = function (n) { var p = n.split('-'), h = new Date(), a = h.getFullYear() - +p[0]; if (h < new Date(h.getFullYear(), +p[1] - 1, +p[2])) a--; return a; };
+  var msg = function (t) { var m = $('alMsg'); m.textContent = t; m.style.display = ''; setTimeout(function () { m.style.display = 'none'; }, 5000); };
+  var descargar = function (nombre, texto) { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' })); a.download = nombre; a.click(); };
+  var ordenCurso = function (c) { var i = NIV.indexOf(c.replace(/ [A-Za-z]$/, '')); return i < 0 ? 99 : i; };
+  var abrir = function (titulo, html, ok, etiqueta) { $('mdT').textContent = titulo; $('mdB').innerHTML = html; $('mdOk').textContent = etiqueta || 'Guardar'; $('mdOk').style.display = ok ? '' : 'none'; accion = ok; modal.show(); };
+  $('mdOk').onclick = function () { if (accion) accion(); };
+
+  // ---- Listado ----
+  var llenar = function () {
+    var cur = $('rCur').value, u = {};
+    ROS.forEach(function (a) { u[a.c] = (u[a.c] || 0) + 1; });
+    var n = Object.keys(u).sort(function (x, y) { return ordenCurso(x) - ordenCurso(y) || (x < y ? -1 : 1); });
+    $('rCur').innerHTML = '<option value="">Todos los cursos</option>' + n.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + ' (' + u[k] + ')</option>'; }).join('');
+    $('rCur').value = cur; pintar();
+  };
+  var pintar = function () {
+    if (!ROS.length) { $('rN').textContent = '0'; $('tRos').innerHTML = '<p class="al-note">Aún no hay alumnos/as. Usa «Importar planilla» o «+ Agregar alumnos/as».</p>'; return; }
+    var f = $('rCur').value, q = $('rTxt').value.trim().toLowerCase();
+    var r = ROS.filter(function (a) { return (!f || a.c === f) && (!q || (a.n + ' ' + a.r).toLowerCase().indexOf(q) > -1); });
+    $('rN').textContent = r.length + ' de ' + ROS.length;
+    $('tRos').innerHTML = '<table class="al-t"><thead><tr><th>N°</th><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th><th>Edad</th></tr></thead><tbody>' +
+      r.slice(0, 100).map(function (a, i) { return '<tr><td>' + (i + 1) + '</td><td><b>' + esc(a.n) + '</b></td><td>' + esc(a.r) + '</td><td>' + esc(a.c) + '</td><td>' + (a.f ? a.f.split('-').reverse().join('-') : '—') + '</td><td>' + (a.f ? edad(a.f) + ' años' : '—') + '</td></tr>'; }).join('') + '</tbody></table>';
+  };
+  $('rCur').onchange = pintar; $('rTxt').oninput = pintar;
+  var cargar = function () {
+    return fetch('/Psychosocial/Alumnos', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (l) { ROS = l; llenar(); })
+      .catch(function (e) { $('tRos').innerHTML = '<p class="al-note" style="color:#b42323">No se pudo cargar el listado (' + esc(e.message) + ').</p>'; });
+  };
+
+  // ---- Resultado de importar / agregar ----
+  var resultado = function (j, cont) {
+    var h = '<div style="margin-top:.7rem"><span class="al-chip ok">' + j.creados + ' creados</span> <span class="al-chip">' + j.actualizados + ' actualizados</span> ' +
+      (j.omitidos ? '<span class="al-chip nil">' + j.omitidos + ' omitidos</span> ' : '') + (j.cursosCreados ? '<span class="al-chip nil">' + j.cursosCreados + ' cursos nuevos</span> ' : '') +
+      (j.totalErrores ? '<span class="al-chip bad">' + j.totalErrores + ' con error</span>' : '') + '</div>';
+    if (j.errores && j.errores.length) h += '<ul class="al-note" style="margin:.5rem 0 0 1rem">' + j.errores.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';
+    if (j.credenciales && j.credenciales.length) h += '<p class="al-note mt-2">Las cuentas nuevas tienen una clave provisoria que deben cambiar al entrar. <b>Descárgala ahora: no se vuelve a mostrar.</b></p><button class="al-btn p" id="bCred">Descargar claves provisorias (CSV)</button>';
+    $(cont).innerHTML = h;
+    if ($('bCred')) $('bCred').onclick = function () {
+      descargar('claves_provisorias.csv', '﻿RUT;Nombre;Correo;Clave provisoria\n' + j.credenciales.map(function (c) { return [c.rut, c.n, c.e, c.c].join(';'); }).join('\n'));
+    };
+    msg(j.creados + ' creados, ' + j.actualizados + ' actualizados'); cargar();
+  };
+  var enviar = function (url, cuerpo, cont) {
+    $('mdOk').disabled = true; $(cont).innerHTML = '<p class="al-note">Procesando…</p>';
+    fetch(url, { method: 'POST', credentials: 'same-origin', body: cuerpo })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+      .then(function (j) { resultado(j, cont); })
+      .catch(function (e) { $(cont).innerHTML = '<p class="al-note" style="color:#b42323">No se pudo completar: ' + esc(e.message) + '</p>'; })
+      .then(function () { $('mdOk').disabled = false; });
+  };
+
+  // ---- Importar planilla (CSV) ----
+  $('bImp').onclick = function () {
+    abrir('Importar planilla de alumnos/as',
+      '<p class="al-note">Columnas: Nombre, RUT, Curso y Fecha de nacimiento (opcional: apoderado/a). Cada alumno/a se asigna automáticamente a su curso. Si tienes Excel: Archivo → Guardar como → CSV.</p>' +
+      '<input type="file" id="imF" accept=".csv" class="form-control"><div class="my-2"><button class="al-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div>' +
+      '<label class="al-note d-block mt-2"><input type="checkbox" id="imCrear" checked> Crear los cursos que no existan</label>' +
+      '<label class="al-note d-block"><input type="checkbox" id="imAct" checked> Actualizar alumnos/as que ya existen (por RUT)</label>',
+      function () {
+        var f = $('imF').files[0];
+        if (!f) { msg('Elige un archivo CSV primero'); return; }
+        if (!/\.csv$/i.test(f.name)) { msg('Por ahora solo se lee CSV'); return; }
+        var fd = new FormData(); fd.append('archivo', f); fd.append('crearCursos', $('imCrear').checked); fd.append('actualizar', $('imAct').checked); fd.append('__RequestVerificationToken', tok());
+        enviar('/Psychosocial/ImportarAlumnos', fd, 'imR');
+      }, 'Importar');
+    $('imP').onclick = function () { descargar('plantilla_alumnos.csv', '﻿Nombre;RUT;Curso;Fecha de nacimiento\nNombre Apellido Apellido;12.345.678-5;5° Básico;2015-03-14\n'); };
+  };
+
+  // ---- Agregar a mano ----
+  var fila = function () { return '<tr><td><input class="form-control form-control-sm an" placeholder="Nombre completo"></td><td><input class="form-control form-control-sm ar" placeholder="RUT"></td><td><select class="form-select form-select-sm ac">' + NIV.map(function (n) { return '<option>' + n + '</option>'; }).join('') + '</select></td><td><input class="form-control form-control-sm af" type="date"></td></tr>'; };
+  $('bAdd').onclick = function () {
+    abrir('Agregar alumnos/as', '<p class="al-note">Agrega uno o varios; cada uno queda en el curso elegido.</p><table class="al-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th></tr></thead><tbody id="aT">' + fila() + fila() + fila() + '</tbody></table><button class="al-btn mt-2" id="aMas">+ Fila</button><div id="aR"></div>',
+      function () {
+        var l = [];
+        document.querySelectorAll('#aT tr').forEach(function (tr) {
+          var nm = tr.querySelector('.an').value.trim();
+          if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), c: tr.querySelector('.ac').value, f: tr.querySelector('.af').value });
+        });
+        if (!l.length) { msg('Escribe al menos un alumno/a'); return; }
+        var b = new URLSearchParams({ alumnosJson: JSON.stringify(l) }); b.append('__RequestVerificationToken', tok());
+        enviar('/Psychosocial/AgregarAlumnos', b, 'aR');
+      }, 'Agregar');
+    $('aMas').onclick = function () { $('aT').insertAdjacentHTML('beforeend', fila()); };
+  };
+
+  // ---- Claves provisorias nuevas ----
+  $('bClaves').onclick = function () {
+    var f = $('rCur').value;
+    if (!confirm('Se generarán claves provisorias nuevas para los alumnos/as' + (f ? ' de ' + f : '') + ' que aún no han cambiado la suya. Las anteriores dejan de servir. ¿Continuar?')) return;
+    var body = new URLSearchParams({ curso: f }); body.append('__RequestVerificationToken', tok());
+    fetch('/Psychosocial/RegenerarClavesAlumnos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+      .then(function (j) {
+        if (!j.total) { msg('Todos ya cambiaron su clave'); return; }
+        descargar('claves_provisorias.csv', '﻿RUT;Nombre;Correo;Clave provisoria\n' + j.credenciales.map(function (c) { return [c.rut, c.n, c.e, c.c].join(';'); }).join('\n'));
+        msg(j.total + ' claves nuevas generadas');
+      }).catch(function (e) { alert('No se pudo completar (' + e.message + ').'); });
+  };
+
+  cargar();
+})();
+</script>
+}

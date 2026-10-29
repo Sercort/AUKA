@@ -5,14 +5,15 @@
     ViewData["Title"] = "Personal y Equipo Docente";
     string tabActual = ViewBag.TabActual ?? "activos";
     bool planPsico = User.FindFirst("PlanPsicosocial")?.Value == "true";
+    bool soloPsico = planPsico && User.FindFirst("PlanPremium")?.Value == "false";
 }
 
 <div class="container py-4">
     <!-- ENCABEZADO Y BOTÓN DE REGISTRO -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="fw-bold text-primary mb-1">👥 Personal y Equipo Docente - AUKA</h3>
-            <p class="text-muted small mb-0">Administración de Directivos, UTP, Docentes, Inspectores y Dupla Psicosocial.</p>
+            <h3 class="fw-bold text-primary mb-1">👥 @(soloPsico ? "Equipo del colegio" : "Personal y Equipo Docente - AUKA")</h3>
+            <p class="text-muted small mb-0">@(soloPsico ? "Equipo psicosocial y profesores/as jefe de tu establecimiento." : "Administración de Directivos, UTP, Docentes, Inspectores y Dupla Psicosocial.")</p>
         </div>
         <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalAgregarPersonal">
             ➕ Agregar Funcionario
@@ -211,16 +212,27 @@
                             <label class="form-label fw-bold">Rol / Cargo Institucional*</label>
                             <select name="rol" id="selectRolModal" class="form-select" onchange="actualizarFormularioModal()" required>
                                 <option value="">-- Seleccionar Rol --</option>
-                                <option value="Docente">Docente / Profesor</option>
-                                <option value="Director">Director / Directora</option>
-                                <option value="UTP">Jefe / Coordinador UTP</option>
-                                <option value="Inspector">Inspector / Convivencia</option>
-                                <option value="Psicologo">Psicólogo/a Escolar</option>
-                                <option value="Psicopedagogo">Psicopedagogo/a (PIE)</option>
-                                @if (planPsico)
+                                @if (soloPsico)
                                 {
+                                    <option value="Psicologo">Psicólogo/a</option>
                                     <option value="TrabajadorSocial">Trabajador/a Social</option>
                                     <option value="Orientadora">Orientador/a</option>
+                                    <option value="Psicopedagogo">Psicopedagogo/a</option>
+                                    <option value="Docente">Profesor/a jefe (guía)</option>
+                                }
+                                else
+                                {
+                                    <option value="Docente">Docente / Profesor</option>
+                                    <option value="Director">Director / Directora</option>
+                                    <option value="UTP">Jefe / Coordinador UTP</option>
+                                    <option value="Inspector">Inspector / Convivencia</option>
+                                    <option value="Psicologo">Psicólogo/a Escolar</option>
+                                    <option value="Psicopedagogo">Psicopedagogo/a (PIE)</option>
+                                    @if (planPsico)
+                                    {
+                                        <option value="TrabajadorSocial">Trabajador/a Social</option>
+                                        <option value="Orientadora">Orientador/a</option>
+                                    }
                                 }
                             </select>
                         </div>
