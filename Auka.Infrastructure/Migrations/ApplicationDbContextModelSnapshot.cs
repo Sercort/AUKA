@@ -351,6 +351,59 @@ namespace Auka.Infrastructure.Migrations
                     b.ToTable("Calificaciones", (string)null);
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.Citacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CitadoA")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ConfirmadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ConfirmadaPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CreadaPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstudianteId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EventoCalendarioId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("Hora")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstudianteId");
+
+                    b.ToTable("Citaciones", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.Colegio", b =>
                 {
                     b.Property<int>("Id")
@@ -671,6 +724,54 @@ namespace Auka.Infrastructure.Migrations
                     b.ToTable("MovimientosInventario", (string)null);
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.Notificacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CorreoDestino")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Enlace")
+                        .HasColumnType("text");
+
+                    b.Property<int>("EstadoCorreo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("IntentosCorreo")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Leida")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Mensaje")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UltimoErrorCorreo")
+                        .HasColumnType("text");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Notificaciones", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.SetBeneficio", b =>
                 {
                     b.Property<int>("Id")
@@ -923,6 +1024,17 @@ namespace Auka.Infrastructure.Migrations
                     b.Navigation("Estudiante");
 
                     b.Navigation("Evaluacion");
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.Citacion", b =>
+                {
+                    b.HasOne("Auka.Application.Entities.Estudiante", "Estudiante")
+                        .WithMany()
+                        .HasForeignKey("EstudianteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Estudiante");
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.Curso", b =>

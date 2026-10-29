@@ -45,6 +45,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<SetBeneficio> SetsBeneficio { get; set; } = null!;
     public DbSet<ArticuloInventario> ArticulosInventario { get; set; } = null!;
     public DbSet<MovimientoInventario> MovimientosInventario { get; set; } = null!;
+    public DbSet<Citacion> Citaciones { get; set; } = null!;
+    public DbSet<Notificacion> Notificaciones { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -70,6 +72,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SetBeneficio>().ToTable("SetsBeneficio");
         modelBuilder.Entity<ArticuloInventario>().ToTable("ArticulosInventario");
         modelBuilder.Entity<MovimientoInventario>().ToTable("MovimientosInventario");
+        modelBuilder.Entity<Citacion>().ToTable("Citaciones");
+        modelBuilder.Entity<Notificacion>().ToTable("Notificaciones");
 
         modelBuilder.Entity<EstudianteApoderado>()
             .ToTable("EstudiantesApoderados")

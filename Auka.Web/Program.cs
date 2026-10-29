@@ -17,6 +17,12 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ITenantProvider, HttpTenantProvider>();
 
+// Avisos: dentro de la plataforma y por correo (configuración en la sección "Correo")
+builder.Services.Configure<CorreoOptions>(builder.Configuration.GetSection("Correo"));
+builder.Services.AddScoped<ICorreoService, SmtpCorreoService>();
+builder.Services.AddScoped<INotificacionService, NotificacionService>();
+builder.Services.AddHostedService<ReintentoCorreosService>();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
     {
@@ -54,6 +60,11 @@ builder.Services.AddAuthorization(options =>
               .RequireRole("SuperAdmin")
               .RequireClaim("PlanPsicosocial", "true")
               .RequireClaim("PlanPremium", "false"));
+
+    // Alumnos/as y apoderados/as: portafolio psicosocial (lo que el equipo comparte con ellos/as)
+    options.AddPolicy("FamiliaPsicosocial", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole("Estudiante", "Apoderado"));
 
     // Quien puede usar los servicios del módulo: el equipo psicosocial o el administrador del Plan Psicosocial
     options.AddPolicy("AccesoPsicosocial", policy =>
@@ -97,7 +108,8 @@ app.UseAuthorization();
 //  - Equipo psicosocial (con el módulo activo) va siempre a su panel, no al Home institucional.
 //  - Plan Psicosocial (sin Premium): solo existen las secciones del módulo; todo lo demás se bloquea.
 var rolesPsicosociales = new[] { "Psicologo", "Psicopedagogo", "TrabajadorSocial", "Orientadora" };
-var rutasPlanPsicosocial = new[] { "/Administracion", "/Personal", "/Psychosocial", "/Account", "/Home/Error" };
+var rutasPlanPsicosocial = new[] { "/Administracion", "/Personal", "/Psychosocial", "/Notificaciones", "/Account", "/Home/Error" };
+var rutasFamilia = new[] { "/Portafolio", "/Notificaciones", "/Account", "/Home/Error" };
 app.Use(async (context, next) =>
 {
     var ruta = context.Request.Path.Value ?? "/";
@@ -111,8 +123,9 @@ app.Use(async (context, next) =>
 
     if (soloPsico)
     {
-        var destino = rol == "SuperAdmin" ? "/Administracion" : "/Psychosocial";
-        var permitida = rutasPlanPsicosocial.Any(p => ruta.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        var esFamilia = rol is "Estudiante" or "Apoderado";
+        var destino = esFamilia ? "/Portafolio" : rol == "SuperAdmin" ? "/Administracion" : "/Psychosocial";
+        var permitida = (esFamilia ? rutasFamilia : rutasPlanPsicosocial).Any(p => ruta.StartsWith(p, StringComparison.OrdinalIgnoreCase));
         var soloAdmin = ruta.StartsWith("/Administracion", StringComparison.OrdinalIgnoreCase) || ruta.StartsWith("/Personal", StringComparison.OrdinalIgnoreCase);
         if (esHome || !permitida || (soloAdmin && rol != "SuperAdmin"))
         {

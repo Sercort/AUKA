@@ -1,0 +1,105 @@
+﻿@* Auka.Web/Views/Portafolio/Index.cshtml *@
+@model Auka.Web.Controllers.PortafolioVm
+@using Auka.Application.Entities
+@{
+    ViewData["Title"] = "Mi portafolio";
+    Layout = "~/Views/Shared/_LayoutPortafolio.cshtml";
+}
+
+<style>
+    .pf-card { background:#fff; border:1px solid #e3eaf1; border-radius:16px; }
+    .pf-label { font-size:.7rem; letter-spacing:.06em; font-weight:700; color:#5b6b7c; }
+    .pf-kpi { font-size:1.8rem; font-weight:800; color:#12263A; line-height:1; }
+</style>
+
+<div class="container">
+    <div class="mb-3">
+        <h4 class="fw-bold mb-0" style="color:#12263A;">@(Model.EsApoderado ? "Portafolio de mi pupilo/a" : "Mi portafolio")</h4>
+        <div class="text-secondary small">Aquí ves las citaciones del equipo psicosocial y las anotaciones de conducta.</div>
+    </div>
+
+    @if (Model.Actual == null)
+    {
+        <div class="pf-card p-4 text-center text-secondary">
+            @(Model.EsApoderado ? "Aún no hay alumnos/as vinculados/as a tu cuenta. Pide al colegio que revise tus datos." : "Tu cuenta aún no está asociada a un curso. Consulta en el colegio.")
+        </div>
+    }
+    else
+    {
+        @if (Model.Alumnos.Count > 1)
+        {
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                @foreach (var a in Model.Alumnos)
+                {
+                    <a class="btn btn-sm rounded-pill @(a.Id == Model.Actual.Id ? "btn-primary" : "btn-outline-primary")"
+                       asp-action="Index" asp-route-estudianteId="@a.Id">@a.Nombre · @a.Curso</a>
+                }
+            </div>
+        }
+        <div class="pf-card p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+                <div class="pf-label">ALUMNO/A</div>
+                <div class="fw-bold fs-5">@Model.Actual.Nombre</div>
+                <div class="text-secondary small">@Model.Actual.Curso</div>
+            </div>
+            <div class="d-flex gap-4">
+                <div><div class="pf-label">POSITIVAS</div><div class="pf-kpi" style="color:#22a35a;">@Model.Positivas</div></div>
+                <div><div class="pf-label">NEGATIVAS</div><div class="pf-kpi" style="color:#d64545;">@Model.Negativas</div></div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="pf-card p-3 h-100">
+                    <div class="pf-label mb-2">CITACIONES</div>
+                    @if (!Model.Citaciones.Any())
+                    {
+                        <div class="text-secondary small">No tienes citaciones por ahora.</div>
+                    }
+                    @foreach (var c in Model.Citaciones)
+                    {
+                        <div class="border rounded-3 p-3 mb-2">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="fw-semibold">@c.Fecha @(string.IsNullOrEmpty(c.Hora) ? "" : "· " + c.Hora)</div>
+                                    <div class="small text-secondary">Se cita a: @c.CitadoA</div>
+                                </div>
+                                @if (c.Estado == EstadoCitacion.Confirmada) { <span class="badge bg-success">Confirmada</span> }
+                                else if (c.Estado == EstadoCitacion.Realizada) { <span class="badge bg-secondary">Realizada</span> }
+                                else { <span class="badge bg-warning text-dark">Por confirmar</span> }
+                            </div>
+                            <div class="mt-2">@c.Motivo</div>
+                            @if (c.PuedeConfirmar)
+                            {
+                                <form asp-action="Confirmar" method="post" class="mt-2">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@c.Id" />
+                                    <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Confirmar asistencia</button>
+                                </form>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="pf-card p-3 h-100">
+                    <div class="pf-label mb-2">ANOTACIONES DE CONDUCTA</div>
+                    @if (!Model.Anotaciones.Any())
+                    {
+                        <div class="text-secondary small">Sin anotaciones registradas.</div>
+                    }
+                    @foreach (var a in Model.Anotaciones)
+                    {
+                        <div class="d-flex gap-2 border-bottom py-2">
+                            <span class="badge align-self-start @(a.Positiva ? "bg-success" : "bg-danger")">@(a.Positiva ? "Positiva" : "Negativa")</span>
+                            <div>
+                                <div class="small text-muted">@a.Fecha</div>
+                                <div>@a.Detalle</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>

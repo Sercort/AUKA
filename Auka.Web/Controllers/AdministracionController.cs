@@ -94,8 +94,8 @@ public class AdministracionController : Controller
         var hoy = DateOnly.FromDateTime(DateTime.Today);
         var lunes = hoy.AddDays(-(((int)hoy.DayOfWeek + 6) % 7));
         var viernes = lunes.AddDays(4);
-        var citas = await _context.EventosCalendario.AsNoTracking()
-            .CountAsync(e => e.Fecha >= lunes && e.Fecha <= viernes && e.Tipo == "Citación");
+        var citas = await _context.Citaciones.AsNoTracking()
+            .CountAsync(c => c.Fecha >= lunes && c.Fecha <= viernes && c.Estado != EstadoCitacion.Cancelada);
 
         var vm = new AdministracionVM
         {

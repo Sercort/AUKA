@@ -6,6 +6,7 @@ using System.Text.Json;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
 using Auka.Web.Models;
+using Auka.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -43,11 +44,13 @@ public class PsychosocialController : Controller
 
     private readonly ApplicationDbContext _context;
     private readonly IMemoryCache _cache;
+    private readonly INotificacionService _notif;
 
-    public PsychosocialController(ApplicationDbContext context, IMemoryCache cache)
+    public PsychosocialController(ApplicationDbContext context, IMemoryCache cache, INotificacionService notif)
     {
         _context = context;
         _cache = cache;
+        _notif = notif;
     }
 
     // GET: /Psychosocial
@@ -81,13 +84,14 @@ public class PsychosocialController : Controller
         int dow = ((int)hoy.DayOfWeek + 6) % 7; // lunes = 0
         var lunes = hoy.AddDays(-dow);
         var viernes = lunes.AddDays(4);
-        var semana = await _context.EventosCalendario.AsNoTracking()
-            .Where(e => e.Fecha >= lunes && e.Fecha <= viernes && e.Tipo == "Citación")
-            .Select(e => e.Realizada).ToListAsync();
+        var semana = await _context.Citaciones.AsNoTracking()
+            .Where(c => c.Fecha >= lunes && c.Fecha <= viernes && c.Estado != EstadoCitacion.Cancelada)
+            .Select(c => c.Estado).ToListAsync();
 
-        var sinConfirmar = await _context.EventosCalendario.AsNoTracking()
-            .Where(e => e.Fecha >= hoy && e.Tipo == "Citación" && !e.Realizada)
-            .OrderBy(e => e.Fecha).ThenBy(e => e.Hora).Take(5).ToListAsync();
+        var sinConfirmar = await _context.Citaciones.AsNoTracking()
+            .Include(c => c.Estudiante).ThenInclude(e => e!.Usuario)
+            .Where(c => c.Fecha >= hoy && c.Estado == EstadoCitacion.Pendiente)
+            .OrderBy(c => c.Fecha).ThenBy(c => c.Hora).Take(5).ToListAsync();
 
         return Json(new
         {
@@ -95,12 +99,12 @@ public class PsychosocialController : Controller
             cursos = porCurso.Count,
             porCurso,
             citasSemana = semana.Count,
-            citasSinConfirmar = semana.Count(x => !x),
-            proximasCitas = sinConfirmar.Select(e => new
+            citasSinConfirmar = semana.Count(x => x == EstadoCitacion.Pendiente),
+            proximasCitas = sinConfirmar.Select(c => new
             {
-                f = e.Fecha.ToString("dd-MM", CultureInfo.InvariantCulture),
-                h = e.Hora.HasValue ? e.Hora.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "",
-                x = e.Titulo
+                f = c.Fecha.ToString("dd-MM", CultureInfo.InvariantCulture),
+                h = c.Hora.HasValue ? c.Hora.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "",
+                x = (c.Estudiante?.Usuario != null ? $"{c.Estudiante.Usuario.Nombre} {c.Estudiante.Usuario.Apellido}".Trim() : "Alumno/a") + " · " + c.CitadoA
             })
         });
     }
@@ -155,6 +159,88 @@ public class PsychosocialController : Controller
         });
         await _context.SaveChangesAsync();
         return Json(new { ok = true });
+    }
+
+    // ---------------------------------------------------------------
+    // CITACIONES (se guardan, quedan en el calendario y avisan por correo y por la plataforma)
+    // ---------------------------------------------------------------
+
+    private static readonly string[] CitadosValidos = { "Alumno", "Apoderado", "Alumno + apoderado", "Profesor jefe" };
+
+    // POST: /Psychosocial/CrearCitacion
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CrearCitacion(int estudianteId, string citadoA, string fecha, string? hora, string? motivo)
+    {
+        citadoA = (citadoA ?? "").Trim();
+        motivo = (motivo ?? "").Trim();
+        if (!CitadosValidos.Contains(citadoA)) return BadRequest(new { error = "Elige a quién se cita." });
+        if (motivo.Length < 3) return BadRequest(new { error = "Escribe el motivo de la citación." });
+        if (motivo.Length > 300) return BadRequest(new { error = "El motivo es muy largo (máximo 300 caracteres)." });
+        if (!DateOnly.TryParse(fecha, CultureInfo.InvariantCulture, DateTimeStyles.None, out var f))
+            return BadRequest(new { error = "Fecha inválida." });
+        if (f < DateOnly.FromDateTime(DateTime.Today)) return BadRequest(new { error = "La fecha no puede ser anterior a hoy." });
+        TimeOnly? h = null;
+        if (!string.IsNullOrWhiteSpace(hora))
+        {
+            if (!TimeOnly.TryParse(hora, CultureInfo.InvariantCulture, DateTimeStyles.None, out var hh))
+                return BadRequest(new { error = "Hora inválida." });
+            h = hh;
+        }
+
+        // Estudiantes tiene filtro multitenant: un alumno/a de otro colegio no existe para esta sesión
+        var est = await _context.Estudiantes.Include(e => e.Usuario).Include(e => e.Curso)
+            .FirstOrDefaultAsync(e => e.Id == estudianteId);
+        if (est?.Usuario == null) return NotFound(new { error = "Alumno/a no encontrado." });
+        var nombre = $"{est.Usuario.Nombre} {est.Usuario.Apellido}".Trim();
+
+        var evento = new EventoCalendario
+        {
+            Fecha = f,
+            Hora = h,
+            Tipo = "Citación",
+            Titulo = $"Citación ({citadoA.ToLower()}): {nombre}",
+            Responsable = "Equipo psicosocial",
+            Realizada = false,
+            CreadoPorId = UsuarioActualId()
+        };
+        _context.EventosCalendario.Add(evento);
+        await _context.SaveChangesAsync();
+
+        var cit = new Citacion
+        {
+            EstudianteId = est.Id,
+            CitadoA = citadoA,
+            Fecha = f,
+            Hora = h,
+            Motivo = motivo,
+            CreadaPorId = UsuarioActualId(),
+            EventoCalendarioId = evento.Id
+        };
+        _context.Citaciones.Add(cit);
+        await _context.SaveChangesAsync();
+
+        // A quién se avisa
+        var ids = new List<int>();
+        if (citadoA.Contains("Alumno")) ids.Add(est.UsuarioId);
+        if (citadoA.Contains("Apoderado"))
+            ids.AddRange(await _context.EstudiantesApoderados.Where(x => x.EstudianteId == est.Id && x.Apoderado != null)
+                .Select(x => x.Apoderado!.UsuarioId).ToListAsync());
+        if (citadoA == "Profesor jefe" && est.Curso?.ProfesorJefeId != null) ids.Add(est.Curso.ProfesorJefeId.Value);
+
+        var cuando = f.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) + (h.HasValue ? " a las " + h.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "");
+        var mensaje = $"Se solicita su presencia en el colegio el {cuando} para una citación con el equipo psicosocial, por {nombre}.\nMotivo: {motivo}\nPuede confirmar su asistencia desde AUKA.";
+        var r = await _notif.NotificarAsync(ids, "Citación del equipo psicosocial", mensaje, "/Portafolio?estudianteId=" + est.Id);
+
+        return Json(new
+        {
+            ok = true,
+            avisados = r.Total,
+            porCorreo = r.Enviados,
+            simulados = r.Simulados,
+            fallidos = r.Fallidos,
+            soloPlataforma = r.SinCorreo
+        });
     }
 
     // ---------------------------------------------------------------
@@ -448,6 +534,7 @@ public class PsychosocialController : Controller
         var cab = lineas[0].Split(sep).Select(h => h.Trim().Trim('"').ToLowerInvariant()).ToList();
         int Col(params string[] claves) => cab.FindIndex(h => claves.Any(k => h.StartsWith(k)));
         int iNom = Col("nombre"), iRut = Col("rut"), iCur = Col("curso"), iNac = Col("fecha", "nacimiento");
+        int iApo = Col("apoderado"), iCor = Col("correo"), iTel = Col("tel");
         if (iNom < 0 || iRut < 0 || iCur < 0)
             return BadRequest(new { error = "Faltan columnas obligatorias: Nombre, RUT y Curso." });
 
@@ -456,7 +543,7 @@ public class PsychosocialController : Controller
         for (var i = 1; i < lineas.Count; i++)
         {
             var p = lineas[i].Split(sep);
-            filas.Add(new FilaAlumno(i + 1, Celda(p, iNom), Celda(p, iRut), Celda(p, iCur), Celda(p, iNac)));
+            filas.Add(new FilaAlumno(i + 1, Celda(p, iNom), Celda(p, iRut), Celda(p, iCur), Celda(p, iNac), Celda(p, iApo), Celda(p, iCor), Celda(p, iTel)));
         }
 
         return Json(await ProcesarAlumnosAsync(filas, crearCursos, actualizar));
@@ -473,7 +560,7 @@ public class PsychosocialController : Controller
         if (lista == null || lista.Count == 0 || lista.Count > 200)
             return BadRequest(new { error = "Agrega entre 1 y 200 alumnos/as." });
 
-        var filas = lista.Select((a, i) => new FilaAlumno(i + 1, a.n?.Trim() ?? "", a.r?.Trim() ?? "", a.c?.Trim() ?? "", a.f)).ToList();
+        var filas = lista.Select((a, i) => new FilaAlumno(i + 1, a.n?.Trim() ?? "", a.r?.Trim() ?? "", a.c?.Trim() ?? "", a.f, a.ap?.Trim(), a.ce?.Trim(), a.te?.Trim())).ToList();
         return Json(await ProcesarAlumnosAsync(filas, true, true));
     }
 
@@ -657,6 +744,67 @@ public class PsychosocialController : Controller
         var vistos = new HashSet<string>();
         var hasher = new PasswordHasher<string>();
 
+        // ---- Apoderados/as: cuentas con su correo real (ahí llegan los avisos) ----
+        int apoCreados = 0;
+        _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var tenantId);
+        var correosApo = filas.Select(x => (x.ApoCorreo ?? "").Trim().ToLowerInvariant()).Where(EsCorreo).Distinct().ToList();
+        var usuariosApo = (await _context.Usuarios.IgnoreQueryFilters()
+            .Where(u => correosApo.Contains(u.Email.ToLower())).ToListAsync())
+            .GroupBy(u => u.Email.ToLowerInvariant()).ToDictionary(g => g.Key, g => g.First());
+        var idsUsuApo = usuariosApo.Values.Select(u => u.Id).ToList();
+        var apoPorUsuario = await _context.Apoderados.Where(a => idsUsuApo.Contains(a.UsuarioId)).ToDictionaryAsync(a => a.UsuarioId);
+        var vinculos = (await _context.EstudiantesApoderados
+            .Where(x => _context.Estudiantes.Any(e => e.Id == x.EstudianteId))
+            .Select(x => new { x.EstudianteId, x.ApoderadoId }).ToListAsync())
+            .Select(x => (x.EstudianteId, x.ApoderadoId)).ToHashSet();
+        var nuevosApo = new Dictionary<string, Apoderado>();
+
+        void Vincular(Estudiante est, FilaAlumno f, string rutNorm)
+        {
+            var correo = (f.ApoCorreo ?? "").Trim().ToLowerInvariant();
+            if (string.IsNullOrEmpty(correo) && string.IsNullOrWhiteSpace(f.ApoNombre)) return;
+            if (!EsCorreo(correo)) { errores.Add($"Fila {f.Linea}: falta un correo válido del apoderado/a (el alumno/a sí quedó cargado/a)."); return; }
+
+            Apoderado? apo = null;
+            if (nuevosApo.TryGetValue(correo, out var ya)) apo = ya;
+            else if (usuariosApo.TryGetValue(correo, out var u))
+            {
+                if (u.Rol != RolUsuario.Apoderado || (tenantId > 0 && u.ColegioId != tenantId))
+                { errores.Add($"Fila {f.Linea}: el correo {correo} ya está registrado en otra cuenta."); return; }
+                if (!apoPorUsuario.TryGetValue(u.Id, out apo))
+                {
+                    apo = new Apoderado { Usuario = u, TelefonoContacto = f.ApoTel ?? "" };
+                    _context.Apoderados.Add(apo);
+                    nuevosApo[correo] = apo;
+                }
+            }
+            else
+            {
+                var clave = GenerarClave();
+                var (nom, ape) = SepararNombre(string.IsNullOrWhiteSpace(f.ApoNombre) ? "Apoderado/a" : f.ApoNombre!);
+                var usuario = new Usuario
+                {
+                    Rut = "APO-" + rutNorm,
+                    Nombre = nom,
+                    Apellido = ape,
+                    Email = correo,
+                    Rol = RolUsuario.Apoderado,
+                    Activo = true,
+                    DebeCambiarPassword = true,
+                    PasswordHash = hasher.HashPassword(correo, clave)
+                };
+                apo = new Apoderado { Usuario = usuario, TelefonoContacto = f.ApoTel ?? "" };
+                _context.Apoderados.Add(apo);
+                nuevosApo[correo] = apo;
+                credenciales.Add(new { rut = "", n = $"{f.ApoNombre} (apoderado/a de {f.Nombre})", e = correo, c = clave });
+                apoCreados++;
+            }
+
+            if (est.Id > 0 && apo.Id > 0 && vinculos.Contains((est.Id, apo.Id))) return;
+            _context.EstudiantesApoderados.Add(new EstudianteApoderado { Estudiante = est, Apoderado = apo, Parentesco = "Apoderado/a", EsSostenedorPrincipal = true });
+            if (est.Id > 0 && apo.Id > 0) vinculos.Add((est.Id, apo.Id));
+        }
+
         foreach (var f in filas)
         {
             if (string.IsNullOrWhiteSpace(f.Nombre)) { errores.Add($"Fila {f.Linea}: falta el nombre."); continue; }
@@ -684,6 +832,7 @@ public class PsychosocialController : Controller
                 if (!actualizar) { omitidos++; continue; }
                 existente.Curso = curso;
                 if (nac != null) existente.FechaNacimiento = nac;
+                Vincular(existente, f, rutNorm);
                 actualizados++;
                 continue;
             }
@@ -704,14 +853,16 @@ public class PsychosocialController : Controller
                 DebeCambiarPassword = true,
                 PasswordHash = hasher.HashPassword(email, clave)
             };
-            _context.Estudiantes.Add(new Estudiante
+            var nuevoEst = new Estudiante
             {
                 Usuario = usuario,
                 Curso = curso,
                 FechaNacimiento = nac,
                 TipoMatricula = TipoMatricula.Nuevo,
                 FechaMatricula = DateTime.UtcNow
-            });
+            };
+            _context.Estudiantes.Add(nuevoEst);
+            Vincular(nuevoEst, f, rutNorm);
             correos.Add(email);
             credenciales.Add(new { rut = rutFmt, n = f.Nombre, e = email, c = clave });
             creados++;
@@ -725,11 +876,15 @@ public class PsychosocialController : Controller
             actualizados,
             omitidos,
             cursosCreados,
+            apoderados = apoCreados,
             errores = errores.Take(30),
             totalErrores = errores.Count,
             credenciales
         };
     }
+
+    private static bool EsCorreo(string? c) =>
+        !string.IsNullOrWhiteSpace(c) && System.Text.RegularExpressions.Regex.IsMatch(c.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
 
     private static string NormalizarRut(string? rut) =>
         new string((rut ?? "").Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
@@ -810,11 +965,30 @@ public class PsychosocialController : Controller
             e.Usuario!.PasswordHash = hasher.HashPassword(e.Usuario.Email, clave);
             credenciales.Add(new { rut = e.Usuario.Rut, n = $"{e.Usuario.Nombre} {e.Usuario.Apellido}".Trim(), e = e.Usuario.Email, c = clave });
         }
+
+        // Apoderados/as que aún no cambian su clave
+        var vincs = await _context.EstudiantesApoderados
+            .Include(x => x.Apoderado).ThenInclude(p => p!.Usuario)
+            .Include(x => x.Estudiante).ThenInclude(e => e!.Curso)
+            .Where(x => x.Apoderado != null && x.Apoderado.Usuario != null && x.Apoderado.Usuario.Activo && x.Apoderado.Usuario.DebeCambiarPassword)
+            .ToListAsync();
+        if (!string.IsNullOrWhiteSpace(curso))
+            vincs = vincs.Where(x => x.Estudiante?.Curso != null &&
+                (string.IsNullOrEmpty(x.Estudiante.Curso.Letra) ? x.Estudiante.Curso.Nombre : $"{x.Estudiante.Curso.Nombre} {x.Estudiante.Curso.Letra}")
+                    .StartsWith(curso, StringComparison.OrdinalIgnoreCase)).ToList();
+        var apoderados = vincs.Select(x => x.Apoderado!).GroupBy(p => p.Id).Select(g => g.First()).ToList();
+        foreach (var a in apoderados)
+        {
+            var clave = GenerarClave();
+            a.Usuario!.PasswordHash = hasher.HashPassword(a.Usuario.Email, clave);
+            credenciales.Add(new { rut = "", n = $"{a.Usuario.Nombre} {a.Usuario.Apellido}".Trim() + " (apoderado/a)", e = a.Usuario.Email, c = clave });
+        }
+
         await _context.SaveChangesAsync();
         return Json(new { total = credenciales.Count, credenciales });
     }
 }
 
 public record SetDto(int id, string n, string[]? it, int t, int e);
-public record FilaAlumno(int Linea, string Nombre, string Rut, string Curso, string? Nacimiento);
-public record AlumnoDto(string? n, string? r, string? c, string? f);
+public record FilaAlumno(int Linea, string Nombre, string Rut, string Curso, string? Nacimiento, string? ApoNombre = null, string? ApoCorreo = null, string? ApoTel = null);
+public record AlumnoDto(string? n, string? r, string? c, string? f, string? ap = null, string? ce = null, string? te = null);

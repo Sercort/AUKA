@@ -388,6 +388,12 @@ public class AccountController : Controller
     // El equipo psicosocial va al panel psicosocial solo si el colegio tiene el módulo activo.
     private IActionResult RedirigirSegunRol(string rol, bool planPsicosocial = false, bool planPremium = true)
     {
+        // Plan Psicosocial (sin Premium): alumnos/as y apoderados/as van a su portafolio psicosocial
+        if (planPsicosocial && !planPremium && (rol == "Estudiante" || rol == "Apoderado"))
+        {
+            return RedirectToAction("Index", "Portafolio");
+        }
+
         // Plan Psicosocial (sin Premium): el administrador del colegio va a su panel de administración
         if (planPsicosocial && !planPremium && rol == "SuperAdmin")
         {

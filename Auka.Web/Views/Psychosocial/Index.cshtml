@@ -165,7 +165,7 @@
     </div>
 </div>
 
-<!-- MODAL: SOLICITAR CITACIÓN (visual; se conecta al controlador en el siguiente paso) -->
+<!-- MODAL: SOLICITAR CITACIÓN (se guarda, aparece en el calendario y avisa por correo y por AUKA) -->
 <div class="modal fade" id="modalCitacion" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:16px;">
@@ -175,19 +175,23 @@
             </div>
             <div class="modal-body">
                 <label class="ps-label mb-1">CITAR A</label>
-                <select class="form-select mb-3"><option>Alumno</option><option>Apoderado</option><option>Profesor jefe</option><option>Alumno + apoderado</option></select>
+                <select class="form-select mb-3" id="ciA"><option>Alumno</option><option>Apoderado</option><option>Alumno + apoderado</option><option>Profesor jefe</option></select>
                 <label class="ps-label mb-1">ESTUDIANTE</label>
-                <input type="text" class="form-control mb-3" placeholder="Nombre del alumno/a" />
+                <input type="text" class="form-control" id="ciE" list="ciLista" placeholder="Escribe el nombre y elige de la lista" autocomplete="off" />
+                <datalist id="ciLista"></datalist>
+                <div class="small text-secondary mb-3" id="ciEi">Cargando alumnos/as...</div>
                 <div class="row g-2 mb-3">
-                    <div class="col-6"><label class="ps-label mb-1">FECHA</label><input type="date" class="form-control" /></div>
-                    <div class="col-6"><label class="ps-label mb-1">HORA</label><input type="time" class="form-control" /></div>
+                    <div class="col-6"><label class="ps-label mb-1">FECHA</label><input type="date" class="form-control" id="ciF" /></div>
+                    <div class="col-6"><label class="ps-label mb-1">HORA</label><input type="time" class="form-control" id="ciH" /></div>
                 </div>
                 <label class="ps-label mb-1">MOTIVO</label>
-                <textarea class="form-control" rows="3" placeholder="Seguimiento de asistencia..."></textarea>
+                <textarea class="form-control" rows="3" id="ciM" maxlength="300" placeholder="Seguimiento de asistencia..."></textarea>
+                <div class="small text-secondary mt-1">Esto lo leerán el alumno/a y su apoderado/a: no escribas detalles sensibles ni clínicos.</div>
+                <div class="small mt-2" id="ciR" style="display:none;"></div>
             </div>
             <div class="modal-footer border-0">
-                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary rounded-pill px-4" disabled title="Se conecta en el siguiente paso">Enviar citación</button>
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4" id="ciOk">Enviar citación</button>
             </div>
         </div>
     </div>
@@ -328,6 +332,56 @@
   $('vHoy').onclick = function () { vista = 'hoy'; cargar(); };
   setInterval(function () { if (!document.hidden && !document.querySelector('.modal.show')) cargar(); }, 30000);
   draw(); cargar();
+})();
+// ---- Solicitar citación: se guarda de verdad y avisa por correo + AUKA ----
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var lista = [];
+  var etiqueta = function (a) { return a.n + ' · ' + a.c; };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var cargarAlumnos = function () {
+    return fetch('/Psychosocial/Alumnos', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (l) {
+        lista = l; var dl = $('ciLista'); dl.innerHTML = '';
+        l.forEach(function (a) { var o = document.createElement('option'); o.value = etiqueta(a); dl.appendChild(o); });
+        $('ciEi').textContent = l.length ? l.length + ' alumnos/as disponibles' : 'Aún no hay alumnos/as cargados/as.';
+      }).catch(function () { $('ciEi').textContent = 'No se pudo cargar la lista de alumnos/as.'; });
+  };
+  var modal = $('modalCitacion');
+  modal.addEventListener('show.bs.modal', function () {
+    $('ciR').style.display = 'none'; $('ciOk').disabled = false;
+    var hoy = new Date(); $('ciF').min = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+    cargarAlumnos();
+  });
+  var msg = function (t, ok) { var r = $('ciR'); r.style.display = ''; r.className = 'small mt-2 ' + (ok ? 'text-success' : 'text-danger'); r.textContent = t; };
+  $('ciOk').onclick = function () {
+    var al = lista.filter(function (a) { return etiqueta(a) === $('ciE').value.trim(); })[0];
+    if (!al) return msg('Elige un alumno/a de la lista.', false);
+    if (!$('ciF').value) return msg('Elige la fecha.', false);
+    if ($('ciM').value.trim().length < 3) return msg('Escribe el motivo.', false);
+    var body = new URLSearchParams({ estudianteId: al.id, citadoA: $('ciA').value, fecha: $('ciF').value, hora: $('ciH').value, motivo: $('ciM').value.trim() });
+    body.append('__RequestVerificationToken', tok());
+    $('ciOk').disabled = true;
+    fetch('/Psychosocial/CrearCitacion', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+      .then(function (j) {
+        var t = 'Citación guardada. ';
+        if (j.avisados === 0) t += 'No hay a quién avisar (el alumno/a o apoderado/a no tiene cuenta).';
+        else {
+          t += 'Se avisó en AUKA a ' + j.avisados + (j.avisados === 1 ? ' persona' : ' personas');
+          if (j.porCorreo) t += ' y por correo a ' + j.porCorreo;
+          if (j.simulados) t += ' (correo en modo prueba: ' + j.simulados + ')';
+          if (j.fallidos) t += '. ' + j.fallidos + ' correo(s) fallaron y se reintentarán solos';
+          t += '.';
+        }
+        msg(t, true);
+        $('ciM').value = ''; $('ciE').value = '';
+        document.dispatchEvent(new CustomEvent('psx-calendario'));
+        $('ciOk').disabled = false;
+        var c = document.getElementById('vHoy'); if (c) c.click();
+      })
+      .catch(function (e) { msg(e.message || 'No se pudo guardar. Inténtalo de nuevo.', false); $('ciOk').disabled = false; });
+  };
 })();
 </script>
 }

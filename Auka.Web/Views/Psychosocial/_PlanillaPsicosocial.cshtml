@@ -396,13 +396,13 @@
   };
 
   // ---- Agregar alumnos/as, importar planilla y pasar de año ----
-  var rowA = function () { return '<tr><td><input class="psx-in an" placeholder="Nombre completo"></td><td><input class="psx-in ar" placeholder="RUT"></td><td><select class="psx-in ac">' + NIV.map(function (n) { return '<option>' + n + '</option>'; }).join('') + '</select></td><td><input class="psx-in af" type="date"></td></tr>'; };
+  var rowA = function () { return '<tr><td><input class="psx-in an" placeholder="Nombre completo"></td><td><input class="psx-in ar" placeholder="RUT"></td><td><select class="psx-in ac">' + NIV.map(function (n) { return '<option>' + n + '</option>'; }).join('') + '</select></td><td><input class="psx-in af" type="date"></td><td><input class="psx-in ap" placeholder="Apoderado/a"></td><td><input class="psx-in ae" type="email" placeholder="correo@ejemplo.cl"></td></tr>'; };
   $('bAdd').onclick = function () {
-    dlg('Agregar alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega una o varias alumnos/as; cada una queda en el curso elegido.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th></tr></thead><tbody id="aT">' + rowA() + rowA() + rowA() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button><div id="aR"></div>', function () {
+    dlg('Agregar alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega una o varias alumnos/as; cada una queda en el curso elegido.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th><th>Apoderado/a</th><th>Correo apoderado/a</th></tr></thead><tbody id="aT">' + rowA() + rowA() + rowA() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button><div id="aR"></div>', function () {
       var l = [];
       document.querySelectorAll('#aT tr').forEach(function (tr) {
         var nm = tr.querySelector('.an').value.trim();
-        if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), c: tr.querySelector('.ac').value, f: tr.querySelector('.af').value });
+        if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), c: tr.querySelector('.ac').value, f: tr.querySelector('.af').value, ap: tr.querySelector('.ap').value.trim(), ce: tr.querySelector('.ae').value.trim() });
       });
       if (!l.length) { msg('Escribe al menos un alumno/a'); return false; }
       var b = new URLSearchParams({ alumnosJson: JSON.stringify(l) }); b.append('__RequestVerificationToken', tok());
@@ -412,7 +412,7 @@
     $('aMas').onclick = function () { $('aT').insertAdjacentHTML('beforeend', rowA()); };
   };
   $('bImp').onclick = function () {
-    dlg('Importar planilla de alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Columnas: Nombre, RUT, Curso y Fecha de nacimiento. Cada alumno/a se asigna automáticamente a su curso.</p><input type="file" id="imF" accept=".csv,.xlsx" class="psx-in"><div style="margin:.5rem 0"><button class="psx-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div><label style="font-size:.8rem;display:block;margin-top:.4rem"><input type="checkbox" id="imCrear" checked> Crear los cursos que no existan</label><label style="font-size:.8rem;display:block"><input type="checkbox" id="imAct" checked> Actualizar alumnos/as que ya existen (por RUT)</label>', function () {
+    dlg('Importar planilla de alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Columnas: Nombre, RUT, Curso, Fecha de nacimiento, Apoderado/a, Correo apoderado/a y Teléfono apoderado/a. Con el correo del apoderado/a se crea su cuenta y ahí le llegan los avisos. Cada alumno/a se asigna automáticamente a su curso.</p><input type="file" id="imF" accept=".csv,.xlsx" class="psx-in"><div style="margin:.5rem 0"><button class="psx-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div><label style="font-size:.8rem;display:block;margin-top:.4rem"><input type="checkbox" id="imCrear" checked> Crear los cursos que no existan</label><label style="font-size:.8rem;display:block"><input type="checkbox" id="imAct" checked> Actualizar alumnos/as que ya existen (por RUT)</label>', function () {
       var f = $('imF').files[0];
       if (!f) { msg('Elige un archivo CSV primero'); return false; }
       if (!/\.csv$/i.test(f.name)) { msg('Por ahora la importación real solo lee CSV'); return false; }
@@ -420,7 +420,7 @@
       enviarAlumnos('/Psychosocial/ImportarAlumnos', fd, 'imR');
       return false;
     }, 'Importar');
-    $('imP').onclick = function () { descargar('plantilla_alumnas.csv', '\ufeffNombre;RUT;Curso;Fecha de nacimiento\nCamila Ramírez Soto;24.000.001-1;5° Básico;2015-03-14\n'); };
+    $('imP').onclick = function () { descargar('plantilla_alumnas.csv', '\ufeffNombre;RUT;Curso;Fecha de nacimiento;Apoderado/a;Correo apoderado/a;Teléfono apoderado/a\nCamila Ramírez Soto;24.000.001-1;5° Básico;2015-03-14;Marta Soto Pérez;marta.soto@correo.cl;+56911112222\n'); };
     var show = function (cnt, tot, nota) {
       var rows = Object.keys(cnt).map(function (k) { return [k, cnt[k]]; });
       $('imR').innerHTML = '<span class="psx-c ok">' + tot + ' alumnos/as detectadas en ' + rows.length + ' cursos</span>' + B(rows, Math.max.apply(null, rows.map(function (r) { return r[1]; }))) + (nota ? '<p class="psx-leg">' + nota + '</p>' : '');
@@ -622,7 +622,7 @@
   $('tRos').onclick = function (e) { var a = e.target.closest('.ros-a'); if (a) { e.preventDefault(); abrirFicha(+a.getAttribute('data-id')); } };
 
   var resultadoAlu = function (j, cont) {
-    var h = '<div style="margin-top:.6rem"><span class="psx-c ok">' + j.creados + ' creados</span> <span class="psx-c info">' + j.actualizados + ' actualizados</span> ' +
+    var h = '<div style="margin-top:.6rem"><span class="psx-c ok">' + j.creados + ' creados</span> <span class="psx-c info">' + j.actualizados + ' actualizados</span> ' + (j.apoderados ? '<span class="psx-c ok">' + j.apoderados + ' apoderados/as creados/as</span> ' : '') +
       (j.omitidos ? '<span class="psx-c nil">' + j.omitidos + ' omitidos</span> ' : '') + (j.cursosCreados ? '<span class="psx-c nil">' + j.cursosCreados + ' cursos nuevos</span> ' : '') +
       (j.totalErrores ? '<span class="psx-c bad">' + j.totalErrores + ' con error</span>' : '') + '</div>';
     if (j.errores && j.errores.length) h += '<ul class="psx-leg" style="margin:.4rem 0 0 1rem">' + j.errores.map(function (e) { return '<li>' + e + '</li>'; }).join('') + '</ul>';
