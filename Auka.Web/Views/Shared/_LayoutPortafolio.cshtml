@@ -9,48 +9,45 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Auka.Web.styles.css" asp-append-version="true" />
+    @await Html.PartialAsync("_TemaAuka")
 </head>
-<body style="background:#f4f7fa;">
-    <header>
-        <nav class="navbar navbar-light bg-white border-bottom box-shadow mb-3 py-2">
-            <div class="container d-flex align-items-center justify-content-between">
-                <a class="navbar-brand fw-bold text-primary fs-4 mb-0" asp-controller="Portafolio" asp-action="Index">AUKA</a>
-                <div class="d-flex align-items-center gap-2">
-                    @await Html.PartialAsync("_Campana")
-                    <div class="dropdown">
-                        <button class="btn btn-light dropdown-toggle rounded-pill px-3 py-2 fw-bold text-dark d-flex align-items-center gap-2 border shadow-sm"
-                                type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                            <span class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;font-size:14px;">👤</span>
-                            <span class="d-none d-sm-inline">@User.Identity?.Name</span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2" aria-labelledby="userMenu">
-                            <li class="px-3 py-2 border-bottom">
-                                <small class="text-muted d-block">Sesión activa como:</small>
-                                <strong class="text-primary">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</strong>
-                                <div class="small text-secondary mt-1">@User.FindFirst("ColegioNombre")?.Value</div>
-                            </li>
-                            <li><a class="dropdown-item py-2" asp-controller="Account" asp-action="CambiarPassword">🔑 Cambiar contraseña</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <form asp-controller="Account" asp-action="Logout" method="post">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="dropdown-item py-2 text-danger fw-bold">🚪 Cerrar sesión</button>
-                                </form>
-                            </li>
-                        </ul>
-                    </div>
+<body>
+    <header class="ad-nav">
+        <div class="wrap">
+            <a class="ad-brand" asp-controller="Portafolio" asp-action="Index">
+                <img src="~/img/auka-icono.png" alt="AUKA" />
+                <span><b>AUKA</b><small>MI PORTAFOLIO</small></span>
+            </a>
+            <div class="ad-grow"></div>
+            <div class="ad-user">
+                @await Html.PartialAsync("_Campana")
+                <div class="dropdown">
+                    <button class="btn dropdown-toggle px-3" type="button" data-bs-toggle="dropdown" aria-expanded="false">@User.Identity?.Name</button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2">
+                        <li class="px-3 py-2 border-bottom">
+                            <small class="text-muted d-block">Sesión activa como</small>
+                            <div class="small fw-bold" style="color:var(--a-navy)">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</div>
+                            <div class="small text-secondary">@User.FindFirst("ColegioNombre")?.Value</div>
+                        </li>
+                        <li><a class="dropdown-item py-2" asp-controller="Account" asp-action="CambiarPassword">🔑 Cambiar contraseña</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <form asp-controller="Account" asp-action="Logout" method="post">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="dropdown-item py-2 text-danger fw-bold">🚪 Cerrar sesión</button>
+                            </form>
+                        </li>
+                    </ul>
                 </div>
             </div>
-        </nav>
+        </div>
     </header>
 
-    <main role="main" class="pb-4">
+    <main class="ad-main" role="main">
         @RenderBody()
     </main>
 
-    <footer class="border-top footer text-muted py-3">
-        <div class="container text-center">&copy; 2026 - AUKA | Portafolio psicosocial</div>
-    </footer>
+    <footer class="ad-foot">&copy; 2026 AUKA · Portafolio psicosocial</footer>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

@@ -7,33 +7,44 @@
 }
 
 <style>
-    .pf-card { background:#fff; border:1px solid #e3eaf1; border-radius:16px; }
+    .pf-card { background:#fff; border:1px solid var(--a-line); border-radius:16px; box-shadow:0 1px 3px rgba(20,35,58,.05); }
     .pf-label { font-size:.7rem; letter-spacing:.06em; font-weight:700; color:#5b6b7c; }
-    .pf-kpi { font-size:1.8rem; font-weight:800; color:#12263A; line-height:1; }
+    .pf-kpi { font-size:1.8rem; font-weight:800; color:var(--a-navy); line-height:1; }
 </style>
 
 <div class="container">
-    <div class="mb-3">
-        <h4 class="fw-bold mb-0" style="color:#12263A;">@(Model.EsApoderado ? "Portafolio de mi pupilo/a" : "Mi portafolio")</h4>
-        <div class="text-secondary small">Aquí ves las citaciones del equipo psicosocial y las anotaciones de conducta.</div>
+    <div class="au-hero p-4 mb-4">
+        <h3 class="fw-bold mb-1">@(Model.EsDocente ? "Mi curso · profesor/a jefe" : Model.EsApoderado ? "Portafolio de mi pupilo/a" : "Mi portafolio")</h3>
+        <p class="mb-0" style="color:#dbeafe;">@(Model.EsDocente ? "Aquí ves las citaciones del equipo psicosocial dirigidas a ti y las anotaciones de conducta de tus alumnos/as." : "Aquí ves las citaciones del equipo psicosocial y las anotaciones de conducta.")</p>
     </div>
 
     @if (Model.Actual == null)
     {
         <div class="pf-card p-4 text-center text-secondary">
-            @(Model.EsApoderado ? "Aún no hay alumnos/as vinculados/as a tu cuenta. Pide al colegio que revise tus datos." : "Tu cuenta aún no está asociada a un curso. Consulta en el colegio.")
+            @(Model.EsDocente ? "Aún no tienes un curso asignado como profesor/a jefe. Pide al administrador/a del colegio que lo asigne." : Model.EsApoderado ? "Aún no hay alumnos/as vinculados/as a tu cuenta. Pide al colegio que revise tus datos." : "Tu cuenta aún no está asociada a un curso. Consulta en el colegio.")
         </div>
     }
     else
     {
-        @if (Model.Alumnos.Count > 1)
+        @if (Model.Alumnos.Count > 1 && Model.Alumnos.Count <= 6)
         {
             <div class="d-flex flex-wrap gap-2 mb-3">
                 @foreach (var a in Model.Alumnos)
                 {
-                    <a class="btn btn-sm rounded-pill @(a.Id == Model.Actual.Id ? "btn-primary" : "btn-outline-primary")"
+                    <a class="btn btn-sm rounded-pill @(a.Id == Model.Actual.Id ? "au-btn" : "btn-outline-primary")"
                        asp-action="Index" asp-route-estudianteId="@a.Id">@a.Nombre · @a.Curso</a>
                 }
+            </div>
+        }
+        else if (Model.Alumnos.Count > 6)
+        {
+            <div class="mb-3">
+                <select class="form-select" style="max-width:420px;border-radius:999px" onchange="location.href='?estudianteId=' + this.value">
+                    @foreach (var a in Model.Alumnos)
+                    {
+                        <option value="@a.Id" selected="@(a.Id == Model.Actual.Id)">@a.Nombre · @a.Curso</option>
+                    }
+                </select>
             </div>
         }
         <div class="pf-card p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -74,7 +85,7 @@
                                 <form asp-action="Confirmar" method="post" class="mt-2">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="id" value="@c.Id" />
-                                    <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Confirmar asistencia</button>
+                                    <button type="submit" class="btn btn-sm au-btn px-3">Confirmar asistencia</button>
                                 </form>
                             }
                         </div>

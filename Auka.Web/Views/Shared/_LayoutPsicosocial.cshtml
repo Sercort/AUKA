@@ -1,6 +1,9 @@
 ﻿@* Auka.Web/Views/Shared/_LayoutPsicosocial.cshtml
-   Layout propio del Módulo Psicosocial: barra, menú y buscador del módulo.
+   Layout del Módulo Psicosocial (equipo): mismos colores del logo que el resto de AUKA.
    No muestra la navegación institucional (Clubes, Evaluaciones, Libro de Notas, Horarios). *@
+@{
+    var equipo = User.IsInRole("Psicologo") || User.IsInRole("Psicopedagogo") || User.IsInRole("TrabajadorSocial") || User.IsInRole("Orientadora");
+}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -10,97 +13,59 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Auka.Web.styles.css" asp-append-version="true" />
+    @await Html.PartialAsync("_TemaAuka")
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom box-shadow mb-3 py-2">
-            <div class="container-fluid">
-                <a class="navbar-brand fw-bold text-primary fs-4" asp-controller="Psychosocial" asp-action="Index">AUKA</a>
-                <span class="badge rounded-pill me-2" style="background:#12263A;">Psicosocial</span>
-
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse"
-                        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="navbar-collapse collapse d-lg-inline-flex justify-content-between align-items-center">
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" asp-controller="Psychosocial" asp-action="Index">Panel</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" href="~/Psychosocial#psx">Planilla</a>
-                        </li>
-                        @if (!User.IsInRole("Psicologo") && !User.IsInRole("Psicopedagogo") && !User.IsInRole("TrabajadorSocial") && !User.IsInRole("Orientadora"))
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link text-secondary" asp-controller="Home" asp-action="Index">Modo institucional</a>
+    <header class="ad-nav">
+        <div class="wrap">
+            <a class="ad-brand" asp-controller="Psychosocial" asp-action="Index">
+                <img src="~/img/auka-icono.png" alt="AUKA" />
+                <span><b>AUKA</b><small>PSICOSOCIAL</small></span>
+            </a>
+            <nav class="ad-links">
+                <a class="on" asp-controller="Psychosocial" asp-action="Index">Panel</a>
+                <a href="~/Psychosocial#psx">Planilla</a>
+                @if (!equipo)
+                {
+                    <a asp-controller="Home" asp-action="Index">Modo institucional</a>
+                }
+            </nav>
+            @if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                <form id="psxTopForm" class="ad-search ad-grow" role="search">
+                    <input type="text" id="psxTopQ" placeholder="🔍 Buscar alumno/a: nombre, RUT o curso..." autocomplete="off" />
+                    <button type="submit">Buscar</button>
+                </form>
+                <div class="ad-user">
+                    @await Html.PartialAsync("_Campana")
+                    <div class="dropdown">
+                        <button class="btn dropdown-toggle px-3" type="button" data-bs-toggle="dropdown" aria-expanded="false">@User.Identity.Name</button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2">
+                            <li class="px-3 py-2 border-bottom">
+                                <small class="text-muted d-block">Sesión activa como</small>
+                                <div class="small fw-bold" style="color:var(--a-navy)">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</div>
+                                <div class="small text-secondary">@User.FindFirst("ColegioNombre")?.Value</div>
                             </li>
-                        }
-                    </ul>
-
-                    @if (User.Identity != null && User.Identity.IsAuthenticated)
-                    {
-                        <!-- BUSCADOR DEL MÓDULO PSICOSOCIAL: filtra alumnas dentro del panel -->
-                        <form id="psxTopForm" class="d-flex my-2 my-lg-0 col-12 col-lg-5 mx-lg-auto" role="search">
-                            <div class="input-group">
-                                <input type="text" id="psxTopQ" class="form-control rounded-start-pill ps-3 border-end-0"
-                                       placeholder="🔍 Buscar alumno/a: nombre, RUT o curso..." autocomplete="off" />
-                                <button type="submit" class="btn btn-primary rounded-end-pill px-4">Buscar</button>
-                            </div>
-                        </form>
-
-                        <div class="d-flex align-items-center gap-3 mt-2 mt-lg-0">
-                            @await Html.PartialAsync("_Campana")
-                            <div class="dropdown">
-                                <button class="btn btn-light dropdown-toggle rounded-pill px-3 py-2 fw-bold text-dark d-flex align-items-center gap-2 border shadow-sm"
-                                        type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <span class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center"
-                                          style="width: 28px; height: 28px; font-size: 14px;">👤</span>
-                                    <span>@User.Identity.Name</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2" aria-labelledby="userMenu">
-                                    <li class="px-3 py-2 border-bottom">
-                                        <small class="text-muted d-block">Sesión activa como:</small>
-                                        <strong class="text-primary">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</strong>
-                                        <div class="small text-secondary mt-1">Colegio: @User.FindFirst("ColegioNombre")?.Value (N° @User.FindFirst("ColegioId")?.Value)</div>
-                                        @if (User.FindFirst("PlanPsicosocial")?.Value == "true")
-                                        {
-                                            <span class="badge bg-success ms-1">Premium</span>
-                                        }
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" asp-controller="Account" asp-action="CambiarPassword">
-                                            <span>🔑</span> Cambiar Contraseña
-                                        </a>
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li>
-                                        <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="dropdown-item py-2 text-danger d-flex align-items-center gap-2 fw-bold">
-                                                <span>🚪</span> Cerrar Sesión
-                                            </button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    }
+                            <li><a class="dropdown-item py-2" asp-controller="Account" asp-action="CambiarPassword">🔑 Cambiar contraseña</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="dropdown-item py-2 text-danger fw-bold">🚪 Cerrar sesión</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
-            </div>
-        </nav>
+            }
+        </div>
     </header>
 
     <main role="main" class="pb-3">
         @RenderBody()
     </main>
 
-    <footer class="border-top footer text-muted py-3">
-        <div class="container text-center">
-            &copy; 2026 - AUKA | Módulo Psicosocial
-        </div>
-    </footer>
+    <footer class="ad-foot">&copy; 2026 AUKA · Módulo Psicosocial</footer>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

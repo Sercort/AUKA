@@ -5,11 +5,13 @@
 }
 
 <style>
-    .ps-card { background:#fff; border-radius:16px; box-shadow:0 1px 3px rgba(18,38,58,.08); }
+    .ps-card { background:#fff; border:1px solid #e3eaf4; border-radius:16px; box-shadow:0 1px 3px rgba(20,35,58,.05); }
     .ps-label { font-size:.75rem; font-weight:700; color:#4A5D73; letter-spacing:.04em; }
     .ps-kpi { font-size:1.8rem; font-weight:800; line-height:1.1; }
     .ps-pill { border-radius:999px; padding:4px 12px; font-size:.75rem; font-weight:700; display:inline-block; }
-    .ps-hero { background:#12263A; color:#fff; border-radius:16px; }
+    .ps-hero { background:linear-gradient(120deg,#1a319b 0%,#2459b0 55%,#1fb5c5 100%); color:#fff; border-radius:20px; position:relative; overflow:hidden; }
+    .ps-hero::after { content:""; position:absolute; right:-60px; top:-60px; width:260px; height:260px; border-radius:50%; background:radial-gradient(circle,rgba(63,218,218,.45),rgba(63,218,218,0) 70%); pointer-events:none; }
+    .ps-hero > * { position:relative; z-index:1; }
     .ps-agenda { background:#F3F5F9; border-radius:12px; }
     .ps-bitacora { border:1px dashed #9AA9BB; border-radius:12px; background:#FAFBFD; }
 
@@ -27,7 +29,7 @@
     .cal-leg span { font-size:.7rem; color:#4A5D73; margin-right:10px; white-space:nowrap; }
     .cal-leg i { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:4px; }
     .cal-tab { border:1px solid #E5EAF1; background:#fff; border-radius:999px; padding:3px 12px; font-size:.78rem; font-weight:700; color:#4A5D73; }
-    .cal-tab.on { background:#12263A; color:#fff; border-color:#12263A; }
+    .cal-tab.on { background:linear-gradient(120deg,#1a319b,#2459b0); color:#fff; border-color:#2459b0; }
 
     /* Panel de alertas compacto */
     .al-sec { font-size:.7rem; font-weight:700; color:#4A5D73; letter-spacing:.04em; margin:.8rem 0 .3rem; display:flex; justify-content:space-between; }
@@ -51,7 +53,7 @@
     <div class="ps-hero p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h3 class="fw-bold mb-1">Panel Psicosocial</h3>
-            <p class="mb-0 small" style="color:#C9D6E6;">
+            <p class="mb-0 small" style="color:#dbeafe;">
                 Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento estudiantil
             </p>
         </div>

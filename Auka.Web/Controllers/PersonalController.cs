@@ -1,5 +1,7 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
@@ -285,6 +287,129 @@ public class PersonalController : Controller
             $"✅ {nuevoPersonal.Nombre} {nuevoPersonal.Apellido} fue registrado/a. Correo: {nuevoPersonal.Email} · " +
             $"Clave provisoria: {clave} (anótala ahora: no se vuelve a mostrar; deberá cambiarla al iniciar sesión).";
         return RedirectToAction(nameof(Index));
+    }
+
+    // ---------------------------------------------------------------
+    // IMPORTAR PERSONAL DESDE PLANILLA (CSV): Nombre; Apellido; RUT; Correo; Correo personal; Teléfono; Cargo; Asignaturas
+    // ---------------------------------------------------------------
+
+    private static string SinTildes(string t)
+    {
+        var d = (t ?? "").Normalize(NormalizationForm.FormD);
+        return new string(d.Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray()).ToLowerInvariant().Trim();
+    }
+
+    private static RolUsuario? RolDesdeTexto(string? texto)
+    {
+        var t = SinTildes(texto ?? "");
+        if (t.Length == 0) return null;
+        if (t.Contains("psicopedag")) return RolUsuario.Psicopedagogo;
+        if (t.Contains("psicol")) return RolUsuario.Psicologo;
+        if (t.Contains("social")) return RolUsuario.TrabajadorSocial;
+        if (t.Contains("orient")) return RolUsuario.Orientadora;
+        if (t.Contains("utp") || t.Contains("coordinador")) return RolUsuario.UTP;
+        if (t.Contains("direct")) return RolUsuario.Director;
+        if (t.Contains("inspect") || t.Contains("convivencia")) return RolUsuario.Inspector;
+        if (t.Contains("docente") || t.Contains("profesor") || t.Contains("guia")) return RolUsuario.Docente;
+        return null;
+    }
+
+    // POST: /Personal/ImportarPersonal
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
+    public async Task<IActionResult> ImportarPersonal(IFormFile? archivo)
+    {
+        if (archivo == null || archivo.Length == 0) return BadRequest(new { error = "Elige un archivo CSV." });
+        if (archivo.Length > 2_000_000) return BadRequest(new { error = "El archivo es demasiado grande." });
+        if (!archivo.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = "Por ahora solo se lee CSV. En Excel: Archivo → Guardar como → CSV." });
+
+        var lineas = new List<string>();
+        using (var lector = new StreamReader(archivo.OpenReadStream(), Encoding.UTF8, true))
+        {
+            string? linea;
+            while ((linea = await lector.ReadLineAsync()) != null)
+                if (!string.IsNullOrWhiteSpace(linea)) lineas.Add(linea);
+        }
+        if (lineas.Count < 2) return BadRequest(new { error = "El archivo no tiene filas de personal." });
+        if (lineas.Count > 501) return BadRequest(new { error = "Máximo 500 funcionarios/as por archivo." });
+
+        var sep = lineas[0].Count(c => c == ';') >= lineas[0].Count(c => c == ',') ? ';' : ',';
+        var cab = lineas[0].Split(sep).Select(h => SinTildes(h.Trim().Trim('"').TrimStart('\ufeff'))).ToList();
+        int Col(params string[] claves) => cab.FindIndex(h => claves.Any(k => h.StartsWith(k)));
+        int iNom = Col("nombre"), iApe = Col("apellido"), iRut = Col("rut"), iCor = Col("correo institucional", "correo"),
+            iPer = Col("correo personal"), iTel = Col("tel"), iCar = Col("cargo", "rol"), iAsi = Col("asignatura");
+        if (iNom < 0 || iRut < 0 || iCor < 0 || iCar < 0)
+            return BadRequest(new { error = "Faltan columnas. Necesito al menos: Nombre, RUT, Correo y Cargo." });
+        string Celda(string[] p, int i) => i >= 0 && i < p.Length ? p[i].Trim().Trim('"').Trim() : "";
+
+        var colegioId = ColegioActual();
+        colegioId = colegioId > 0 ? colegioId : 1;
+        var hasher = new PasswordHasher<string>();
+        var errores = new List<string>();
+        var credenciales = new List<object>();
+        int creados = 0, omitidos = 0;
+        var vistosCorreo = new HashSet<string>();
+        var vistosRut = new HashSet<string>();
+
+        var ruts = (await _context.Usuarios.Where(u => u.ColegioId == colegioId).Select(u => u.Rut).ToListAsync())
+            .Select(r => r.Replace(".", "").Replace(" ", "").ToUpperInvariant()).ToHashSet();
+        var correosExistentes = (await _context.Usuarios.IgnoreQueryFilters().Select(u => u.Email.ToLower()).ToListAsync()).ToHashSet();
+
+        for (int i = 1; i < lineas.Count; i++)
+        {
+            var p = lineas[i].Split(sep);
+            int fila = i + 1;
+            var nombre = Celda(p, iNom);
+            var apellido = Celda(p, iApe);
+            if (iApe < 0 || apellido.Length == 0)
+            {
+                // Sin columna de apellido: el primer nombre queda como nombre y el resto como apellidos
+                var partes = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (partes.Length >= 3) { nombre = string.Join(' ', partes.Take(partes.Length - 2)); apellido = string.Join(' ', partes.Skip(partes.Length - 2)); }
+                else if (partes.Length == 2) { nombre = partes[0]; apellido = partes[1]; }
+            }
+            var rut = Celda(p, iRut).Replace(".", "").Replace(" ", "").ToUpperInvariant();
+            var correo = Celda(p, iCor).ToLowerInvariant();
+            var rolTxt = Celda(p, iCar);
+
+            if (string.IsNullOrWhiteSpace(nombre) && string.IsNullOrWhiteSpace(rut)) { continue; }
+            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellido)) { errores.Add($"Fila {fila}: falta nombre o apellido."); continue; }
+            if (!Regex.IsMatch(rut, @"^[0-9]+-[0-9K]$")) { errores.Add($"Fila {fila}: RUT no válido ({rut}). Formato: 12345678-9."); continue; }
+            if (!Regex.IsMatch(correo, @"^[^@\s]+@[^@\s]+\.[^@\s]+$")) { errores.Add($"Fila {fila}: correo no válido."); continue; }
+            var rol = RolDesdeTexto(rolTxt);
+            if (rol == null) { errores.Add($"Fila {fila}: no reconozco el cargo \"{rolTxt}\"."); continue; }
+            if (!PuedeAsignarRol(rol.Value, out var errRol)) { errores.Add($"Fila {fila} ({nombre} {apellido}): {errRol}"); continue; }
+
+            if (ruts.Contains(rut) || !vistosRut.Add(rut)) { omitidos++; errores.Add($"Fila {fila}: el RUT {rut} ya existe en este colegio (se omitió)."); continue; }
+            if (correosExistentes.Contains(correo) || !vistosCorreo.Add(correo)) { omitidos++; errores.Add($"Fila {fila}: el correo {correo} ya está registrado (se omitió)."); continue; }
+
+            var clave = GenerarClave();
+            var u = new Usuario
+            {
+                Rut = rut,
+                Nombre = nombre,
+                Apellido = apellido,
+                Email = correo,
+                EmailPersonal = string.IsNullOrWhiteSpace(Celda(p, iPer)) ? null : Celda(p, iPer).ToLowerInvariant(),
+                Telefono = string.IsNullOrWhiteSpace(Celda(p, iTel)) ? null : Celda(p, iTel),
+                Rol = rol.Value,
+                CargoInstitucional = rol.Value.ToString(),
+                Asignaturas = rol == RolUsuario.Docente && !string.IsNullOrWhiteSpace(Celda(p, iAsi)) ? Celda(p, iAsi) : null,
+                ColegioId = colegioId,
+                Activo = true,
+                DebeCambiarPassword = true,
+                FechaCreacion = DateTime.UtcNow
+            };
+            u.PasswordHash = hasher.HashPassword(u.Email, clave);
+            _context.Usuarios.Add(u);
+            credenciales.Add(new { rut, n = $"{nombre} {apellido}", e = correo, c = clave, r = rol.Value.ToString() });
+            creados++;
+        }
+
+        if (creados > 0) await _context.SaveChangesAsync();
+        return Json(new { creados, omitidos, totalErrores = errores.Count, errores = errores.Take(30), credenciales });
     }
 
     // 5. POST: DESACTIVAR

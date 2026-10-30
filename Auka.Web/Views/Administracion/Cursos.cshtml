@@ -1,0 +1,66 @@
+﻿@* Auka.Web/Views/Administracion/Cursos.cshtml : asignar profesor/a jefe (guía) a cada curso *@
+@{
+    ViewData["Title"] = "Cursos";
+    Layout = "_LayoutAdminPsico";
+}
+
+<style>
+    .cu-t{width:100%;border-collapse:collapse}
+    .cu-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--a-mut);text-align:left;padding:.55rem .6rem;border-bottom:1px solid var(--a-line)}
+    .cu-t td{padding:.6rem;border-bottom:1px solid var(--a-line);vertical-align:middle}
+    .cu-t tr:last-child td{border-bottom:0}
+    .cu-ok{font-size:.75rem;font-weight:700;color:#177a43;margin-left:.5rem;opacity:0;transition:opacity .2s}
+    .cu-ok.on{opacity:1}
+</style>
+
+<div class="au-hero p-4 mb-4">
+    <h3 class="fw-bold mb-1" style="position:relative;z-index:1">Cursos y profesores/as jefe</h3>
+    <p class="mb-0" style="color:#dbeafe;position:relative;z-index:1">El profesor/a jefe (guía) de cada curso recibe las citaciones del equipo psicosocial y ve las anotaciones de conducta de sus alumnos/as.</p>
+</div>
+
+<div class="ad-card p-3">
+    <div id="msg"></div>
+    <div style="overflow-x:auto">
+        <table class="cu-t">
+            <thead><tr><th>Curso</th><th>Alumnos/as</th><th style="min-width:280px">Profesor/a jefe</th></tr></thead>
+            <tbody id="tb"><tr><td colspan="3" class="text-secondary">Cargando...</td></tr></tbody>
+        </table>
+    </div>
+    <div id="vacio" class="text-center text-secondary py-4" style="display:none">Todavía no hay cursos. Se crean solos al importar alumnos/as.</div>
+    <div id="sinDoc" class="small text-secondary mt-3" style="display:none">
+        Aún no hay profesores/as en tu colegio. Agrégalos en <a asp-controller="Personal" asp-action="Index">Equipo</a> con el cargo <b>Profesor/a jefe (guía)</b> y vuelve aquí.
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var D = null;
+  var pintar = function () {
+    $('vacio').style.display = D.cursos.length ? 'none' : '';
+    $('sinDoc').style.display = D.docentes.length ? 'none' : '';
+    $('tb').innerHTML = D.cursos.map(function (c) {
+      var ops = '<option value="0">— Sin asignar —</option>' + D.docentes.map(function (d) { return '<option value="' + d.id + '"' + (d.id === c.jefeId ? ' selected' : '') + '>' + esc(d.nombre) + '</option>'; }).join('');
+      return '<tr><td class="fw-bold">' + esc(c.nombre) + '</td><td>' + c.alumnos + '</td><td><div class="d-flex align-items-center"><select class="form-select" style="max-width:320px;border-radius:12px" data-c="' + c.id + '">' + ops + '</select><span class="cu-ok" id="ok' + c.id + '">✓ Guardado</span></div></td></tr>';
+    }).join('');
+  };
+  var cargar = function () {
+    return fetch('/Administracion/ListaCursos', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) { D = d; pintar(); })
+      .catch(function () { $('tb').innerHTML = '<tr><td colspan="3" class="text-danger">No se pudo cargar. Actualiza la página.</td></tr>'; });
+  };
+  $('tb').addEventListener('change', function (e) {
+    var s = e.target.closest('select'); if (!s) return;
+    var cid = s.getAttribute('data-c');
+    var b = new URLSearchParams({ cursoId: cid, usuarioId: s.value }); b.append('__RequestVerificationToken', tok());
+    fetch('/Administracion/AsignarProfesorJefe', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+      .then(function () { $('msg').innerHTML = ''; var ok = $('ok' + cid); ok.classList.add('on'); setTimeout(function () { ok.classList.remove('on'); }, 1800); cargar(); })
+      .catch(function (er) { $('msg').innerHTML = '<div class="alert alert-danger py-2 small">' + esc(er.message) + '</div>'; cargar(); });
+  });
+  cargar();
+})();
+</script>
+}

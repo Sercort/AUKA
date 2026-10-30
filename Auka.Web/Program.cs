@@ -64,7 +64,7 @@ builder.Services.AddAuthorization(options =>
     // Alumnos/as y apoderados/as: portafolio psicosocial (lo que el equipo comparte con ellos/as)
     options.AddPolicy("FamiliaPsicosocial", policy =>
         policy.RequireAuthenticatedUser()
-              .RequireRole("Estudiante", "Apoderado"));
+              .RequireRole("Estudiante", "Apoderado", "Docente"));
 
     // Quien puede usar los servicios del módulo: el equipo psicosocial o el administrador del Plan Psicosocial
     options.AddPolicy("AccesoPsicosocial", policy =>
@@ -117,13 +117,23 @@ app.Use(async (context, next) =>
     if (user.Identity?.IsAuthenticated != true) { await next(); return; }
 
     var rol = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+    // El dueño de la plataforma no depende del plan de ningún colegio: va siempre a su panel
+    if (rol == "AdminPlataforma")
+    {
+        var esRaiz = ruta == "/" || ruta.StartsWith("/Home", StringComparison.OrdinalIgnoreCase);
+        if (esRaiz) { context.Response.Redirect("/Plataforma"); return; }
+        await next();
+        return;
+    }
+
     var planPsico = user.FindFirst("PlanPsicosocial")?.Value == "true";
     var soloPsico = planPsico && user.FindFirst("PlanPremium")?.Value == "false";
     var esHome = ruta == "/" || ruta.Equals("/Home", StringComparison.OrdinalIgnoreCase) || ruta.Equals("/Home/Index", StringComparison.OrdinalIgnoreCase);
 
     if (soloPsico)
     {
-        var esFamilia = rol is "Estudiante" or "Apoderado";
+        var esFamilia = rol is "Estudiante" or "Apoderado" or "Docente"; // Docente = profesor/a jefe
         var destino = esFamilia ? "/Portafolio" : rol == "SuperAdmin" ? "/Administracion" : "/Psychosocial";
         var permitida = (esFamilia ? rutasFamilia : rutasPlanPsicosocial).Any(p => ruta.StartsWith(p, StringComparison.OrdinalIgnoreCase));
         var soloAdmin = ruta.StartsWith("/Administracion", StringComparison.OrdinalIgnoreCase) || ruta.StartsWith("/Personal", StringComparison.OrdinalIgnoreCase);

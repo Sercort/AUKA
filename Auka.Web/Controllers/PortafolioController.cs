@@ -37,6 +37,7 @@ public class PortafolioAnotacionVm
 public class PortafolioVm
 {
     public bool EsApoderado { get; set; }
+    public bool EsDocente { get; set; }
     public List<PortafolioAlumnoVm> Alumnos { get; set; } = new();
     public PortafolioAlumnoVm? Actual { get; set; }
     public List<PortafolioCitacionVm> Citaciones { get; set; } = new();
@@ -63,12 +64,21 @@ public class PortafolioController : Controller
 
     private int UsuarioActualId() => int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
     private bool EsApoderado => User.FindFirst(ClaimTypes.Role)?.Value == "Apoderado";
+    private bool EsDocente => User.FindFirst(ClaimTypes.Role)?.Value == "Docente";
 
     private async Task<List<PortafolioAlumnoVm>> MisAlumnosAsync()
     {
         var uid = UsuarioActualId();
         List<Estudiante> ests;
-        if (EsApoderado)
+        if (EsDocente)
+        {
+            // Profesor/a jefe: los alumnos/as de los cursos que tiene a su cargo
+            ests = await _context.Estudiantes.AsNoTracking()
+                .Include(e => e.Usuario).Include(e => e.Curso)
+                .Where(e => e.Curso != null && e.Curso.ProfesorJefeId == uid)
+                .ToListAsync();
+        }
+        else if (EsApoderado)
         {
             // Estudiantes tiene filtro por colegio: nunca aparece un alumno/a de otro colegio
             ests = await _context.Estudiantes.AsNoTracking()
@@ -96,7 +106,7 @@ public class PortafolioController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(int? estudianteId)
     {
-        var vm = new PortafolioVm { EsApoderado = EsApoderado, Alumnos = await MisAlumnosAsync() };
+        var vm = new PortafolioVm { EsApoderado = EsApoderado, EsDocente = EsDocente, Alumnos = await MisAlumnosAsync() };
         vm.Actual = vm.Alumnos.FirstOrDefault(a => a.Id == estudianteId) ?? vm.Alumnos.FirstOrDefault();
         if (vm.Actual == null) return View(vm);
 
@@ -105,7 +115,8 @@ public class PortafolioController : Controller
             .OrderByDescending(c => c.Fecha).ThenByDescending(c => c.Hora).Take(30).ToListAsync();
 
         vm.Citaciones = citas
-            .Where(c => EsApoderado ? c.CitadoA != "Alumno" && c.CitadoA != "Profesor jefe"
+            .Where(c => EsDocente ? c.CitadoA == "Profesor jefe"
+                      : EsApoderado ? c.CitadoA == "Apoderado" || c.CitadoA == "Alumno + apoderado"
                                     : c.CitadoA == "Alumno" || c.CitadoA == "Alumno + apoderado")
             .Select(c => new PortafolioCitacionVm
             {
@@ -145,7 +156,8 @@ public class PortafolioController : Controller
         var mios = (await MisAlumnosAsync()).Any(a => a.Id == cit.EstudianteId);
         if (!mios) return Forbid();
         // Solo confirma quien fue citado/a
-        bool puede = EsApoderado ? cit.CitadoA is "Apoderado" or "Alumno + apoderado"
+        bool puede = EsDocente ? cit.CitadoA == "Profesor jefe"
+                   : EsApoderado ? cit.CitadoA is "Apoderado" or "Alumno + apoderado"
                                  : cit.CitadoA is "Alumno" or "Alumno + apoderado";
         if (!puede) return Forbid();
 

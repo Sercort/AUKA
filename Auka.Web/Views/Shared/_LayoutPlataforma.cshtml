@@ -1,0 +1,67 @@
+﻿@* Auka.Web/Views/Shared/_LayoutPlataforma.cshtml
+   Layout del panel del dueño de la plataforma (AdminPlataforma). *@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - AUKA Plataforma</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await Html.PartialAsync("_TemaAuka")
+</head>
+<body>
+    <header class="ad-nav">
+        <div class="wrap">
+            <a class="ad-brand" asp-controller="Plataforma" asp-action="Index">
+                <img src="~/img/auka-icono.png" alt="AUKA" />
+                <span><b>AUKA</b><small>PLATAFORMA</small></span>
+            </a>
+            @{
+                var accion = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+                Func<string, string> on = n => string.Equals(accion, n, StringComparison.OrdinalIgnoreCase) ? "on" : "";
+            }
+            <nav class="ad-links">
+                <a class="@on("Index")" asp-controller="Plataforma" asp-action="Index">Panel</a>
+                <a class="@on("Colegios")" asp-controller="Plataforma" asp-action="Colegios">Colegios</a>
+                <a class="@on("Mensajes")" asp-controller="Plataforma" asp-action="Mensajes">Mensajes <span id="navMsg" class="badge rounded-pill bg-danger" style="display:none"></span></a>
+            </nav>
+            <div class="ad-grow"></div>
+            <div class="ad-user">
+                <span class="ad-plan">DUEÑO DE LA PLATAFORMA</span>
+                <div class="dropdown">
+                    <button class="btn dropdown-toggle px-3" type="button" data-bs-toggle="dropdown" aria-expanded="false">@User.Identity?.Name</button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2">
+                        <li><a class="dropdown-item py-2" asp-controller="Account" asp-action="CambiarPassword">🔑 Cambiar contraseña</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <form asp-controller="Account" asp-action="Logout" method="post">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="dropdown-item py-2 text-danger fw-bold">🚪 Cerrar sesión</button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="ad-main" role="main">
+        @RenderBody()
+    </main>
+
+    <footer class="ad-foot">&copy; 2026 AUKA · Plataforma de gestión educativa</footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Globos de aviso en el menú (mensajes nuevos)
+        (function () {
+            fetch('/Plataforma/Datos', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+                var n = document.getElementById('navMsg'); if (d.kpi.mensajesNuevos > 0) { n.textContent = d.kpi.mensajesNuevos; n.style.display = ''; }
+            }).catch(function () { });
+        })();
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -55,6 +55,17 @@ public class AccountController : Controller
             return View();
         }
 
+        // Colegio suspendido por la plataforma: sus usuarios no pueden entrar (los datos se conservan)
+        if (usuario.Rol != RolUsuario.AdminPlataforma)
+        {
+            var colegioActivo = await _context.Colegios.AsNoTracking().Where(c => c.Id == usuario.ColegioId).Select(c => (bool?)c.Activo).FirstOrDefaultAsync();
+            if (colegioActivo == false)
+            {
+                ViewBag.Error = "El acceso de tu colegio está suspendido. Comunícate con AUKA para reactivarlo.";
+                return View();
+            }
+        }
+
         // B) Verificación de Contraseña (Soporta PasswordHasher y texto plano)
         bool esValido = false;
 
@@ -379,8 +390,10 @@ public class AccountController : Controller
 
     // 10. GET: Acceso Denegado
     [HttpGet]
-    public IActionResult AccesoDenegado()
+    public IActionResult AccesoDenegado(string? returnUrl)
     {
+        ViewBag.Ruta = returnUrl;
+        ViewBag.Rol = User.FindFirst(SystemClaimTypes.Role)?.Value;
         return View();
     }
 
@@ -388,8 +401,14 @@ public class AccountController : Controller
     // El equipo psicosocial va al panel psicosocial solo si el colegio tiene el módulo activo.
     private IActionResult RedirigirSegunRol(string rol, bool planPsicosocial = false, bool planPremium = true)
     {
+        // Dueño de la plataforma: panel de colegios y planes
+        if (rol == "AdminPlataforma")
+        {
+            return RedirectToAction("Index", "Plataforma");
+        }
+
         // Plan Psicosocial (sin Premium): alumnos/as y apoderados/as van a su portafolio psicosocial
-        if (planPsicosocial && !planPremium && (rol == "Estudiante" || rol == "Apoderado"))
+        if (planPsicosocial && !planPremium && (rol == "Estudiante" || rol == "Apoderado" || rol == "Docente"))
         {
             return RedirectToAction("Index", "Portafolio");
         }

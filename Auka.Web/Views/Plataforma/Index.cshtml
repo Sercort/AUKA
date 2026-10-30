@@ -1,0 +1,110 @@
+﻿@* Auka.Web/Views/Plataforma/Index.cshtml : panel del dueño de la plataforma *@
+@{
+    ViewData["Title"] = "Panel";
+    Layout = "_LayoutPlataforma";
+}
+<style>
+    .pl-kpi{padding:1rem 1.1rem;height:100%}
+    .pl-kpi .l{font-size:.68rem;font-weight:800;letter-spacing:.07em;color:var(--a-mut)}
+    .pl-kpi .v{font-size:1.8rem;font-weight:800;line-height:1.1;color:var(--a-navy)}
+    .pl-kpi .s{font-size:.78rem;color:var(--a-mut)}
+    .pl-chip{display:inline-block;font-size:.7rem;font-weight:800;padding:.2rem .65rem;border-radius:999px;white-space:nowrap}
+    .pl-chip.psi{background:#e4f8fa;color:#0c7f8c}.pl-chip.pre{background:#e7ecff;color:#1a319b}.pl-chip.ins{background:#eef1f5;color:#5d6f86}
+    .pl-chip.on{background:#dcf5e6;color:#177a43}.pl-chip.warn{background:#fff1d1;color:#a56a00}.pl-chip.off{background:#fde2e2;color:#a82b2b}
+    .pl-t{width:100%;border-collapse:collapse}
+    .pl-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--a-mut);text-align:left;padding:.55rem .6rem;border-bottom:1px solid var(--a-line);white-space:nowrap}
+    .pl-t td{padding:.65rem .6rem;border-bottom:1px solid var(--a-line);vertical-align:middle;font-size:.88rem}
+    .pl-t tbody tr{cursor:pointer}.pl-t tbody tr:hover{background:#f7faff}
+    .pl-h{font-size:.72rem;font-weight:800;letter-spacing:.07em;color:var(--a-mut);margin-bottom:.6rem}
+    .pl-li{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--a-line);font-size:.85rem}
+    .pl-li:last-child{border-bottom:0}
+    .pl-vacio{color:var(--a-mut);font-size:.85rem;padding:.6rem 0}
+    .pl-chart{position:relative;height:230px}
+</style>
+
+<div class="au-hero p-4 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div style="position:relative;z-index:1">
+        <h2 class="fw-bold mb-1">Panel de la plataforma</h2>
+        <p class="mb-0" style="color:#dbeafe">Suscripciones, vencimientos y mensajes de tus colegios. <span id="act" class="ms-1" style="opacity:.8"></span></p>
+    </div>
+    <a class="btn btn-light fw-bold px-4" style="position:relative;z-index:1" asp-action="Colegios">Ver colegios</a>
+</div>
+
+<div class="row g-3 mb-3" id="kpis"></div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-4"><div class="ad-card p-3 h-100"><div class="pl-h">COLEGIOS POR PLAN</div><div class="pl-chart"><canvas id="gPlan"></canvas></div></div></div>
+    <div class="col-lg-4"><div class="ad-card p-3 h-100"><div class="pl-h">ALTAS Y BAJAS · ÚLTIMOS 6 MESES</div><div class="pl-chart"><canvas id="gMeses"></canvas></div></div></div>
+    <div class="col-lg-4"><div class="ad-card p-3 h-100"><div class="pl-h">PERSONAS POR COLEGIO</div><div class="pl-chart"><canvas id="gTop"></canvas></div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4"><div class="ad-card p-3 h-100"><div class="pl-h">PRÓXIMOS VENCIMIENTOS</div><div id="lVen"></div></div></div>
+    <div class="col-lg-4"><div class="ad-card p-3 h-100"><div class="d-flex justify-content-between"><div class="pl-h">MENSAJES RECIENTES</div><a class="small" asp-action="Mensajes">Ver todos</a></div><div id="lMsg"></div></div></div>
+    <div class="col-lg-4"><div class="ad-card p-3 h-100"><div class="pl-h">ACTIVIDAD RECIENTE</div><div id="lAct"></div></div></div>
+</div>
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var fecha = function (iso) { if (!iso) return '—'; var d = new Date(iso); return isNaN(d) ? '—' : String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear(); };
+  var hora = function (iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); };
+  var clp = function (n) { return '$' + Number(n || 0).toLocaleString('es-CL'); };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var post = function (url, datos) {
+    var b = new URLSearchParams(datos || {}); b.append('__RequestVerificationToken', tok());
+    return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+  };
+  var PLAN = { psicosocial: ['Psicosocial', 'psi'], premium: ['Premium', 'pre'], institucional: ['Institucional', 'ins'] };
+  var EST = { activo: ['Activo', 'on'], porvencer: ['Por vencer', 'warn'], vencido: ['Vencido', 'off'], suspendido: ['Suspendido', 'off'], baja: ['De baja', 'ins'] };
+
+  var C = { navy: '#1a319b', blue: '#2459b0', teal: '#1fb5c5', aqua: '#3fdada', mut: '#5d6f86', red: '#d64545' };
+  var G = {};
+  var kpi = function (l, v, s, color) {
+    return '<div class="col-6 col-lg-3 col-xl"><div class="ad-card pl-kpi"><div class="l">' + l + '</div><div class="v"' + (color ? ' style="color:' + color + '"' : '') + '>' + v + '</div><div class="s">' + s + '</div></div></div>';
+  };
+  var grafico = function (id, tipo, datos, opc) {
+    if (typeof Chart === 'undefined') { $(id).parentNode.innerHTML = '<div class="pl-vacio">Los gráficos necesitan conexión a internet.</div>'; return; }
+    if (G[id]) { G[id].data = datos; G[id].update(); return; }
+    G[id] = new Chart($(id), { type: tipo, data: datos, options: Object.assign({ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }, opc || {}) });
+  };
+  var pintar = function (d) {
+    var k = d.kpi;
+    $('kpis').innerHTML =
+      kpi('COLEGIOS ACTIVOS', k.activos, k.colegios + ' en total · ' + k.altasMes + ' nuevos este mes') +
+      kpi('INGRESO MENSUAL', clp(k.ingresoMensual), 'suma de planes activos') +
+      kpi('POR VENCER', k.porVencer, 'en 30 días o menos', k.porVencer ? '#a56a00' : '') +
+      kpi('VENCIDOS / SUSPENDIDOS', k.vencidos + ' / ' + k.suspendidos, k.bajas + ' de baja', k.vencidos ? C.red : '') +
+      kpi('MENSAJES NUEVOS', k.mensajesNuevos, 'sin leer', k.mensajesNuevos ? C.red : '');
+    grafico('gPlan', 'doughnut', { labels: d.planes.map(function (p) { return p.n; }), datasets: [{ data: d.planes.map(function (p) { return p.v; }), backgroundColor: [C.teal, C.navy, '#b8c4d6'], borderWidth: 0 }] }, { cutout: '62%' });
+    grafico('gMeses', 'bar', { labels: d.meses.map(function (m) { return m.etiqueta; }), datasets: [
+      { label: 'Altas', data: d.meses.map(function (m) { return m.altas; }), backgroundColor: C.blue, borderRadius: 6 },
+      { label: 'Bajas', data: d.meses.map(function (m) { return m.bajas; }), backgroundColor: C.red, borderRadius: 6 }] },
+      { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } });
+    grafico('gTop', 'bar', { labels: d.top.map(function (t) { return t.nombre.length > 18 ? t.nombre.slice(0, 17) + '…' : t.nombre; }), datasets: [{ label: 'Personas', data: d.top.map(function (t) { return t.personas; }), backgroundColor: C.teal, borderRadius: 6 }] },
+      { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } });
+
+    $('lVen').innerHTML = d.vencimientos.length ? d.vencimientos.map(function (v) {
+      var txt = v.dias < 0 ? 'venció hace ' + (-v.dias) + ' d' : v.dias === 0 ? 'vence hoy' : 'vence en ' + v.dias + ' d';
+      return '<div class="pl-li"><div style="flex:1"><div class="fw-bold">' + esc(v.nombre) + '</div><div class="text-secondary small">' + esc(v.contacto || 'Sin contacto') + ' · ' + fecha(v.vence) + '</div></div><span class="pl-chip ' + (v.dias < 0 ? 'off' : 'warn') + '">' + txt + '</span></div>';
+    }).join('') : '<div class="pl-vacio">Nada por vencer en los próximos 45 días.</div>';
+
+    $('lMsg').innerHTML = d.mensajes.length ? d.mensajes.map(function (m) {
+      return '<a class="pl-li text-decoration-none text-dark" href="/Plataforma/Mensajes"><div style="flex:1;min-width:0"><div class="fw-bold">' + (m.estado === 0 ? '🔵 ' : '') + esc(m.nombre) + '</div><div class="text-secondary small">' + esc(m.tipo) + (m.colegioNombre ? ' · ' + esc(m.colegioNombre) : '') + '</div><div class="small text-truncate">' + esc(m.mensaje) + '</div></div><div class="text-muted small">' + fecha(m.fecha) + '</div></a>';
+    }).join('') : '<div class="pl-vacio">Aún no llegan mensajes. El formulario público está en /Contacto.</div>';
+
+    $('lAct').innerHTML = d.actividad.length ? d.actividad.map(function (a) {
+      return '<div class="pl-li"><div style="flex:1"><div class="fw-bold">' + esc(a.tipo) + ' · ' + esc(a.colegio) + '</div><div class="text-secondary small">' + esc(a.detalle) + '</div></div><div class="text-muted small">' + fecha(a.fecha) + '</div></div>';
+    }).join('') : '<div class="pl-vacio">Todavía no hay movimientos.</div>';
+    $('act').textContent = 'Actualizado ' + hora(d.actualizado);
+  };
+  var cargar = function () { fetch('/Plataforma/Datos', { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(pintar).catch(function () { }); };
+  cargar();
+  setInterval(function () { if (!document.hidden) cargar(); }, 30000);
+})();
+</script>
+}

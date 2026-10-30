@@ -46,6 +46,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<ArticuloInventario> ArticulosInventario { get; set; } = null!;
     public DbSet<MovimientoInventario> MovimientosInventario { get; set; } = null!;
     public DbSet<Citacion> Citaciones { get; set; } = null!;
+    public DbSet<HistorialColegio> HistorialColegios { get; set; } = null!;
+    public DbSet<MensajePlataforma> MensajesPlataforma { get; set; } = null!;
     public DbSet<Notificacion> Notificaciones { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -54,6 +56,8 @@ public class ApplicationDbContext : DbContext
 
         // Mapeo explícito de tablas en PostgreSQL
         modelBuilder.Entity<Colegio>().ToTable("Colegios");
+        modelBuilder.Entity<HistorialColegio>().ToTable("HistorialColegios");
+        modelBuilder.Entity<MensajePlataforma>().ToTable("MensajesPlataforma");
         modelBuilder.Entity<Usuario>().ToTable("Usuarios");
         modelBuilder.Entity<Apoderado>().ToTable("Apoderados");
         modelBuilder.Entity<Estudiante>().ToTable("Estudiantes");

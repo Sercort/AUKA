@@ -15,9 +15,14 @@
             <h3 class="fw-bold text-primary mb-1">👥 @(soloPsico ? "Equipo del colegio" : "Personal y Equipo Docente - AUKA")</h3>
             <p class="text-muted small mb-0">@(soloPsico ? "Equipo psicosocial y profesores/as jefe de tu establecimiento." : "Administración de Directivos, UTP, Docentes, Inspectores y Dupla Psicosocial.")</p>
         </div>
-        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalAgregarPersonal">
-            ➕ Agregar Funcionario
-        </button>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalImportarPersonal">
+                📥 Importar planilla
+            </button>
+            <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalAgregarPersonal">
+                ➕ Agregar Funcionario
+            </button>
+        </div>
     </div>
 
     <!-- ALERTAS Y NOTIFICACIONES -->
@@ -299,6 +304,75 @@
         </div>
     </div>
 </div>
+
+<!-- MODAL: IMPORTAR PLANILLA DE PERSONAL -->
+<div class="modal fade" id="modalImportarPersonal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold">📥 Importar planilla de funcionarios/as</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">
+                    Columnas: <b>Nombre, Apellido, RUT, Correo institucional, Correo personal, Teléfono, Cargo, Asignaturas</b>.
+                    El cargo puede ser Docente, Director, UTP, Inspector, Psicólogo, Psicopedagogo, Trabajador Social u Orientador.
+                    Si usas Excel: Archivo → Guardar como → CSV.
+                </p>
+                <input type="file" id="impPF" accept=".csv" class="form-control mb-2" />
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="impPPlantilla">Descargar plantilla (CSV)</button>
+                <div id="impPR" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary fw-bold" id="impPOk">Importar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var $ = function (i) { return document.getElementById(i); };
+    var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var descargar = function (nombre, texto) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' })); a.download = nombre; a.click();
+    };
+    $('impPPlantilla').onclick = function () {
+        descargar('plantilla_personal.csv', '\ufeffNombre;Apellido;RUT;Correo institucional;Correo personal;Teléfono;Cargo;Asignaturas\n' +
+            'Marcela;Fuentes Riquelme;12345678-5;marcela.fuentes@micolegio.cl;marcela@gmail.com;+56911112222;Docente;Matemática\n');
+    };
+    $('modalImportarPersonal').addEventListener('show.bs.modal', function () { $('impPR').innerHTML = ''; $('impPOk').disabled = false; });
+    $('impPOk').onclick = function () {
+        var f = $('impPF').files[0];
+        if (!f) { $('impPR').innerHTML = '<div class="text-danger small">Elige un archivo CSV primero.</div>'; return; }
+        var fd = new FormData(); fd.append('archivo', f);
+        fd.append('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+        $('impPOk').disabled = true; $('impPR').innerHTML = '<div class="small text-muted">Procesando...</div>';
+        fetch('/Personal/ImportarPersonal', { method: 'POST', credentials: 'same-origin', body: fd })
+            .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+            .then(function (j) {
+                var h = '<span class="badge bg-success me-1">' + j.creados + ' creados/as</span>' +
+                    (j.omitidos ? '<span class="badge bg-secondary me-1">' + j.omitidos + ' omitidos/as</span>' : '') +
+                    (j.totalErrores ? '<span class="badge bg-danger">' + j.totalErrores + ' con observación</span>' : '');
+                if (j.errores && j.errores.length) h += '<ul class="small mt-2 mb-0">' + j.errores.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';
+                if (j.credenciales && j.credenciales.length) {
+                    h += '<p class="small mt-3 mb-2">Cada cuenta nueva tiene una clave provisoria que se cambia al entrar. <b>Descárgala ahora: no se vuelve a mostrar.</b></p>' +
+                         '<button type="button" class="btn btn-sm btn-primary rounded-pill" id="impPCred">Descargar claves provisorias (CSV)</button>' +
+                         '<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill ms-2" onclick="location.reload()">Ver el listado</button>';
+                }
+                $('impPR').innerHTML = h;
+                if ($('impPCred')) $('impPCred').onclick = function () {
+                    descargar('claves_personal.csv', '\ufeffRUT;Nombre;Cargo;Correo;Clave provisoria\n' +
+                        j.credenciales.map(function (c) { return [c.rut, c.n, c.r, c.e, c.c].join(';'); }).join('\n'));
+                };
+                $('impPOk').disabled = false;
+            })
+            .catch(function (e) { $('impPR').innerHTML = '<div class="text-danger small">No se pudo importar: ' + esc(e.message) + '</div>'; $('impPOk').disabled = false; });
+    };
+})();
+</script>
 
 <script>
     function actualizarFormularioModal() {

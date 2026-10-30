@@ -136,4 +136,68 @@ public class AdministracionController : Controller
     {
         return View();
     }
+
+    // ---------------------------------------------------------------
+    // CURSOS Y PROFESORES/AS JEFE (guía): quién recibe las citaciones y ve las anotaciones de cada curso
+    // ---------------------------------------------------------------
+
+    private static string NombreCurso(Curso c) => string.IsNullOrEmpty(c.Letra) ? c.Nombre : $"{c.Nombre} {c.Letra}";
+
+    // GET: /Administracion/Cursos
+    [HttpGet]
+    public IActionResult Cursos() => View();
+
+    // GET: /Administracion/ListaCursos
+    [HttpGet]
+    public async Task<IActionResult> ListaCursos()
+    {
+        var anio = DateTime.Now.Year;
+        // El filtro multitenant limita todo a este colegio
+        var cursos = await _context.Cursos.AsNoTracking().Where(c => c.AnioAcademico == anio).ToListAsync();
+        var alumnos = await _context.Estudiantes.AsNoTracking().Select(e => e.CursoId).ToListAsync();
+        var docentes = await _context.Usuarios.AsNoTracking()
+            .Where(u => u.Rol == RolUsuario.Docente && u.Activo).OrderBy(u => u.Nombre).ThenBy(u => u.Apellido)
+            .Select(u => new { u.Id, u.Nombre, u.Apellido }).ToListAsync();
+
+        return Json(new
+        {
+            cursos = cursos.OrderBy(c => c.Nombre).ThenBy(c => c.Letra).Select(c => new
+            {
+                id = c.Id,
+                nombre = NombreCurso(c),
+                alumnos = alumnos.Count(a => a == c.Id),
+                jefeId = c.ProfesorJefeId
+            }),
+            docentes = docentes.Select(d => new { id = d.Id, nombre = $"{d.Nombre} {d.Apellido}".Trim() })
+        });
+    }
+
+    // POST: /Administracion/AsignarProfesorJefe   (usuarioId = 0 quita al profesor/a jefe)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AsignarProfesorJefe(int cursoId, int usuarioId)
+    {
+        var curso = await _context.Cursos.FirstOrDefaultAsync(c => c.Id == cursoId);
+        if (curso == null) return NotFound(new { error = "Curso no encontrado." });
+
+        if (usuarioId == 0)
+        {
+            curso.ProfesorJefeId = null;
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true });
+        }
+
+        var docente = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId && u.Rol == RolUsuario.Docente && u.Activo);
+        if (docente == null) return NotFound(new { error = "Ese profesor/a no existe en tu colegio." });
+
+        // Un profesor/a es jefe de un solo curso
+        var otro = await _context.Cursos.FirstOrDefaultAsync(c => c.ProfesorJefeId == usuarioId && c.Id != cursoId && c.AnioAcademico == curso.AnioAcademico);
+        if (otro != null)
+            return BadRequest(new { error = $"{docente.Nombre} {docente.Apellido} ya es profesor/a jefe de {NombreCurso(otro)}. Quítale ese curso primero." });
+
+        curso.ProfesorJefeId = usuarioId;
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true });
+    }
+
 }

@@ -415,9 +415,27 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<bool>("Activo")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("ContactoCorreo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContactoNombre")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContactoTelefono")
+                        .HasColumnType("text");
+
                     b.Property<string>("Direccion")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("FechaBaja")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FechaRegistro")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FechaVencimiento")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<double>("LatitudColegio")
                         .HasColumnType("double precision");
@@ -425,12 +443,21 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<double>("LongitudColegio")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("MotivoBaja")
+                        .HasColumnType("text");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("NotasInternas")
+                        .HasColumnType("text");
+
                     b.Property<bool>("PlanPsicosocialActivo")
                         .HasColumnType("boolean");
+
+                    b.Property<int?>("PrecioMensual")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Rut")
                         .IsRequired()
@@ -652,6 +679,36 @@ namespace Auka.Infrastructure.Migrations
                     b.ToTable("EventosCalendario", (string)null);
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.HistorialColegio", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioRefId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Detalle")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PorUsuarioId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("HistorialColegios", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.HorarioClase", b =>
                 {
                     b.Property<int>("Id")
@@ -687,6 +744,56 @@ namespace Auka.Infrastructure.Migrations
                     b.HasIndex("ProfesorId");
 
                     b.ToTable("HorarioClase");
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.MensajePlataforma", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Cargo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ColegioNombre")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ColegioRefId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Correo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Mensaje")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NotaInterna")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Telefono")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MensajesPlataforma", (string)null);
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.MovimientoInventario", b =>

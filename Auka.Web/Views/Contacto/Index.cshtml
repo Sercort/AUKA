@@ -1,0 +1,51 @@
+﻿@* Auka.Web/Views/Contacto/Index.cshtml : formulario público *@
+@{ Layout = null; }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contacto - AUKA</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        :root{--a-navy:#1a319b;--a-blue:#2459b0;--a-teal:#1fb5c5;--a-ink:#14233a;--a-mut:#5d6f86;--a-line:#e3eaf4}
+        body{background:linear-gradient(135deg,#f3f7fc 0%,#e4f8fa 100%);color:var(--a-ink);min-height:100vh;padding:1.2rem}
+        .box{background:#fff;border:1px solid var(--a-line);border-radius:22px;max-width:640px;margin:1rem auto;overflow:hidden;box-shadow:0 10px 30px rgba(20,35,58,.08)}
+        .top{background:linear-gradient(120deg,#1a319b,#2459b0 55%,#1fb5c5);color:#fff;padding:1.4rem 1.6rem;display:flex;align-items:center;gap:.8rem}
+        .top img{height:38px}.top b{font-size:1.4rem;letter-spacing:.04em}
+        .au-btn{background:linear-gradient(120deg,var(--a-navy),var(--a-blue));color:#fff;border:0;border-radius:999px;font-weight:700;padding:.6rem 1.6rem;text-decoration:none;display:inline-block}
+        .au-btn:hover{color:#fff;filter:brightness(1.08)}
+        .form-control,.form-select{border-radius:12px}label{font-size:.78rem;font-weight:700;color:var(--a-mut)}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="top"><img src="~/img/auka-icono.png" alt="AUKA" /><b>AUKA</b></div>
+        <div class="p-4">
+            <h4 class="fw-bold mb-1">Conversemos</h4>
+            <p class="text-secondary">Cuéntanos qué necesitas y te respondemos por correo.</p>
+            @if (ViewBag.Error != null)
+            {
+                <div class="alert alert-danger py-2 small">@ViewBag.Error</div>
+            }
+            <form asp-action="Index" method="post" autocomplete="off">
+                @Html.AntiForgeryToken()
+                <div style="position:absolute;left:-9999px" aria-hidden="true"><input type="text" name="web" tabindex="-1" autocomplete="off" /></div>
+                <div class="row g-3">
+                    <div class="col-12"><label>¿QUÉ NECESITAS?</label>
+                        <select name="tipo" class="form-select">
+                            @foreach (var t in (string[])ViewBag.Tipos) { <option>@t</option> }
+                        </select></div>
+                    <div class="col-md-6"><label>TU NOMBRE*</label><input name="nombre" class="form-control" required maxlength="120" /></div>
+                    <div class="col-md-6"><label>CARGO</label><input name="cargo" class="form-control" maxlength="80" placeholder="Director/a, sostenedor/a..." /></div>
+                    <div class="col-12"><label>COLEGIO</label><input name="colegio" class="form-control" maxlength="140" /></div>
+                    <div class="col-md-6"><label>CORREO*</label><input name="correo" type="email" class="form-control" required maxlength="160" /></div>
+                    <div class="col-md-6"><label>TELÉFONO</label><input name="telefono" class="form-control" maxlength="40" /></div>
+                    <div class="col-12"><label>MENSAJE*</label><textarea name="mensaje" class="form-control" rows="5" required minlength="5" maxlength="2000"></textarea></div>
+                    <div class="col-12"><button type="submit" class="au-btn">Enviar mensaje</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,197 @@
+﻿@* Auka.Web/Views/Plataforma/Colegios.cshtml *@
+@{
+    ViewData["Title"] = "Colegios";
+    Layout = "_LayoutPlataforma";
+}
+<style>
+    .pl-kpi{padding:1rem 1.1rem;height:100%}
+    .pl-kpi .l{font-size:.68rem;font-weight:800;letter-spacing:.07em;color:var(--a-mut)}
+    .pl-kpi .v{font-size:1.8rem;font-weight:800;line-height:1.1;color:var(--a-navy)}
+    .pl-kpi .s{font-size:.78rem;color:var(--a-mut)}
+    .pl-chip{display:inline-block;font-size:.7rem;font-weight:800;padding:.2rem .65rem;border-radius:999px;white-space:nowrap}
+    .pl-chip.psi{background:#e4f8fa;color:#0c7f8c}.pl-chip.pre{background:#e7ecff;color:#1a319b}.pl-chip.ins{background:#eef1f5;color:#5d6f86}
+    .pl-chip.on{background:#dcf5e6;color:#177a43}.pl-chip.warn{background:#fff1d1;color:#a56a00}.pl-chip.off{background:#fde2e2;color:#a82b2b}
+    .pl-t{width:100%;border-collapse:collapse}
+    .pl-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--a-mut);text-align:left;padding:.55rem .6rem;border-bottom:1px solid var(--a-line);white-space:nowrap}
+    .pl-t td{padding:.65rem .6rem;border-bottom:1px solid var(--a-line);vertical-align:middle;font-size:.88rem}
+    .pl-t tbody tr{cursor:pointer}.pl-t tbody tr:hover{background:#f7faff}
+    .pl-h{font-size:.72rem;font-weight:800;letter-spacing:.07em;color:var(--a-mut);margin-bottom:.6rem}
+    .pl-li{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--a-line);font-size:.85rem}
+    .pl-li:last-child{border-bottom:0}
+    .pl-vacio{color:var(--a-mut);font-size:.85rem;padding:.6rem 0}
+    .pl-chart{position:relative;height:230px}
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div><h3 class="fw-bold mb-0" style="color:var(--a-navy)">Colegios</h3><div class="text-secondary small">Haz clic en un colegio para ver su ficha, renovar o cambiar su plan.</div></div>
+    <button type="button" class="au-btn px-4" id="bNuevo">➕ Nuevo colegio</button>
+</div>
+
+<div class="ad-card p-3">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <div id="chips" class="d-flex flex-wrap gap-1"></div>
+        <select id="fPlan" class="form-select form-select-sm" style="width:auto;border-radius:999px"><option value="">Todos los planes</option><option value="psicosocial">Psicosocial</option><option value="premium">Premium</option><option value="institucional">Institucional</option></select>
+        <input id="fQ" class="form-control form-control-sm ms-auto" style="max-width:260px;border-radius:999px" placeholder="🔍 Buscar colegio o contacto..." />
+    </div>
+    <div style="overflow-x:auto"><table class="pl-t"><thead><tr><th>N°</th><th>Colegio</th><th>Contacto</th><th>Plan</th><th>Estado</th><th>Vence</th><th>Precio</th><th>Personas</th></tr></thead><tbody id="tb"></tbody></table></div>
+    <div id="vacio" class="pl-vacio text-center py-4" style="display:none">No hay colegios con ese filtro.</div>
+</div>
+
+<!-- FICHA DEL COLEGIO -->
+<div class="modal fade" id="mFicha" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content" style="border-radius:16px">
+    <div class="modal-header border-0"><div><h5 class="modal-title fw-bold" id="fTit"></h5><div id="fSub" class="small text-secondary"></div></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div id="fMsg"></div>
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="pl-h">CONTACTO (quien contrató)</div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6"><label class="small fw-bold">NOMBRE</label><input id="fCon" class="form-control" maxlength="120"></div>
+                    <div class="col-md-6"><label class="small fw-bold">CORREO</label><input id="fCor" type="email" class="form-control" maxlength="160"></div>
+                    <div class="col-md-6"><label class="small fw-bold">TELÉFONO</label><input id="fTel" class="form-control" maxlength="40"></div>
+                </div>
+                <div class="pl-h">PLAN Y VIGENCIA</div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-4"><label class="small fw-bold">PLAN</label><select id="fPl" class="form-select"><option value="psicosocial">Psicosocial</option><option value="premium">Premium</option><option value="institucional">Institucional</option></select></div>
+                    <div class="col-md-4"><label class="small fw-bold">VENCE</label><input id="fVen" type="date" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">PRECIO MENSUAL ($)</label><input id="fPre" type="number" min="0" class="form-control"></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mb-3 align-items-center"><span class="small text-secondary">Renovar:</span>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-ext="1">+1 mes</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-ext="3">+3 meses</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" data-ext="12">+12 meses</button></div>
+                <div class="pl-h">NOTAS INTERNAS</div>
+                <textarea id="fNot" rows="3" class="form-control mb-3" maxlength="1000" placeholder="Solo las ves tú"></textarea>
+                <button type="button" class="au-btn px-4" id="bGuardar">Guardar cambios</button>
+            </div>
+            <div class="col-lg-5">
+                <div class="pl-h">ACCESO</div>
+                <div id="fEst" class="mb-2"></div>
+                <div class="d-flex flex-wrap gap-2 mb-3" id="fAcc"></div>
+                <div class="pl-h">ADMINISTRADOR/A DEL COLEGIO</div>
+                <div id="fAdm" class="mb-3"></div>
+                <div class="pl-h">HISTORIAL</div>
+                <div id="fHis" style="max-height:220px;overflow:auto"></div>
+            </div>
+        </div>
+    </div>
+</div></div></div>
+
+<!-- NUEVO COLEGIO -->
+<div class="modal fade" id="mNuevo" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content" style="border-radius:16px">
+    <div class="modal-header border-0"><h5 class="modal-title fw-bold">➕ Nuevo colegio</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div id="nRes"></div>
+        <div id="nForm" class="row g-3">
+            <div class="col-md-8"><label class="small fw-bold">NOMBRE DEL COLEGIO*</label><input id="nNom" class="form-control" maxlength="120"></div>
+            <div class="col-md-4"><label class="small fw-bold">RBD / RUT</label><input id="nRut" class="form-control" maxlength="20"></div>
+            <div class="col-md-6"><label class="small fw-bold">TELÉFONO DEL COLEGIO</label><input id="nTel" class="form-control" maxlength="30"></div>
+            <div class="col-md-6"><label class="small fw-bold">DIRECCIÓN</label><input id="nDir" class="form-control" maxlength="160"></div>
+            <div class="col-md-4"><label class="small fw-bold">PLAN*</label><select id="nPlan" class="form-select"><option value="psicosocial">Psicosocial</option><option value="premium">Premium</option><option value="institucional">Institucional</option></select></div>
+            <div class="col-md-4"><label class="small fw-bold">VENCE</label><input id="nVen" type="date" class="form-control"></div>
+            <div class="col-md-4"><label class="small fw-bold">PRECIO MENSUAL ($)</label><input id="nPre" type="number" min="0" class="form-control"></div>
+            <div class="col-12"><hr class="my-1"><div class="pl-h mb-0">CONTACTO COMERCIAL</div></div>
+            <div class="col-md-4"><label class="small fw-bold">NOMBRE</label><input id="nCon" class="form-control"></div>
+            <div class="col-md-4"><label class="small fw-bold">CORREO</label><input id="nCor" type="email" class="form-control"></div>
+            <div class="col-md-4"><label class="small fw-bold">TELÉFONO</label><input id="nCte" class="form-control"></div>
+            <div class="col-12"><hr class="my-1"><div class="pl-h mb-0">ADMINISTRADOR/A DEL COLEGIO (usuario de ingreso)</div></div>
+            <div class="col-md-6"><label class="small fw-bold">NOMBRE*</label><input id="aNom" class="form-control"></div>
+            <div class="col-md-6"><label class="small fw-bold">APELLIDOS*</label><input id="aApe" class="form-control"></div>
+            <div class="col-md-6"><label class="small fw-bold">RUT* (12345678-9)</label><input id="aRut" class="form-control"></div>
+            <div class="col-md-6"><label class="small fw-bold">CORREO*</label><input id="aCor" type="email" class="form-control"></div>
+        </div>
+    </div>
+    <div class="modal-footer border-0"><button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button><button type="button" class="au-btn px-4" id="nOk">Crear colegio</button></div>
+</div></div></div>
+
+@section Scripts {
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var fecha = function (iso) { if (!iso) return '—'; var d = new Date(iso); return isNaN(d) ? '—' : String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear(); };
+  var hora = function (iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); };
+  var clp = function (n) { return '$' + Number(n || 0).toLocaleString('es-CL'); };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var post = function (url, datos) {
+    var b = new URLSearchParams(datos || {}); b.append('__RequestVerificationToken', tok());
+    return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+  };
+  var PLAN = { psicosocial: ['Psicosocial', 'psi'], premium: ['Premium', 'pre'], institucional: ['Institucional', 'ins'] };
+  var EST = { activo: ['Activo', 'on'], porvencer: ['Por vencer', 'warn'], vencido: ['Vencido', 'off'], suspendido: ['Suspendido', 'off'], baja: ['De baja', 'ins'] };
+
+  var L = [], estado = '', ficha = null;
+  var mFicha, mNuevo;
+  var chip = function (m, k) { var x = m[k] || [k, 'ins']; return '<span class="pl-chip ' + x[1] + '">' + x[0] + '</span>'; };
+  var cargar = function () {
+    return fetch('/Plataforma/ListaColegios', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (l) { L = l; pintar(); });
+  };
+  var pintar = function () {
+    var cuenta = function (e) { return L.filter(function (c) { return !e || c.estado === e; }).length; };
+    var tabs = [['', 'Todos'], ['activo', 'Activos'], ['porvencer', 'Por vencer'], ['vencido', 'Vencidos'], ['suspendido', 'Suspendidos'], ['baja', 'De baja']];
+    $('chips').innerHTML = tabs.map(function (t) { return '<button type="button" class="btn btn-sm rounded-pill ' + (estado === t[0] ? 'au-btn' : 'btn-outline-secondary') + '" data-e="' + t[0] + '">' + t[1] + ' ' + cuenta(t[0]) + '</button>'; }).join('');
+    var q = $('fQ').value.trim().toLowerCase(), p = $('fPlan').value;
+    var f = L.filter(function (c) { return (!estado || c.estado === estado) && (!p || c.plan === p) && (!q || (c.nombre + ' ' + (c.contacto || '') + ' ' + (c.rut || '')).toLowerCase().indexOf(q) > -1); });
+    $('vacio').style.display = f.length ? 'none' : '';
+    $('tb').innerHTML = f.map(function (c) {
+      var vence = c.vence ? fecha(c.vence) + (c.dias != null && c.dias <= 30 ? ' <span class="text-muted small">(' + (c.dias < 0 ? 'hace ' + (-c.dias) + ' d' : c.dias + ' d') + ')</span>' : '') : '—';
+      return '<tr data-id="' + c.id + '"><td class="fw-bold">' + c.id + '</td><td><div class="fw-bold">' + esc(c.nombre) + '</div><div class="small text-secondary">' + esc(c.rut || '') + '</div></td>' +
+        '<td><div>' + esc(c.contacto || '—') + '</div><div class="small text-secondary">' + esc(c.correo || '') + '</div></td><td>' + chip(PLAN, c.plan) + '</td><td>' + chip(EST, c.estado) + '</td><td>' + vence + '</td><td>' + (c.precio != null ? clp(c.precio) : '—') + '</td>' +
+        '<td>' + (c.funcionarios + c.alumnos + c.apoderados) + '<div class="small text-secondary">' + c.alumnos + ' alumnos/as</div></td></tr>';
+    }).join('');
+  };
+  $('chips').onclick = function (e) { var b = e.target.closest('[data-e]'); if (b) { estado = b.getAttribute('data-e'); pintar(); } };
+  $('fQ').oninput = pintar; $('fPlan').onchange = pintar;
+  $('tb').onclick = function (e) { var tr = e.target.closest('tr'); if (tr) abrir(+tr.getAttribute('data-id')); };
+
+  var msg = function (id, t, ok) { $(id).innerHTML = t ? '<div class="alert alert-' + (ok ? 'success' : 'danger') + ' py-2 small">' + t + '</div>' : ''; };
+  var abrir = function (id) {
+    fetch('/Plataforma/Detalle?id=' + id, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (c) {
+      ficha = c; msg('fMsg', '');
+      $('fTit').textContent = c.nombre; $('fSub').textContent = 'N° ' + c.id + (c.rut ? ' · RBD/RUT ' + c.rut : '') + (c.registro ? ' · cliente desde ' + fecha(c.registro) : '');
+      $('fCon').value = c.contacto || ''; $('fCor').value = c.correo || ''; $('fTel').value = c.telefonoContacto || '';
+      $('fPl').value = c.plan; $('fVen').value = c.vence ? c.vence.slice(0, 10) : ''; $('fPre').value = c.precio != null ? c.precio : ''; $('fNot').value = c.notas || '';
+      $('fEst').innerHTML = chip(EST, c.estado) + (c.baja ? ' <span class="small text-secondary">desde ' + fecha(c.baja) + (c.motivoBaja ? ' · ' + esc(c.motivoBaja) : '') + '</span>' : '');
+      var acc = c.estado === 'suspendido' || c.estado === 'baja'
+        ? '<button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3" data-st="reactivar">Reactivar</button>'
+        : '<button type="button" class="btn btn-sm btn-outline-warning rounded-pill px-3" data-st="suspender">Suspender</button><button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" data-st="baja">Dar de baja</button>';
+      $('fAcc').innerHTML = acc;
+      $('fAdm').innerHTML = c.admins.length ? c.admins.map(function (m) { return '<div class="d-flex align-items-center gap-2 mb-1"><span class="small flex-grow-1">' + esc(m) + '</span><button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-clave="' + esc(m) + '">🔑 Nueva clave</button></div>'; }).join('') : '<div class="pl-vacio">Sin administrador/a activo.</div>';
+      $('fHis').innerHTML = c.historial.length ? c.historial.map(function (h) { return '<div class="pl-li"><div style="flex:1"><div class="fw-bold">' + esc(h.tipo) + '</div><div class="small text-secondary">' + esc(h.detalle) + '</div></div><div class="small text-muted">' + fecha(h.fecha) + '</div></div>'; }).join('') : '<div class="pl-vacio">Sin movimientos todavía.</div>';
+      mFicha.show();
+    });
+  };
+  $('bGuardar').onclick = function () {
+    post('/Plataforma/GuardarColegio', { id: ficha.id, plan: $('fPl').value, contacto: $('fCon').value, correo: $('fCor').value, telefono: $('fTel').value, vence: $('fVen').value, precio: $('fPre').value, notas: $('fNot').value })
+      .then(function () { msg('fMsg', 'Cambios guardados.', true); cargar(); abrir(ficha.id); }).catch(function (e) { msg('fMsg', e.message, false); });
+  };
+  $('mFicha').addEventListener('click', function (e) {
+    var x = e.target.closest('[data-ext]'), s = e.target.closest('[data-st]'), k = e.target.closest('[data-clave]');
+    if (x) post('/Plataforma/Extender', { id: ficha.id, meses: x.getAttribute('data-ext') }).then(function () { cargar(); abrir(ficha.id); }).catch(function (er) { msg('fMsg', er.message, false); });
+    if (s) {
+      var a = s.getAttribute('data-st'), motivo = '';
+      if (a !== 'reactivar') { motivo = prompt(a === 'baja' ? 'Motivo de la baja (opcional):' : 'Motivo de la suspensión (opcional):', ''); if (motivo === null) return; }
+      post('/Plataforma/Estado', { id: ficha.id, accion: a, motivo: motivo }).then(function () { cargar(); abrir(ficha.id); }).catch(function (er) { msg('fMsg', er.message, false); });
+    }
+    if (k) post('/Plataforma/RestablecerClaveAdmin', { colegioId: ficha.id, correo: k.getAttribute('data-clave') })
+      .then(function (j) { msg('fMsg', '🔑 Nueva clave de <b>' + esc(j.correo) + '</b>: <b>' + esc(j.clave) + '</b> — anótala ahora, no se vuelve a mostrar.', true); }).catch(function (er) { msg('fMsg', er.message, false); });
+  });
+
+  $('bNuevo').onclick = function () { msg('nRes', ''); $('nForm').style.display = ''; $('nOk').style.display = ''; mNuevo.show(); };
+  $('nOk').onclick = function () {
+    $('nOk').disabled = true;
+    post('/Plataforma/CrearColegio', { nombre: $('nNom').value, rut: $('nRut').value, telefono: $('nTel').value, direccion: $('nDir').value, plan: $('nPlan').value, vence: $('nVen').value, precio: $('nPre').value,
+      contacto: $('nCon').value, correoContacto: $('nCor').value, telefonoContacto: $('nCte').value, adminNombre: $('aNom').value, adminApellido: $('aApe').value, adminRut: $('aRut').value, adminCorreo: $('aCor').value })
+      .then(function (j) {
+        $('nForm').style.display = 'none'; $('nOk').style.display = 'none';
+        msg('nRes', '✅ Colegio <b>' + esc(j.colegio) + '</b> (N° ' + j.numero + ') creado.<br>Administrador/a: <b>' + esc(j.correo) + '</b><br>Clave provisoria: <b>' + esc(j.clave) + '</b><br><span class="text-secondary">Anótala ahora: no se vuelve a mostrar y deberá cambiarla al entrar.</span>', true);
+        cargar();
+      }).catch(function (e) { msg('nRes', e.message, false); }).then(function () { $('nOk').disabled = false; });
+  };
+
+  mFicha = new bootstrap.Modal($('mFicha')); mNuevo = new bootstrap.Modal($('mNuevo'));
+  cargar();
+})();
+</script>
+}

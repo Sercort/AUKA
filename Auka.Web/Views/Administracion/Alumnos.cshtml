@@ -5,19 +5,101 @@
 @Html.AntiForgeryToken()
 
 <style>
-    .al-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem;margin-bottom:1rem}
-    .al-head h3{margin:0;font-weight:800;color:var(--a-navy)}
-    .al-head p{margin:0;color:var(--a-mut);font-size:.9rem}
-    .al-btn{border-radius:999px;font-weight:700;font-size:.85rem;padding:.45rem 1.1rem;border:1px solid var(--a-line);background:#fff;color:var(--a-navy)}
-    .al-btn.p{background:linear-gradient(120deg,var(--a-navy),var(--a-blue));border-color:transparent;color:#fff}
-    .al-card{padding:1.2rem 1.3rem}
-    .al-t{width:100%;border-collapse:collapse;font-size:.86rem}
-    .al-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--a-mut);padding:.4rem .5rem;border-bottom:1px solid var(--a-line);text-align:left}
-    .al-t td{padding:.55rem .5rem;border-bottom:1px solid #f0f4fa}
-    .al-chip{display:inline-block;padding:.15rem .6rem;border-radius:999px;font-size:.72rem;font-weight:700;background:#e9f0fb;color:var(--a-blue)}
-    .al-chip.ok{background:#dcf5e6;color:#15803d}.al-chip.bad{background:#fde2e2;color:#b42323}.al-chip.nil{background:#eef2f7;color:var(--a-mut)}
-    .al-note{font-size:.78rem;color:var(--a-mut)}
-    #alMsg{display:none}
+    .al-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .8rem;
+        margin-bottom: 1rem
+    }
+
+        .al-head h3 {
+            margin: 0;
+            font-weight: 800;
+            color: var(--a-navy)
+        }
+
+        .al-head p {
+            margin: 0;
+            color: var(--a-mut);
+            font-size: .9rem
+        }
+
+    .al-btn {
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: .85rem;
+        padding: .45rem 1.1rem;
+        border: 1px solid var(--a-line);
+        background: #fff;
+        color: var(--a-navy)
+    }
+
+        .al-btn.p {
+            background: linear-gradient(120deg,var(--a-navy),var(--a-blue));
+            border-color: transparent;
+            color: #fff
+        }
+
+    .al-card {
+        padding: 1.2rem 1.3rem
+    }
+
+    .al-t {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .86rem
+    }
+
+        .al-t th {
+            font-size: .68rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: var(--a-mut);
+            padding: .4rem .5rem;
+            border-bottom: 1px solid var(--a-line);
+            text-align: left
+        }
+
+        .al-t td {
+            padding: .55rem .5rem;
+            border-bottom: 1px solid #f0f4fa
+        }
+
+    .al-chip {
+        display: inline-block;
+        padding: .15rem .6rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 700;
+        background: #e9f0fb;
+        color: var(--a-blue)
+    }
+
+        .al-chip.ok {
+            background: #dcf5e6;
+            color: #15803d
+        }
+
+        .al-chip.bad {
+            background: #fde2e2;
+            color: #b42323
+        }
+
+        .al-chip.nil {
+            background: #eef2f7;
+            color: var(--a-mut)
+        }
+
+    .al-note {
+        font-size: .78rem;
+        color: var(--a-mut)
+    }
+
+    #alMsg {
+        display: none
+    }
 </style>
 
 <div class="al-head">

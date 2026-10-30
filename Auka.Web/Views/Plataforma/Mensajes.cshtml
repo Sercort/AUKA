@@ -1,0 +1,94 @@
+﻿@* Auka.Web/Views/Plataforma/Mensajes.cshtml *@
+@{
+    ViewData["Title"] = "Mensajes";
+    Layout = "_LayoutPlataforma";
+}
+<style>
+    .pl-kpi{padding:1rem 1.1rem;height:100%}
+    .pl-kpi .l{font-size:.68rem;font-weight:800;letter-spacing:.07em;color:var(--a-mut)}
+    .pl-kpi .v{font-size:1.8rem;font-weight:800;line-height:1.1;color:var(--a-navy)}
+    .pl-kpi .s{font-size:.78rem;color:var(--a-mut)}
+    .pl-chip{display:inline-block;font-size:.7rem;font-weight:800;padding:.2rem .65rem;border-radius:999px;white-space:nowrap}
+    .pl-chip.psi{background:#e4f8fa;color:#0c7f8c}.pl-chip.pre{background:#e7ecff;color:#1a319b}.pl-chip.ins{background:#eef1f5;color:#5d6f86}
+    .pl-chip.on{background:#dcf5e6;color:#177a43}.pl-chip.warn{background:#fff1d1;color:#a56a00}.pl-chip.off{background:#fde2e2;color:#a82b2b}
+    .pl-t{width:100%;border-collapse:collapse}
+    .pl-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--a-mut);text-align:left;padding:.55rem .6rem;border-bottom:1px solid var(--a-line);white-space:nowrap}
+    .pl-t td{padding:.65rem .6rem;border-bottom:1px solid var(--a-line);vertical-align:middle;font-size:.88rem}
+    .pl-t tbody tr{cursor:pointer}.pl-t tbody tr:hover{background:#f7faff}
+    .pl-h{font-size:.72rem;font-weight:800;letter-spacing:.07em;color:var(--a-mut);margin-bottom:.6rem}
+    .pl-li{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--a-line);font-size:.85rem}
+    .pl-li:last-child{border-bottom:0}
+    .pl-vacio{color:var(--a-mut);font-size:.85rem;padding:.6rem 0}
+    .pl-chart{position:relative;height:230px}
+</style>
+<style>.mn-it{padding:.7rem .8rem;border-bottom:1px solid var(--a-line);cursor:pointer}.mn-it:hover{background:#f7faff}.mn-it.sel{background:#eaf1ff}</style>
+
+<div class="mb-3"><h3 class="fw-bold mb-0" style="color:var(--a-navy)">Mensajes</h3>
+<div class="text-secondary small">Contactos, demos, sugerencias y reclamos. Llegan desde el formulario público <b>/Contacto</b>.</div></div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="ad-card">
+            <div class="p-2 d-flex gap-1 flex-wrap border-bottom" id="mFil"></div>
+            <div id="mLista" style="max-height:620px;overflow:auto"></div>
+        </div>
+    </div>
+    <div class="col-lg-7"><div class="ad-card p-4" id="mDet"><div class="pl-vacio">Elige un mensaje de la lista.</div></div></div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var fecha = function (iso) { if (!iso) return '—'; var d = new Date(iso); return isNaN(d) ? '—' : String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear(); };
+  var hora = function (iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); };
+  var clp = function (n) { return '$' + Number(n || 0).toLocaleString('es-CL'); };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var post = function (url, datos) {
+    var b = new URLSearchParams(datos || {}); b.append('__RequestVerificationToken', tok());
+    return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+  };
+  var PLAN = { psicosocial: ['Psicosocial', 'psi'], premium: ['Premium', 'pre'], institucional: ['Institucional', 'ins'] };
+  var EST = { activo: ['Activo', 'on'], porvencer: ['Por vencer', 'warn'], vencido: ['Vencido', 'off'], suspendido: ['Suspendido', 'off'], baja: ['De baja', 'ins'] };
+
+  var L = [], fil = 'todos', sel = null;
+  var NOMBRES = ['Nuevo', 'Leído', 'Respondido', 'Archivado'];
+  var cargar = function () { return fetch('/Plataforma/ListaMensajes', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (l) { L = l; pintar(); }); };
+  var pintar = function () {
+    var cu = function (e) { return L.filter(function (m) { return e === 'todos' ? m.estado !== 3 : m.estado === e; }).length; };
+    var tabs = [['todos', 'Bandeja'], [0, 'Nuevos'], [2, 'Respondidos'], [3, 'Archivados']];
+    $('mFil').innerHTML = tabs.map(function (t) { return '<button type="button" class="btn btn-sm rounded-pill ' + (fil === t[0] ? 'au-btn' : 'btn-outline-secondary') + '" data-f="' + t[0] + '">' + t[1] + ' ' + cu(t[0]) + '</button>'; }).join('');
+    var f = L.filter(function (m) { return fil === 'todos' ? m.estado !== 3 : m.estado === fil; });
+    $('mLista').innerHTML = f.length ? f.map(function (m) {
+      return '<div class="mn-it' + (sel && sel.id === m.id ? ' sel' : '') + '" data-id="' + m.id + '"><div class="d-flex justify-content-between"><span class="fw-bold">' + (m.estado === 0 ? '🔵 ' : '') + esc(m.nombre) + '</span><span class="small text-muted">' + fecha(m.fecha) + '</span></div><div class="small text-secondary">' + esc(m.tipo) + (m.colegioNombre ? ' · ' + esc(m.colegioNombre) : '') + '</div><div class="small text-truncate">' + esc(m.mensaje) + '</div></div>';
+    }).join('') : '<div class="pl-vacio p-3">No hay mensajes aquí.</div>';
+  };
+  $('mFil').onclick = function (e) { var b = e.target.closest('[data-f]'); if (b) { var v = b.getAttribute('data-f'); fil = v === 'todos' ? v : +v; pintar(); } };
+  var guardar = function (m, estado, nota) { return post('/Plataforma/MensajeActualizar', { id: m.id, estado: estado, nota: nota }).then(function () { m.estado = estado; m.nota = nota; pintar(); detalle(m); }); };
+  var detalle = function (m) {
+    sel = m;
+    var asunto = encodeURIComponent('Respuesta de AUKA: ' + m.tipo);
+    $('mDet').innerHTML = '<div class="d-flex justify-content-between flex-wrap gap-2"><div><h5 class="fw-bold mb-0">' + esc(m.nombre) + '</h5><div class="small text-secondary">' + esc(m.cargo || '') + (m.colegioNombre ? ' · ' + esc(m.colegioNombre) : '') + '</div></div><span class="pl-chip ins">' + NOMBRES[m.estado] + '</span></div>' +
+      '<div class="my-2 small"><span class="pl-chip pre">' + esc(m.tipo) + '</span> <span class="text-muted ms-1">' + fecha(m.fecha) + ' ' + hora(m.fecha) + '</span></div>' +
+      '<div class="small mb-3">✉️ <a href="mailto:' + esc(m.correo) + '?subject=' + asunto + '">' + esc(m.correo) + '</a>' + (m.telefono ? ' · 📞 ' + esc(m.telefono) : '') + '</div>' +
+      '<div class="p-3 rounded-3 mb-3" style="background:#f3f7fc;white-space:pre-wrap">' + esc(m.mensaje) + '</div>' +
+      '<label class="small fw-bold">NOTA INTERNA</label><textarea id="mNota" class="form-control mb-3" rows="2" maxlength="1000" placeholder="Solo la ves tú">' + esc(m.nota || '') + '</textarea>' +
+      '<div class="d-flex flex-wrap gap-2"><a class="au-btn px-4 text-decoration-none" href="mailto:' + esc(m.correo) + '?subject=' + asunto + '" id="mResp">✉️ Responder</a>' +
+      '<button type="button" class="btn btn-outline-primary rounded-pill px-3" data-s="1">Marcar leído</button><button type="button" class="btn btn-outline-success rounded-pill px-3" data-s="2">Marcar respondido</button><button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-s="3">Archivar</button></div>';
+  };
+  $('mLista').onclick = function (e) {
+    var it = e.target.closest('.mn-it'); if (!it) return;
+    var m = L.filter(function (x) { return x.id === +it.getAttribute('data-id'); })[0];
+    detalle(m); if (m.estado === 0) guardar(m, 1, m.nota);
+  };
+  $('mDet').onclick = function (e) {
+    var b = e.target.closest('[data-s]'); if (b && sel) guardar(sel, +b.getAttribute('data-s'), $('mNota').value);
+    if (e.target.closest('#mResp') && sel && sel.estado < 2) guardar(sel, 2, $('mNota').value);
+  };
+  cargar();
+  setInterval(function () { if (!document.hidden) cargar(); }, 30000);
+})();
+</script>
+}

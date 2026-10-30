@@ -1,18 +1,111 @@
-﻿@{
-    ViewData["Title"] = "Acceso Restringido";
+﻿@* Auka.Web/Views/Account/AccesoDenegado.cshtml *@
+@{
+    Layout = null;
+    var ruta = ViewBag.Ruta as string;
+    var rol = ViewBag.Rol as string;
 }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acceso restringido - AUKA</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+            :root {
+                --a-navy: #1a319b;
+                --a-blue: #2459b0;
+                --a-teal: #1fb5c5;
+                --a-ink: #14233a;
+                --a-mut: #5d6f86;
+                --a-bg: #f3f7fc;
+                --a-line: #e3eaf4
+            }
 
-<div class="container py-5 text-center">
-    <div class="card shadow-sm border-0 rounded-4 p-5 mx-auto" style="max-width: 520px;">
-        <div class="mb-3 display-1 text-warning">🔒</div>
-        <h2 class="fw-bold text-dark">Acceso Restringido</h2>
-        <p class="text-muted mt-2">
-            No tienes los permisos requeridos para acceder a esta sección de la plataforma.
-        </p>
-        <div class="mt-4">
-            <a href="/" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
-                Volver al Panel Principal
-            </a>
+            body {
+                background: linear-gradient(135deg,#f3f7fc 0%,#e4f8fa 100%);
+                color: var(--a-ink);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 1rem
+            }
+
+            .box {
+                background: #fff;
+                border: 1px solid var(--a-line);
+                border-radius: 22px;
+                max-width: 520px;
+                width: 100%;
+                overflow: hidden;
+                box-shadow: 0 10px 30px rgba(20,35,58,.08)
+            }
+
+            .top {
+                background: linear-gradient(120deg,#1a319b,#2459b0 55%,#1fb5c5);
+                color: #fff;
+                padding: 1.4rem 1.6rem;
+                display: flex;
+                align-items: center;
+                gap: .8rem
+            }
+
+                .top img {
+                    height: 38px
+                }
+
+                .top b {
+                    font-size: 1.4rem;
+                    letter-spacing: .04em
+                }
+
+            .au-btn {
+                background: linear-gradient(120deg,var(--a-navy),var(--a-blue));
+                color: #fff;
+                border: 0;
+                border-radius: 999px;
+                font-weight: 700;
+                padding: .55rem 1.4rem;
+                text-decoration: none;
+                display: inline-block
+            }
+
+                .au-btn:hover {
+                    color: #fff;
+                    filter: brightness(1.08)
+                }
+
+            code {
+                background: var(--a-bg);
+                border-radius: 6px;
+                padding: .1rem .4rem;
+                color: var(--a-navy)
+            }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="top"><img src="~/img/auka-icono.png" alt="AUKA" /><b>AUKA</b></div>
+        <div class="p-4">
+            <h4 class="fw-bold mb-2">🔒 Acceso restringido</h4>
+            <p class="text-secondary">Tu cuenta no tiene permiso para abrir esta sección. Si crees que es un error, avisa al administrador/a de tu colegio.</p>
+            @if (!string.IsNullOrWhiteSpace(ruta))
+            {
+                <p class="small mb-1">Sección: <code>@ruta</code></p>
+            }
+            @if (!string.IsNullOrWhiteSpace(rol))
+            {
+                <p class="small">Tu cuenta es de tipo: <code>@rol</code></p>
+            }
+            <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+                <a class="au-btn" href="~/Account/Login">Volver a mi panel</a>
+                <form action="~/Account/Logout" method="post" class="m-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-secondary rounded-pill px-3">Cerrar sesión</button>
+                </form>
+            </div>
         </div>
     </div>
-</div>
+</body>
+</html>
