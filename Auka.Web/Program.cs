@@ -64,7 +64,8 @@ builder.Services.AddAuthorization(options =>
     // Alumnos/as y apoderados/as: portafolio psicosocial (lo que el equipo comparte con ellos/as)
     options.AddPolicy("FamiliaPsicosocial", policy =>
         policy.RequireAuthenticatedUser()
-              .RequireRole("Estudiante", "Apoderado", "Docente"));
+              .RequireRole("Estudiante", "Apoderado", "Docente")
+              .RequireClaim("PlanPsicosocial", "true"));
 
     // Quien puede usar los servicios del módulo: el equipo psicosocial o el administrador del Plan Psicosocial
     options.AddPolicy("AccesoPsicosocial", policy =>

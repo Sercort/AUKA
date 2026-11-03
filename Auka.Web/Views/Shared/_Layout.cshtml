@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+﻿@* Auka.Web/Views/Shared/_Layout.cshtml : layout del Plan Premium. Cambios: selector de módulo y campana de avisos. *@
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="utf-8" />
@@ -40,6 +41,11 @@
 
                         <!-- MENÚ DESPLEGABLE DE USUARIO -->
                         <div class="d-flex align-items-center gap-3 mt-2 mt-lg-0">
+                            @await Html.PartialAsync("_SelectorModulo")
+                            @if (User.FindFirst("PlanPsicosocial")?.Value == "true" && (User.IsInRole("Docente") || User.IsInRole("Estudiante") || User.IsInRole("Apoderado")))
+                            {
+                                @await Html.PartialAsync("_Campana")
+                            }
                             <div class="dropdown">
                                 <button class="btn btn-light dropdown-toggle rounded-pill px-3 py-2 fw-bold text-dark d-flex align-items-center gap-2 border shadow-sm" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
                                     <span class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 14px;">

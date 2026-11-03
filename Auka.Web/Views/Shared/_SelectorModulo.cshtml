@@ -1,0 +1,41 @@
+﻿@* Auka.Web/Views/Shared/_SelectorModulo.cshtml
+   Selector de módulo: solo aparece en colegios con Plan Premium que además tienen el módulo Psicosocial,
+   para profesores/as, alumnos/as y apoderados/as. Permite pasar entre "AUKA Premium" y "AUKA Psicosocial". *@
+@{
+    var rolSel = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    var planPsicoSel = User.FindFirst("PlanPsicosocial")?.Value == "true";
+    var premiumSel = User.FindFirst("PlanPremium")?.Value != "false";
+    var mostrarSel = planPsicoSel && premiumSel && (rolSel == "Docente" || rolSel == "Estudiante" || rolSel == "Apoderado");
+    var enPsicoSel = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Portafolio", StringComparison.OrdinalIgnoreCase);
+}
+@if (mostrarSel)
+{
+    <style>
+        .au-mod .btn{border-radius:999px;border:1px solid #e3eaf4;background:#fff;font-weight:700;font-size:.85rem;color:#14233a;display:flex;align-items:center;gap:.45rem;padding:.4rem .9rem}
+        .au-mod .dot{width:9px;height:9px;border-radius:50%;background:linear-gradient(120deg,#1a319b,#1fb5c5)}
+        .au-mod .dropdown-menu{min-width:270px;border-radius:14px;padding:.4rem}
+        .au-mod .dropdown-item{border-radius:10px;padding:.6rem .75rem;white-space:normal}
+        .au-mod .dropdown-item small{display:block;color:#5d6f86;font-size:.74rem}
+        .au-mod .dropdown-item.act{background:#eaf1ff}
+    </style>
+    <div class="dropdown au-mod">
+        <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="dot"></span> @(enPsicoSel ? "AUKA Psicosocial" : "AUKA Premium")
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+            <li class="px-3 pt-2 pb-1"><small class="text-muted fw-bold" style="letter-spacing:.06em">CAMBIAR DE MÓDULO</small></li>
+            <li>
+                <a class="dropdown-item @(enPsicoSel ? "" : "act")" asp-controller="Home" asp-action="Index">
+                    <b>AUKA Premium</b> @(enPsicoSel ? "" : "✓")
+                    <small>Cursos, notas, horarios y más</small>
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item @(enPsicoSel ? "act" : "")" asp-controller="Portafolio" asp-action="Index">
+                    <b>AUKA Psicosocial</b> @(enPsicoSel ? "✓" : "")
+                    <small>@(rolSel == "Docente" ? "Citaciones y anotaciones de mi curso" : "Citaciones y anotaciones de conducta")</small>
+                </a>
+            </li>
+        </ul>
+    </div>
+}
