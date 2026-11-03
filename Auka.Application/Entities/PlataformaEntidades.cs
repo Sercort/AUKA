@@ -30,3 +30,23 @@ public class MensajePlataforma
     public string? NotaInterna { get; set; }
     public DateTime FechaUtc { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>Enlaces de un solo uso para recuperar la contraseña. Se guarda solo el hash del enlace (nunca el enlace).
+/// No lleva ColegioId a propósito: se usa antes de iniciar sesión.</summary>
+public class TokenRecuperacion
+{
+    public int Id { get; set; }
+    public int UsuarioId { get; set; }
+    public string TokenHash { get; set; } = string.Empty;
+    public DateTime FechaUtc { get; set; } = DateTime.UtcNow;
+    public DateTime ExpiraUtc { get; set; }
+    public bool Usado { get; set; } = false;
+}
+
+/// <summary>Registra cuándo corrió por última vez una tarea automática (evita avisos repetidos si la app se reinicia).</summary>
+public class RegistroTarea
+{
+    public int Id { get; set; }
+    public string Clave { get; set; } = string.Empty;
+    public DateTime UltimaEjecucionUtc { get; set; }
+}

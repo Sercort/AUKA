@@ -49,6 +49,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<HistorialColegio> HistorialColegios { get; set; } = null!;
     public DbSet<MensajePlataforma> MensajesPlataforma { get; set; } = null!;
     public DbSet<Notificacion> Notificaciones { get; set; } = null!;
+    public DbSet<TokenRecuperacion> TokensRecuperacion { get; set; } = null!;
+    public DbSet<RegistroTarea> RegistrosTarea { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +60,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Colegio>().ToTable("Colegios");
         modelBuilder.Entity<HistorialColegio>().ToTable("HistorialColegios");
         modelBuilder.Entity<MensajePlataforma>().ToTable("MensajesPlataforma");
+        modelBuilder.Entity<TokenRecuperacion>().ToTable("TokensRecuperacion");
+        modelBuilder.Entity<TokenRecuperacion>().HasIndex(t => t.TokenHash);
+        modelBuilder.Entity<RegistroTarea>().ToTable("RegistrosTarea");
+        modelBuilder.Entity<RegistroTarea>().HasIndex(r => r.Clave).IsUnique();
         modelBuilder.Entity<Usuario>().ToTable("Usuarios");
         modelBuilder.Entity<Apoderado>().ToTable("Apoderados");
         modelBuilder.Entity<Estudiante>().ToTable("Estudiantes");

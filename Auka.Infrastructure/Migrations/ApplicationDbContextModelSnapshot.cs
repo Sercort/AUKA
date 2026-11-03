@@ -879,6 +879,29 @@ namespace Auka.Infrastructure.Migrations
                     b.ToTable("Notificaciones", (string)null);
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.RegistroTarea", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Clave")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UltimaEjecucionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Clave")
+                        .IsUnique();
+
+                    b.ToTable("RegistrosTarea", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.SetBeneficio", b =>
                 {
                     b.Property<int>("Id")
@@ -959,6 +982,37 @@ namespace Auka.Infrastructure.Migrations
                     b.HasIndex("DocenteId");
 
                     b.ToTable("Talleres", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.TokenRecuperacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ExpiraUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Usado")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash");
+
+                    b.ToTable("TokensRecuperacion", (string)null);
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.Usuario", b =>

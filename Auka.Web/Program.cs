@@ -22,6 +22,7 @@ builder.Services.Configure<CorreoOptions>(builder.Configuration.GetSection("Corr
 builder.Services.AddScoped<ICorreoService, SmtpCorreoService>();
 builder.Services.AddScoped<INotificacionService, NotificacionService>();
 builder.Services.AddHostedService<ReintentoCorreosService>();
+builder.Services.AddHostedService<AvisoVencimientosService>();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>

@@ -5,6 +5,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.WebUtilities;
+using System.Security.Cryptography;
+using System.Text;
+using Auka.Application.Interfaces;
+using Auka.Web.Services;
 using SystemClaim = System.Security.Claims.Claim;
 using SystemClaimTypes = System.Security.Claims.ClaimTypes;
 using SystemClaimsIdentity = System.Security.Claims.ClaimsIdentity;
@@ -15,11 +21,15 @@ public class AccountController : Controller
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly ICorreoService _correo;
+    private readonly CorreoOptions _correoOpt;
 
-    public AccountController(ApplicationDbContext context, IConfiguration configuration)
+    public AccountController(ApplicationDbContext context, IConfiguration configuration, ICorreoService correo, IOptions<CorreoOptions> correoOpt)
     {
         _context = context;
         _configuration = configuration;
+        _correo = correo;
+        _correoOpt = correoOpt.Value;
     }
 
     // Roles que trabajan dentro del módulo Psicosocial
@@ -229,37 +239,114 @@ public class AccountController : Controller
         return View();
     }
 
-    // 8. POST: Olvidé mi Contraseña (el envío real del correo se programa más adelante)
+    // 8. POST: Olvidé mi Contraseña -> envía por correo un enlace de un solo uso (dura 60 minutos)
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> OlvidoPassword(string emailOusuario)
     {
         if (string.IsNullOrWhiteSpace(emailOusuario))
         {
-            ViewBag.Error = "Por favor ingresa tu Correo Institucional o RUT.";
+            ViewBag.Error = "Por favor ingresa tu correo de ingreso o tu RUT.";
             return View();
         }
 
+        var dato = emailOusuario.Trim();
+        var datoMin = dato.ToLower();
         var usuario = await _context.Usuarios
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Email == emailOusuario || u.Rut == emailOusuario);
+            .FirstOrDefaultAsync(u => u.Activo && (u.Email.ToLower() == datoMin || u.Rut == dato));
 
-        if (usuario == null)
+        if (usuario != null)
         {
-            ViewBag.Info = "Si los datos coinciden con un usuario activo, se enviarán las instrucciones a su correo personal de respaldo.";
+            // Solo correos reales (el de ingreso si no es @alumnos.auka.cl, y el personal)
+            var destinos = NotificacionService.Destinos(usuario);
+            var ahora = DateTime.UtcNow;
+            var recientes = await _context.TokensRecuperacion.CountAsync(t => t.UsuarioId == usuario.Id && t.FechaUtc > ahora.AddHours(-1));
+
+            if (destinos.Count > 0 && recientes < 3)   // máximo 3 solicitudes por hora
+            {
+                // Los enlaces anteriores quedan anulados
+                var previos = await _context.TokensRecuperacion.Where(t => t.UsuarioId == usuario.Id && !t.Usado && t.ExpiraUtc > ahora).ToListAsync();
+                foreach (var p in previos) p.Usado = true;
+
+                var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+                _context.TokensRecuperacion.Add(new TokenRecuperacion
+                {
+                    UsuarioId = usuario.Id,
+                    TokenHash = HashToken(token),
+                    FechaUtc = ahora,
+                    ExpiraUtc = ahora.AddMinutes(60)
+                });
+                await _context.SaveChangesAsync();
+
+                var baseUrl = !string.IsNullOrWhiteSpace(_correoOpt.UrlBase)
+                    ? _correoOpt.UrlBase.TrimEnd('/')
+                    : $"{Request.Scheme}://{Request.Host}";
+                var url = $"{baseUrl}/Account/RestablecerPassword?token={token}";
+
+                var html = CorreoPlantilla.Construir(
+                    "Crea una nueva contraseña",
+                    $"Hola {usuario.Nombre}, recibimos una solicitud para restablecer tu contraseña de AUKA.\n\nEl enlace sirve una sola vez y vence en 60 minutos. Si no fuiste tú, ignora este correo: tu contraseña actual sigue igual.",
+                    url, "");
+                await _correo.EnviarAsync(destinos, "AUKA · Restablecer contraseña", html);
+            }
+        }
+
+        // Mismo mensaje exista o no la cuenta (así nadie puede averiguar qué correos están registrados)
+        ViewBag.Info = "Si los datos corresponden a una cuenta activa con un correo registrado, te enviamos un enlace para crear una nueva contraseña. Revisa también spam. El enlace dura 60 minutos. Si no te llega, pide a la administración de tu colegio que te restablezca la clave.";
+        return View();
+    }
+
+    // 8.1 GET: enlace que llega por correo
+    [HttpGet]
+    public async Task<IActionResult> RestablecerPassword(string? token)
+    {
+        if (await BuscarTokenAsync(token) == null) { ViewBag.Invalido = true; return View(); }
+        ViewBag.Token = token;
+        return View();
+    }
+
+    // 8.2 POST: guarda la nueva contraseña
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RestablecerPassword(string token, string nuevaPassword, string confirmarPassword)
+    {
+        var t = await BuscarTokenAsync(token);
+        if (t == null) { ViewBag.Invalido = true; return View(); }
+
+        ViewBag.Token = token;
+        if (string.IsNullOrWhiteSpace(nuevaPassword) || nuevaPassword.Length < 6)
+        {
+            ViewBag.Error = "La contraseña debe tener al menos 6 caracteres.";
+            return View();
+        }
+        if (nuevaPassword != confirmarPassword)
+        {
+            ViewBag.Error = "Las contraseñas no coinciden.";
             return View();
         }
 
-        if (string.IsNullOrWhiteSpace(usuario.EmailPersonal))
-        {
-            ViewBag.Error = "No tienes un correo personal de respaldo registrado. Por favor contacta a Dirección/UTP.";
-            return View();
-        }
+        var usuario = await _context.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == t.UsuarioId && u.Activo);
+        if (usuario == null) { ViewBag.Invalido = true; return View(); }
 
-        string correoOculto = OcultarEmail(usuario.EmailPersonal);
-        TempData["SuccessMessage"] = $"✅ Se ha enviado un enlace de recuperación al correo de respaldo registrado: {correoOculto}";
+        usuario.PasswordHash = new PasswordHasher<string>().HashPassword(usuario.Email, nuevaPassword);
+        usuario.DebeCambiarPassword = false;
+        t.Usado = true;
+        await _context.SaveChangesAsync();
 
+        TempData["SuccessMessage"] = "✅ Tu contraseña fue actualizada. Ya puedes iniciar sesión.";
         return RedirectToAction(nameof(Login));
+    }
+
+    private static string HashToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+    private async Task<TokenRecuperacion?> BuscarTokenAsync(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 200) return null;
+        var h = HashToken(token);
+        var ahora = DateTime.UtcNow;
+        return await _context.TokensRecuperacion.FirstOrDefaultAsync(t => t.TokenHash == h && !t.Usado && t.ExpiraUtc > ahora);
     }
 
     // 9. GET & POST: Logout
