@@ -18,7 +18,7 @@ public class LegalController : Controller
     public const string FechaVigencia = "4 de noviembre de 2026";
 
     // TODO: reemplazar por el correo real de contacto de privacidad de AUKA
-    public const string CorreoPrivacidad = "contacto@auka.cl";
+    public const string CorreoPrivacidad = "auka.plataforma@gmail.com";
 
     private readonly ApplicationDbContext _context;
     private readonly IMemoryCache _cache;
