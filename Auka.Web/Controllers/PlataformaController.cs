@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Auka.Web.Services;
 
 namespace Auka.Web.Controllers;
 
@@ -19,7 +21,14 @@ namespace Auka.Web.Controllers;
 public class PlataformaController : Controller
 {
     private readonly ApplicationDbContext _context;
-    public PlataformaController(ApplicationDbContext context) => _context = context;
+    private readonly IMemoryCache _cache;
+    public PlataformaController(ApplicationDbContext context, IMemoryCache cache)
+    {
+        _context = context;
+        _cache = cache;
+    }
+
+    private static string TipoValido(string? tipo) => Organizacion.Tipos.Contains(tipo ?? "") ? tipo! : "Colegio";
 
     private static readonly CultureInfo Cl = new("es-CL");
     private int UsuarioActualId() => int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
@@ -165,6 +174,7 @@ public class PlataformaController : Controller
             c.Id,
             c.Nombre,
             c.Rut,
+            tipo = c.TipoOrganizacion,
             plan = PlanDe(c),
             planTexto = TextoPlan(PlanDe(c)),
             estado = EstadoDe(c, hoy),
@@ -198,6 +208,8 @@ public class PlataformaController : Controller
             c.Rut,
             c.Direccion,
             c.Telefono,
+            tipo = c.TipoOrganizacion,
+            planillas = Organizacion.Activas(c.PlanillasActivas),
             plan = PlanDe(c),
             estado = EstadoDe(c, hoy),
             contacto = c.ContactoNombre,
@@ -217,7 +229,7 @@ public class PlataformaController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> GuardarColegio(int id, string plan, string? contacto, string? correo, string? telefono,
-        string? vence, int? precio, string? notas)
+        string? vence, int? precio, string? notas, string? tipo, string? planillas)
     {
         var c = await _context.Colegios.FirstOrDefaultAsync(x => x.Id == id);
         if (c == null) return NotFound(new { error = "Colegio no encontrado." });
@@ -239,7 +251,18 @@ public class PlataformaController : Controller
         c.ContactoCorreo = Limpio(correo, 160)?.ToLowerInvariant();
         c.ContactoTelefono = Limpio(telefono, 40);
         c.NotasInternas = Limpio(notas, 1000);
+
+        var nuevoTipo = TipoValido(tipo);
+        if (nuevoTipo != c.TipoOrganizacion) Log(c.Id, "Datos", $"Tipo: {c.TipoOrganizacion} → {nuevoTipo}");
+        c.TipoOrganizacion = nuevoTipo;
+        if (Organizacion.Activas(planillas).Length == 0) return BadRequest(new { error = "Activa al menos una planilla." });
+        var nuevasPlanillas = Organizacion.Normalizar(planillas);
+        if (nuevasPlanillas != c.PlanillasActivas)
+            Log(c.Id, "Datos", "Planillas: " + string.Join(", ", Organizacion.Activas(nuevasPlanillas).Select(k => Organizacion.Planillas[k])));
+        c.PlanillasActivas = nuevasPlanillas;
+
         await _context.SaveChangesAsync();
+        _cache.Remove(Organizacion.LlaveCache(c.Id));   // la organización ve el cambio al tiro
         return Json(new { ok = true });
     }
 
@@ -281,7 +304,7 @@ public class PlataformaController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CrearColegio(string nombre, string? rut, string? telefono, string? direccion, string plan,
         string? contacto, string? correoContacto, string? telefonoContacto, string? vence, int? precio,
-        string adminNombre, string adminApellido, string adminRut, string adminCorreo)
+        string adminNombre, string adminApellido, string adminRut, string adminCorreo, string? tipo = null, string? planillas = null)
     {
         nombre = (nombre ?? "").Trim();
         adminNombre = (adminNombre ?? "").Trim();
@@ -290,7 +313,7 @@ public class PlataformaController : Controller
         var correo = (adminCorreo ?? "").Trim().ToLowerInvariant();
 
         string? error = null;
-        if (nombre.Length < 3) error = "Escribe el nombre del colegio.";
+        if (nombre.Length < 3) error = "Escribe el nombre de la organización.";
         else if (adminNombre.Length == 0 || adminApellido.Length == 0) error = "Escribe el nombre y apellido de quien administrará el colegio.";
         else if (!Regex.IsMatch(adminRut, @"^[0-9]+-[0-9K]$")) error = "El RUT del administrador/a no es válido (formato 12345678-9).";
         else if (!Regex.IsMatch(correo, @"^[^@\s]+@[^@\s]+\.[^@\s]+$")) error = "El correo del administrador/a no es válido.";
@@ -310,8 +333,12 @@ public class PlataformaController : Controller
             ContactoTelefono = Limpio(telefonoContacto, 40),
             FechaRegistro = DateTime.UtcNow,
             FechaVencimiento = Fecha(vence),
-            PrecioMensual = precio
+            PrecioMensual = precio,
+            TipoOrganizacion = TipoValido(tipo)
         };
+        // Un colegio parte con todas las planillas; otra organización, con las básicas (si no se eligieron)
+        c.PlanillasActivas = Organizacion.Normalizar(string.IsNullOrWhiteSpace(planillas) && c.TipoOrganizacion != "Colegio"
+            ? Organizacion.PlanillasPorDefectoOrganizacion : planillas);
         AplicarPlan(c, plan);
         _context.Colegios.Add(c);
         await _context.SaveChangesAsync();
@@ -325,14 +352,14 @@ public class PlataformaController : Controller
             Apellido = adminApellido,
             Email = correo,
             Rol = RolUsuario.SuperAdmin,
-            CargoInstitucional = "Administrador/a del colegio",
+            CargoInstitucional = c.TipoOrganizacion == "Colegio" ? "Administrador/a del colegio" : "Administrador/a de la organización",
             Activo = true,
             DebeCambiarPassword = true,
             FechaCreacion = DateTime.UtcNow
         };
         u.PasswordHash = new PasswordHasher<string>().HashPassword(u.Email, clave);
         _context.Usuarios.Add(u);
-        Log(c.Id, "Alta", $"{TextoPlan(PlanDe(c))} · administrador/a {u.Email}");
+        Log(c.Id, "Alta", $"{c.TipoOrganizacion} · {TextoPlan(PlanDe(c))} · administrador/a {u.Email}");
         await _context.SaveChangesAsync();
 
         return Json(new { ok = true, colegio = c.Nombre, numero = c.Id, correo = u.Email, clave });

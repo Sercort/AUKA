@@ -1,0 +1,50 @@
+﻿@* Auka.Web/Views/Legal/Privacidad.cshtml — Política de privacidad (Ley 21.719). BORRADOR: debe revisarlo un abogado antes de cobrar al primer cliente. *@
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Política de privacidad";
+    Layout = "_LayoutLegal";
+}
+<article class="lg-card">
+    <h1>Política de privacidad</h1>
+    <p class="lg-meta">Versión @LegalController.Version · Vigente desde el @LegalController.FechaVigencia</p>
+
+    <p>AUKA es una plataforma web de gestión escolar y psicosocial. Esta política explica qué datos personales se tratan en AUKA, para qué, quién los ve y qué derechos tienes, conforme a la Ley N° 19.628 y a la Ley N° 21.719 sobre protección de datos personales.</p>
+
+    <h2>1. Quién es responsable de tus datos</h2>
+    <p>La organización que usa AUKA (por ejemplo, tu colegio o la institución que te atiende) es la <b>responsable</b> de los datos: decide qué se registra y para qué. AUKA actúa como <b>encargado</b>: guarda y procesa los datos por cuenta de esa organización y solo según sus instrucciones. AUKA no vende ni cede datos personales a terceros.</p>
+
+    <h2>2. Qué datos se tratan</h2>
+    <ul>
+        <li><b>Identificación y contacto:</b> nombre, RUT, fecha de nacimiento, curso (en colegios), correo, teléfono y dirección.</li>
+        <li><b>Cuenta:</b> usuario, rol, clave cifrada y registro de ingresos.</li>
+        <li><b>Gestión escolar:</b> asistencia, anotaciones de conducta y citaciones.</li>
+        <li><b>Datos sensibles del área psicosocial:</b> seguimientos, derivaciones, bitácoras, visitas domiciliarias, causas judiciales, informes y beneficios. Solo los registra y ve el equipo psicosocial autorizado.</li>
+    </ul>
+
+    <h2>3. Para qué se usan</h2>
+    <p>Para prestar el servicio educativo y de apoyo psicosocial que entrega la organización: llevar la ficha de cada estudiante o paciente, coordinar al equipo, agendar citaciones y avisar por la plataforma y por correo. No se usan para publicidad ni para crear perfiles comerciales.</p>
+
+    <h2>4. Base de licitud</h2>
+    <p>El tratamiento se basa en las funciones y obligaciones legales de la organización (por ejemplo, las de un establecimiento educacional), en la prestación del servicio contratado y, cuando corresponde, en el consentimiento del titular o de su representante legal. Los datos de niños, niñas y adolescentes se tratan resguardando siempre su interés superior.</p>
+
+    <h2>5. Quién puede ver la información</h2>
+    <ul>
+        <li>Cada organización ve <b>solo sus propios datos</b>; ninguna organización puede ver los datos de otra.</li>
+        <li>Las fichas y bitácoras psicosociales solo las ve el equipo psicosocial, que además debe ingresar una <b>segunda clave personal</b> para abrirlas.</li>
+        <li>El administrador de la organización ve cantidades, no el contenido de las fichas confidenciales.</li>
+        <li>El administrador de la plataforma AUKA no ve datos psicosociales.</li>
+        <li>Apoderados, estudiantes y pacientes ven solo lo suyo: sus citaciones y, en colegios, sus anotaciones de conducta.</li>
+    </ul>
+
+    <h2>6. Cómo se protegen</h2>
+    <p>Las claves se guardan cifradas, la conexión es segura (HTTPS), los datos de cada organización están separados y cada apertura de una ficha confidencial queda registrada. Los registros eliminados se conservan en el historial interno para fines de auditoría.</p>
+
+    <h2>7. Cuánto tiempo se guardan</h2>
+    <p>Mientras la organización mantenga el servicio y por los plazos que exija la normativa aplicable. Al terminar el contrato, la organización puede pedir la entrega o la eliminación de sus datos.</p>
+
+    <h2>8. Tus derechos</h2>
+    <p>Puedes pedir <b>acceso</b> a tus datos, su <b>rectificación</b>, <b>supresión</b>, <b>oposición</b>, <b>portabilidad</b> y <b>bloqueo</b>. Si eres apoderado/a, puedes ejercerlos en representación de tu pupilo/a. Escríbele primero a tu organización (colegio o institución), que es la responsable; también puedes escribir a <a href="mailto:@LegalController.CorreoPrivacidad">@LegalController.CorreoPrivacidad</a> y AUKA lo derivará. Si no recibes respuesta, puedes reclamar ante la Agencia de Protección de Datos Personales.</p>
+
+    <h2>9. Cambios a esta política</h2>
+    <p>Si esta política cambia, se publicará la nueva versión aquí y se te pedirá aceptarla al ingresar.</p>
+</article>

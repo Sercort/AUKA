@@ -3,6 +3,10 @@
 @{
     ViewData["Title"] = "Inicio";
     Layout = "_LayoutAdminPsico";
+    var org = ViewData["Org"] as Auka.Web.Services.DatosOrganizacion
+              ?? new Auka.Web.Services.DatosOrganizacion(Auka.Web.Services.Vocabulario.Colegio, Auka.Web.Services.Organizacion.Planillas.Keys.ToArray());
+    var V = org.V;
+
     var hayEquipo = Model.ListaEquipo.Any(m => m.Activo);
     var hayAlumnos = Model.Alumnos > 0;
     var equipoActivo = Model.ListaEquipo.Where(m => m.Activo && m.UsaFichas).ToList();
@@ -53,14 +57,14 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <a class="btn btn-light" asp-controller="Personal" asp-action="Index">+ Agregar al equipo</a>
-            <a class="btn btn-outline-light" asp-controller="Administracion" asp-action="Alumnos">Importar alumnos/as</a>
+            <a class="btn btn-outline-light" asp-controller="Administracion" asp-action="Alumnos">Importar @V.personas</a>
         </div>
     </div>
 </section>
 
 <!-- NÚMEROS CLAVE -->
 <div class="ad-kpis">
-    <div class="ad-kpi" style="--c:var(--a-navy)"><small>Alumnos/as</small><b>@Model.Alumnos</b><span>@Model.Cursos @(Model.Cursos == 1 ? "curso" : "cursos")</span></div>
+    <div class="ad-kpi" style="--c:var(--a-navy)"><small>@V.Personas</small><b>@Model.Alumnos</b><span>@(V.EsColegio ? Model.Cursos + (Model.Cursos == 1 ? " curso" : " cursos") : "registrados")</span></div>
     <div class="ad-kpi" style="--c:var(--a-blue)"><small>Equipo</small><b>@Model.Equipo</b><span>personas activas</span></div>
     <div class="ad-kpi" style="--c:var(--a-teal)"><small>Citas esta semana</small><b>@Model.CitasSemana</b><span>agenda compartida del equipo</span></div>
     <div class="ad-kpi" style="--c:#e0a100"><small>Cuentas por activar</small><b>@Model.CuentasPendientes</b><span>aún no cambian su clave</span></div>
@@ -79,7 +83,7 @@
                 <div class="ad-step"><span class="ad-dot @(hayEquipo ? "ok" : "")">@(hayEquipo ? "✓" : "1")</span>
                     <div><b>Agrega a tu equipo</b><div class="small text-secondary">Psicólogo/a, trabajador/a social, orientador/a y profesores/as jefe. <a asp-controller="Personal" asp-action="Index">Ir a Equipo</a></div></div></div>
                 <div class="ad-step"><span class="ad-dot @(hayAlumnos ? "ok" : "")">@(hayAlumnos ? "✓" : "2")</span>
-                    <div><b>Carga a los alumnos/as</b><div class="small text-secondary">Importa tu planilla: cada alumno/a queda en su curso automáticamente. <a asp-controller="Administracion" asp-action="Alumnos">Ir a Alumnos/as</a></div></div></div>
+                    <div><b>Carga a los @V.personas</b><div class="small text-secondary">@(V.EsColegio ? "Importa tu planilla: cada alumno/a queda en su curso automáticamente." : "Importa tu planilla de pacientes o agrégalos a mano.") <a asp-controller="Administracion" asp-action="Alumnos">Ir a @V.Personas</a></div></div></div>
                 <div class="ad-step"><span class="ad-dot @(todosConClave ? "ok" : "")">@(todosConClave ? "✓" : "3")</span>
                     <div><b>El equipo crea su segunda clave</b><div class="small text-secondary">Cada profesional la crea al abrir su primera ficha. Así las fichas quedan protegidas.</div></div></div>
             </section>
@@ -127,10 +131,10 @@
 
     <div class="col-lg-4">
         <section class="ad-card ad-sec">
-            <h5>Alumnos/as por curso</h5>
+            <h5>@(V.EsColegio ? V.Personas + " por curso" : V.Personas)</h5>
             @if (!Model.PorCurso.Any())
             {
-                <div class="ad-empty">Sin alumnos/as todavía.</div>
+                <div class="ad-empty">Sin @V.personas todavía.</div>
             }
             else
             {
@@ -143,7 +147,7 @@
 
         <section class="ad-card ad-sec">
             <h5>Privacidad de las fichas</h5>
-            <p class="small text-secondary mb-0">Como administrador/a gestionas al equipo y a los alumnos/as. El contenido de las fichas y bitácoras es solo del equipo psicosocial, protegido con su segunda clave. Aquí ves únicamente cantidades.</p>
+            <p class="small text-secondary mb-0">Como administrador/a gestionas al equipo y a los @V.personas. El contenido de las fichas y bitácoras es solo del equipo psicosocial, protegido con su segunda clave. Aquí ves únicamente cantidades.</p>
         </section>
 
         <section class="ad-card ad-sec">

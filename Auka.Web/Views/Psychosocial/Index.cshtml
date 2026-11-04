@@ -2,6 +2,9 @@
 @{
     ViewData["Title"] = "Panel Psicosocial";
     Layout = "_LayoutPsicosocial";
+    var org = ViewData["Org"] as Auka.Web.Services.DatosOrganizacion
+              ?? new Auka.Web.Services.DatosOrganizacion(Auka.Web.Services.Vocabulario.Colegio, Auka.Web.Services.Organizacion.Planillas.Keys.ToArray());
+    var V = org.V;
 }
 
 <style>
@@ -54,7 +57,7 @@
         <div>
             <h3 class="fw-bold mb-1">Panel Psicosocial</h3>
             <p class="mb-0 small" style="color:#dbeafe;">
-                Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento estudiantil
+                Bienvenida/o, @Model.NombreProfesional · Gestión clínica y seguimiento @(V.EsColegio ? "estudiantil" : "de pacientes")
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
@@ -98,6 +101,7 @@
                 <div class="al-sec"><span>ASISTENCIA BAJO 85%</span></div><div id="alAs"></div>
                 <div class="al-sec"><span>DERIVACIONES SIN GESTIONAR</span></div><div id="alDer"></div>
                 <div class="al-sec"><span>CITAS SIN CONFIRMAR</span></div><div id="alCit"></div>
+                <div class="al-sec"><span>SIN VENIR HACE MÁS DE 60 DÍAS</span></div><div id="alIn"></div>
             </div>
         </div>
     </div>
@@ -112,7 +116,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:16px;">
             <div class="modal-header border-0">
-                <h5 class="modal-title fw-bold">Ficha de la alumno/a</h5>
+                <h5 class="modal-title fw-bold">Ficha</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body d-flex flex-column gap-3">
@@ -177,18 +181,18 @@
             </div>
             <div class="modal-body">
                 <label class="ps-label mb-1">CITAR A</label>
-                <select class="form-select mb-3" id="ciA"><option>Alumno</option><option>Apoderado</option><option>Alumno + apoderado</option><option>Profesor jefe</option></select>
-                <label class="ps-label mb-1">ESTUDIANTE</label>
+                <select class="form-select mb-3" id="ciA">@if (V.EsColegio) {<option>Alumno</option><option>Apoderado</option><option>Alumno + apoderado</option><option>Profesor jefe</option>} else {<option>Paciente</option>}</select>
+                <label class="ps-label mb-1">@(V.EsColegio ? "ESTUDIANTE" : "PACIENTE")</label>
                 <input type="text" class="form-control" id="ciE" list="ciLista" placeholder="Escribe el nombre y elige de la lista" autocomplete="off" />
                 <datalist id="ciLista"></datalist>
-                <div class="small text-secondary mb-3" id="ciEi">Cargando alumnos/as...</div>
+                <div class="small text-secondary mb-3" id="ciEi">Cargando @V.personas...</div>
                 <div class="row g-2 mb-3">
                     <div class="col-6"><label class="ps-label mb-1">FECHA</label><input type="date" class="form-control" id="ciF" /></div>
                     <div class="col-6"><label class="ps-label mb-1">HORA</label><input type="time" class="form-control" id="ciH" /></div>
                 </div>
                 <label class="ps-label mb-1">MOTIVO</label>
                 <textarea class="form-control" rows="3" id="ciM" maxlength="300" placeholder="Seguimiento de asistencia..."></textarea>
-                <div class="small text-secondary mt-1">Esto lo leerán el alumno/a y su apoderado/a: no escribas detalles sensibles ni clínicos.</div>
+                <div class="small text-secondary mt-1">Esto lo leerá @(V.EsColegio ? "el @V.persona y su apoderado/a" : "el paciente"): no escribas detalles sensibles ni clínicos.</div>
                 <div class="small mt-2" id="ciR" style="display:none;"></div>
             </div>
             <div class="modal-footer border-0">
@@ -212,30 +216,57 @@
     return '<div class="col-6 col-lg-2"><div class="ps-card p-3 h-100 kpi-go" data-go="' + k[4] + '" role="button" title="Ver detalle"><div class="ps-label" style="font-size:.66rem">' + k[0].toUpperCase() +
       '</div><div class="ps-kpi mt-1"' + (k[3] ? ' style="color:' + k[3] + '"' : '') + '>' + k[1] + '</div><div class="small text-secondary">' + k[2] + '</div></div></div>';
   };
+  // ORG: tipo de organización y planillas activas (las mismas que usa la planilla)
+  var ORG = { col: @(V.EsColegio ? "true" : "false"), pl: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(org.Planillas)) };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var ULT = null, RG = [];   // último resumen del servidor y registros de la planilla
   var pintarKpis = function (d) {
-    var K = [['Alumnos/as en seguimiento', d.alumnos, d.cursos + (d.cursos === 1 ? ' curso' : ' cursos'), '', 'Alumnos/as'],
-             ['Alumnos/as en alerta', 0, 'sin alertas', '', 'alert'],
-             ['Derivaciones sin gestionar', 0, 'sin pendientes', '', 'Derivaciones'],
-             ['Citas esta semana', d.citasSemana, d.citasSinConfirmar + ' sin confirmar', '', 'cal'],
-             ['Causas judiciales', 0, 'sin casos', '', 'Judicial'],
-             ['Informes evacuados', 0, 'sin informes', '', 'Judicial']];
-    $('kpis').innerHTML = K.map(kpiCard).join('');
-    $('alTot').textContent = '0 alumnos/as';
-    $('alAs').innerHTML = '<div class="small text-secondary px-2">Sin alumnos/as bajo 85% de asistencia.</div>';
-    $('alDer').innerHTML = '<div class="small text-secondary px-2">Sin derivaciones pendientes.</div>';
+    ULT = d;
+    var de = function (k) { return RG.filter(function (r) { return r.k === k; }); };
+    // Asistencia: el último seguimiento con % de cada persona
+    var ultAs = {};
+    de('seg').forEach(function (r) { var v = r.d['Asistencia (%)']; if (v !== undefined && v !== '' && !(r.eid in ultAs)) ultAs[r.eid] = [r.n, +v, r.c, r.eid]; });
+    var bajas = Object.keys(ultAs).map(function (k) { return ultAs[k]; }).filter(function (x) { return x[1] < 85; }).sort(function (a, b) { return a[1] - b[1]; });
+    var derPend = de('conv').concat(de('tut')).filter(function (r) { return /pendiente|monitoreo/i.test((r.d['Estado'] || '') + (r.d['Situación actual'] || '')); });
+    var enSeg = {}; de('seg').forEach(function (r) { enSeg[r.eid] = 1; });
+    var nSeg = Object.keys(enSeg).length;
+    var K = [['@V.Personas en seguimiento', nSeg, 'de ' + d.alumnos + (ORG.col ? ' · ' + d.cursos + (d.cursos === 1 ? ' curso' : ' cursos') : ' registrados'), '', '@V.Personas'],
+             ['@V.Personas en alerta', bajas.length, bajas.length ? 'asistencia bajo 85%' : 'sin alertas', bajas.length ? '#B4402F' : '', 'alert'],
+             ['Derivaciones sin gestionar', derPend.length, derPend.length ? 'pendientes o en monitoreo' : 'sin pendientes', derPend.length ? '#d98a00' : '', 'Derivaciones', 'der'],
+             ['Citas esta semana', d.citasSemana, d.citasSinConfirmar + ' sin confirmar' + (d.porMarcar ? ' · ' + d.porMarcar + ' sin marcar asistencia' : ''), d.porMarcar ? '#d98a00' : '', 'cal'],
+             ['Causas judiciales', de('jud').length, de('jud').length ? 'casos registrados' : 'sin casos', '', 'Judicial', 'jud'],
+             ['Informes evacuados', de('inf').length, de('inf').length ? 'este año' : 'sin informes', '', 'Judicial', 'jud']]
+      .filter(function (k) { return !k[5] || ORG.pl.indexOf(k[5]) > -1; });
+    $('kpis').innerHTML = K.map(kpiCard).join('').replace(/col-lg-2/g, K.length <= 4 ? 'col-lg-3' : 'col-lg-2');
+    var inact = d.inactivos || [];
+    $('alTot').textContent = (bajas.length + derPend.length + inact.length) + ' alertas';
+    $('alIn').innerHTML = inact.length
+      ? inact.map(function (x) { return '<div class="al-row" data-fi="' + x.id + '"><b class="al-bad">' + x.d + ' días</b> ' + esc(x.n) + '<span>Sugerido: consulta de seguimiento</span></div>'; }).join('')
+      : '<div class="small text-secondary px-2">Todos han asistido en los últimos 60 días.</div>';
+    $('alAs').innerHTML = bajas.length
+      ? bajas.slice(0, 6).map(function (x) { return '<div class="al-row" data-fi="' + x[3] + '"><b class="al-bad">' + x[1] + '%</b> ' + esc(x[0]) + '<span>' + esc(x[2]) + '</span></div>'; }).join('')
+      : '<div class="small text-secondary px-2">Sin @V.personas bajo 85% de asistencia.</div>';
+    $('alDer').innerHTML = derPend.length
+      ? derPend.slice(0, 6).map(function (r) { return '<div class="al-row">' + esc(r.n) + '<span>' + esc(r.nk.replace('Derivación a ', '')) + '</span></div>'; }).join('')
+      : '<div class="small text-secondary px-2">Sin derivaciones pendientes.</div>';
     $('alCit').innerHTML = d.proximasCitas.length
       ? d.proximasCitas.map(function (c) { return '<div class="al-row"><b>' + c.f + (c.h ? ' · ' + c.h : '') + '</b><span>' + c.x + '</span></div>'; }).join('')
       : '<div class="small text-secondary px-2">Sin citas por confirmar.</div>';
   };
-  pintarKpis({ alumnos: 0, cursos: 0, citasSemana: 0, citasSinConfirmar: 0, proximasCitas: [] });
+  pintarKpis({ alumnos: 0, cursos: 0, citasSemana: 0, citasSinConfirmar: 0, proximasCitas: [], porMarcar: 0, inactivos: [] });
   var cargarResumen = function () {
     fetch('/Psychosocial/Resumen', { credentials: 'same-origin' })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(pintarKpis).catch(function () { });
   };
   cargarResumen();
   document.addEventListener('psx-alumnos', cargarResumen);
+  document.addEventListener('psx-registros', function (e) { RG = e.detail || []; if (ULT) pintarKpis(ULT); });
   document.addEventListener('psx-calendario', cargarResumen);
 
+  // Clic en una alerta -> abre la ficha de esa persona
+  ['alAs', 'alIn'].forEach(function (id) {
+    $(id).onclick = function (e) { var r = e.target.closest('[data-fi]'); if (r && window.psxAbrirFicha) window.psxAbrirFicha(+r.getAttribute('data-fi')); };
+  });
   $('kpis').onclick = function (e) {
     var k = e.target.closest('.kpi-go'); if (!k) return; var g = k.getAttribute('data-go');
     if (g === 'alert') $('alAs').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -346,8 +377,8 @@
       .then(function (l) {
         lista = l; var dl = $('ciLista'); dl.innerHTML = '';
         l.forEach(function (a) { var o = document.createElement('option'); o.value = etiqueta(a); dl.appendChild(o); });
-        $('ciEi').textContent = l.length ? l.length + ' alumnos/as disponibles' : 'Aún no hay alumnos/as cargados/as.';
-      }).catch(function () { $('ciEi').textContent = 'No se pudo cargar la lista de alumnos/as.'; });
+        $('ciEi').textContent = l.length ? l.length + ' @V.personas disponibles' : 'Aún no hay @V.personas cargados/as.';
+      }).catch(function () { $('ciEi').textContent = 'No se pudo cargar la lista de @V.personas.'; });
   };
   var modal = $('modalCitacion');
   modal.addEventListener('show.bs.modal', function () {
@@ -358,7 +389,7 @@
   var msg = function (t, ok) { var r = $('ciR'); r.style.display = ''; r.className = 'small mt-2 ' + (ok ? 'text-success' : 'text-danger'); r.textContent = t; };
   $('ciOk').onclick = function () {
     var al = lista.filter(function (a) { return etiqueta(a) === $('ciE').value.trim(); })[0];
-    if (!al) return msg('Elige un alumno/a de la lista.', false);
+    if (!al) return msg('Elige un @V.persona de la lista.', false);
     if (!$('ciF').value) return msg('Elige la fecha.', false);
     if ($('ciM').value.trim().length < 3) return msg('Escribe el motivo.', false);
     var body = new URLSearchParams({ estudianteId: al.id, citadoA: $('ciA').value, fecha: $('ciF').value, hora: $('ciH').value, motivo: $('ciM').value.trim() });
@@ -368,7 +399,7 @@
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
       .then(function (j) {
         var t = 'Citación guardada. ';
-        if (j.avisados === 0) t += 'No hay a quién avisar (el alumno/a o apoderado/a no tiene cuenta).';
+        if (j.avisados === 0) t += 'No hay a quién avisar (el @V.persona o apoderado/a no tiene cuenta).';
         else {
           t += 'Se avisó en AUKA a ' + j.avisados + (j.avisados === 1 ? ' persona' : ' personas');
           if (j.porCorreo) t += ' y por correo a ' + j.porCorreo;

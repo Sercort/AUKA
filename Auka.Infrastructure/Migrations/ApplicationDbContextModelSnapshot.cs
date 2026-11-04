@@ -470,6 +470,13 @@ namespace Auka.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("PlanillasActivas")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TipoOrganizacion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.ToTable("Colegios", (string)null);
@@ -546,6 +553,15 @@ namespace Auka.Infrastructure.Migrations
 
                     b.Property<int>("UsuarioId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CorreoContacto")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Direccion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Telefono")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -879,6 +895,53 @@ namespace Auka.Infrastructure.Migrations
                     b.ToTable("Notificaciones", (string)null);
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.RegistroPsicosocial", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CreadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DatosJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int?>("EstudianteId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FechaUltimaModificacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("ModificadoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstudianteId");
+
+                    b.HasIndex("ColegioId", "Tipo");
+
+                    b.ToTable("RegistrosPsicosociales", (string)null);
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.RegistroTarea", b =>
                 {
                     b.Property<int>("Id")
@@ -1083,6 +1146,12 @@ namespace Auka.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Telefono")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("AceptoTerminosUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VersionTerminosAceptada")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -1307,6 +1376,15 @@ namespace Auka.Infrastructure.Migrations
                     b.Navigation("Curso");
 
                     b.Navigation("Profesor");
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.RegistroPsicosocial", b =>
+                {
+                    b.HasOne("Auka.Application.Entities.Estudiante", "Estudiante")
+                        .WithMany()
+                        .HasForeignKey("EstudianteId");
+
+                    b.Navigation("Estudiante");
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.Taller", b =>

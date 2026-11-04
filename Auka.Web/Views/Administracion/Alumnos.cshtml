@@ -1,5 +1,8 @@
 ﻿@{
-    ViewData["Title"] = "Alumnos/as";
+    var org = ViewData["Org"] as Auka.Web.Services.DatosOrganizacion
+              ?? new Auka.Web.Services.DatosOrganizacion(Auka.Web.Services.Vocabulario.Colegio, Auka.Web.Services.Organizacion.Planillas.Keys.ToArray());
+    var V = org.V;
+    ViewData["Title"] = V.Personas;
     Layout = "_LayoutAdminPsico";
 }
 @Html.AntiForgeryToken()
@@ -104,13 +107,13 @@
 
 <div class="al-head">
     <div>
-        <h3>Alumnos/as</h3>
-        <p>Agrégalos uno a uno o importa tu planilla: cada alumno/a queda en su curso automáticamente.</p>
+        <h3>@V.Personas</h3>
+        <p>@(V.EsColegio ? "Agrégalos uno a uno o importa tu planilla: cada @V.persona queda en su curso automáticamente." : "Agrégalos uno a uno o importa tu planilla con nombre, RUT, dirección, teléfono y correo.")</p>
     </div>
     <div class="d-flex gap-2 flex-wrap align-items-center">
         <span class="al-chip ok" id="alMsg"></span>
         <button class="al-btn" id="bClaves">Claves provisorias</button>
-        <button class="al-btn" id="bAdd">+ Agregar alumnos/as</button>
+        <button class="al-btn" id="bAdd">+ Agregar @V.personas</button>
         <button class="al-btn p" id="bImp">Importar planilla</button>
     </div>
 </div>
@@ -141,6 +144,8 @@
           var $ = function (i) { return document.getElementById(i); };
           var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
           var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+          var ORG_COL = @(V.EsColegio ? "true" : "false");   // false = pacientes (sin curso)
+          if (!ORG_COL) $('rCur').style.display = 'none';
           var NIV = ['1° Básico','2° Básico','3° Básico','4° Básico','5° Básico','6° Básico','7° Básico','8° Básico','I° Medio','II° Medio','III° Medio','IV° Medio'];
           var ROS = [], modal = bootstrap.Modal.getOrCreateInstance($('mdG')), accion = null;
           var edad = function (n) { var p = n.split('-'), h = new Date(), a = h.getFullYear() - +p[0]; if (h < new Date(h.getFullYear(), +p[1] - 1, +p[2])) a--; return a; };
@@ -159,10 +164,15 @@
             $('rCur').value = cur; pintar();
           };
           var pintar = function () {
-            if (!ROS.length) { $('rN').textContent = '0'; $('tRos').innerHTML = '<p class="al-note">Aún no hay alumnos/as. Usa «Importar planilla» o «+ Agregar alumnos/as».</p>'; return; }
+            if (!ROS.length) { $('rN').textContent = '0'; $('tRos').innerHTML = '<p class="al-note">Aún no hay @V.personas. Usa «Importar planilla» o «+ Agregar @V.personas».</p>'; return; }
             var f = $('rCur').value, q = $('rTxt').value.trim().toLowerCase();
             var r = ROS.filter(function (a) { return (!f || a.c === f) && (!q || (a.n + ' ' + a.r).toLowerCase().indexOf(q) > -1); });
             $('rN').textContent = r.length + ' de ' + ROS.length;
+            if (!ORG_COL) {
+              $('tRos').innerHTML = '<table class="al-t"><thead><tr><th>N°</th><th>Nombre</th><th>RUT</th><th>Nacimiento</th><th>Teléfono</th><th>Correo</th></tr></thead><tbody>' +
+                r.slice(0, 100).map(function (a, i) { return '<tr><td>' + (i + 1) + '</td><td><b>' + esc(a.n) + '</b></td><td>' + esc(a.r) + '</td><td>' + (a.f ? a.f.split('-').reverse().join('-') : '—') + '</td><td>' + esc(a.t || '—') + '</td><td>' + esc(a.m || '—') + '</td></tr>'; }).join('') + '</tbody></table>';
+              return;
+            }
             $('tRos').innerHTML = '<table class="al-t"><thead><tr><th>N°</th><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th><th>Edad</th></tr></thead><tbody>' +
               r.slice(0, 100).map(function (a, i) { return '<tr><td>' + (i + 1) + '</td><td><b>' + esc(a.n) + '</b></td><td>' + esc(a.r) + '</td><td>' + esc(a.c) + '</td><td>' + (a.f ? a.f.split('-').reverse().join('-') : '—') + '</td><td>' + (a.f ? edad(a.f) + ' años' : '—') + '</td></tr>'; }).join('') + '</tbody></table>';
           };
@@ -198,11 +208,11 @@
 
           // ---- Importar planilla (CSV) ----
           $('bImp').onclick = function () {
-            abrir('Importar planilla de alumnos/as',
-              '<p class="al-note">Columnas: Nombre, RUT, Curso, Fecha de nacimiento, Apoderado/a, Correo apoderado/a y Teléfono apoderado/a (con el correo se crea la cuenta del apoderado/a y ahí llegan los avisos). Cada alumno/a se asigna automáticamente a su curso. Si tienes Excel: Archivo → Guardar como → CSV.</p>' +
+            abrir('Importar planilla de @V.personas',
+              '<p class="al-note">Columnas: Nombre, RUT, Curso, Fecha de nacimiento, Apoderado/a, Correo apoderado/a y Teléfono apoderado/a (con el correo se crea la cuenta del apoderado/a y ahí llegan los avisos). Cada @V.persona se asigna automáticamente a su curso. Si tienes Excel: Archivo → Guardar como → CSV.</p>' +
               '<input type="file" id="imF" accept=".csv" class="form-control"><div class="my-2"><button class="al-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div>' +
               '<label class="al-note d-block mt-2"><input type="checkbox" id="imCrear" checked> Crear los cursos que no existan</label>' +
-              '<label class="al-note d-block"><input type="checkbox" id="imAct" checked> Actualizar alumnos/as que ya existen (por RUT)</label>',
+              '<label class="al-note d-block"><input type="checkbox" id="imAct" checked> Actualizar @V.personas que ya existen (por RUT)</label>',
               function () {
                 var f = $('imF').files[0];
                 if (!f) { msg('Elige un archivo CSV primero'); return; }
@@ -210,20 +220,40 @@
                 var fd = new FormData(); fd.append('archivo', f); fd.append('crearCursos', $('imCrear').checked); fd.append('actualizar', $('imAct').checked); fd.append('__RequestVerificationToken', tok());
                 enviar('/Psychosocial/ImportarAlumnos', fd, 'imR');
               }, 'Importar');
-            $('imP').onclick = function () { descargar('plantilla_alumnos.csv', '﻿Nombre;RUT;Curso;Fecha de nacimiento;Apoderado/a;Correo apoderado/a;Teléfono apoderado/a\nNombre Apellido Apellido;12.345.678-5;5° Básico;2015-03-14;Marta Soto Pérez;marta.soto@correo.cl;+56911112222\n'); };
+            if (!ORG_COL) {
+              $('mdB').querySelector('.al-note').textContent = 'Columnas: Nombre, RUT, Fecha de nacimiento, Dirección, Teléfono y Correo. Solo Nombre y RUT son obligatorios. Con el correo el paciente recibe los avisos de citación.';
+              $('imCrear').parentNode.style.display = 'none';
+            }
+            $('imP').onclick = !ORG_COL ? function () { descargar('plantilla_pacientes.csv', '\ufeffNombre;RUT;Fecha de nacimiento;Dirección;Teléfono;Correo\nCamila Ramírez Soto;24.000.001-1;1990-03-14;Av. Brasil 1234, Antofagasta;+56911112222;camila.ramirez@empresa.cl\n'); } : function () { descargar('plantilla_alumnos.csv', '﻿Nombre;RUT;Curso;Fecha de nacimiento;Apoderado/a;Correo apoderado/a;Teléfono apoderado/a\nNombre Apellido Apellido;12.345.678-5;5° Básico;2015-03-14;Marta Soto Pérez;marta.soto@correo.cl;+56911112222\n'); };
           };
 
           // ---- Agregar a mano ----
           var fila = function () { return '<tr><td><input class="form-control form-control-sm an" placeholder="Nombre completo"></td><td><input class="form-control form-control-sm ar" placeholder="RUT"></td><td><select class="form-select form-select-sm ac">' + NIV.map(function (n) { return '<option>' + n + '</option>'; }).join('') + '</select></td><td><input class="form-control form-control-sm af" type="date"></td><td><input class="form-control form-control-sm ap" placeholder="Apoderado/a"></td><td><input class="form-control form-control-sm ae" type="email" placeholder="correo@ejemplo.cl"></td></tr>'; };
-          $('bAdd').onclick = function () {
-            abrir('Agregar alumnos/as', '<p class="al-note">Agrega uno o varios; cada uno queda en el curso elegido.</p><table class="al-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th><th>Apoderado/a</th><th>Correo apoderado/a</th></tr></thead><tbody id="aT">' + fila() + fila() + fila() + '</tbody></table><button class="al-btn mt-2" id="aMas">+ Fila</button><div id="aR"></div>',
+          // Pacientes: sin curso ni apoderado/a; con dirección, teléfono y correo propios
+          var filaP = function () { return '<tr><td><input class="form-control form-control-sm an" placeholder="Nombre completo"></td><td><input class="form-control form-control-sm ar" placeholder="RUT"></td><td><input class="form-control form-control-sm af" type="date"></td><td><input class="form-control form-control-sm ad" placeholder="Dirección"></td><td><input class="form-control form-control-sm at" placeholder="+569..."></td><td><input class="form-control form-control-sm am" type="email" placeholder="correo@empresa.cl"></td></tr>'; };
+          if (!ORG_COL) $('bAdd').onclick = function () {
+            abrir('Agregar pacientes', '<p class="al-note">Agrega uno o varios pacientes. Con su correo recibe los avisos de citación.</p><table class="al-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Nacimiento</th><th>Dirección</th><th>Teléfono</th><th>Correo</th></tr></thead><tbody id="aT">' + filaP() + filaP() + filaP() + '</tbody></table><button class="al-btn mt-2" id="aMas">+ Fila</button><div id="aR"></div>',
+              function () {
+                var l = [];
+                document.querySelectorAll('#aT tr').forEach(function (tr) {
+                  var nm = tr.querySelector('.an').value.trim();
+                  if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), f: tr.querySelector('.af').value, d: tr.querySelector('.ad').value.trim(), t: tr.querySelector('.at').value.trim(), m: tr.querySelector('.am').value.trim() });
+                });
+                if (!l.length) { msg('Escribe al menos un paciente'); return; }
+                var b = new URLSearchParams({ alumnosJson: JSON.stringify(l) }); b.append('__RequestVerificationToken', tok());
+                enviar('/Psychosocial/AgregarAlumnos', b, 'aR');
+              }, 'Agregar');
+            $('aMas').onclick = function () { $('aT').insertAdjacentHTML('beforeend', filaP()); };
+          }
+          else $('bAdd').onclick = function () {
+            abrir('Agregar @V.personas', '<p class="al-note">Agrega uno o varios; cada uno queda en el curso elegido.</p><table class="al-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th><th>Apoderado/a</th><th>Correo apoderado/a</th></tr></thead><tbody id="aT">' + fila() + fila() + fila() + '</tbody></table><button class="al-btn mt-2" id="aMas">+ Fila</button><div id="aR"></div>',
               function () {
                 var l = [];
                 document.querySelectorAll('#aT tr').forEach(function (tr) {
                   var nm = tr.querySelector('.an').value.trim();
                   if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), c: tr.querySelector('.ac').value, f: tr.querySelector('.af').value, ap: tr.querySelector('.ap').value.trim(), ce: tr.querySelector('.ae').value.trim() });
                 });
-                if (!l.length) { msg('Escribe al menos un alumno/a'); return; }
+                if (!l.length) { msg('Escribe al menos un @V.persona'); return; }
                 var b = new URLSearchParams({ alumnosJson: JSON.stringify(l) }); b.append('__RequestVerificationToken', tok());
                 enviar('/Psychosocial/AgregarAlumnos', b, 'aR');
               }, 'Agregar');
@@ -233,7 +263,7 @@
           // ---- Claves provisorias nuevas ----
           $('bClaves').onclick = function () {
             var f = $('rCur').value;
-            if (!confirm('Se generarán claves provisorias nuevas para los alumnos/as' + (f ? ' de ' + f : '') + ' que aún no han cambiado la suya. Las anteriores dejan de servir. ¿Continuar?')) return;
+            if (!confirm('Se generarán claves provisorias nuevas para los @V.personas' + (f ? ' de ' + f : '') + ' que aún no han cambiado la suya. Las anteriores dejan de servir. ¿Continuar?')) return;
             var body = new URLSearchParams({ curso: f }); body.append('__RequestVerificationToken', tok());
             fetch('/Psychosocial/RegenerarClavesAlumnos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
               .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })

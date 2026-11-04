@@ -5,7 +5,8 @@ public enum EstadoCitacion
     Pendiente = 0,
     Confirmada = 1,
     Realizada = 2,
-    Cancelada = 3
+    Cancelada = 3,
+    NoAsistio = 4     // la fecha pasó y la persona no vino (se marca desde la ficha)
 }
 
 /// <summary>Citación del equipo psicosocial a un alumno/a, su apoderado/a o su profesor/a jefe.</summary>

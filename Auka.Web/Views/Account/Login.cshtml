@@ -96,12 +96,20 @@
             </a>
         </div>
 
-        <!-- CUENTAS DEMO PARA PRUEBAS -->
-        <div class="mt-3 text-muted small pt-2 border-top">
-            <p class="mb-0 fw-semibold">Cuentas Demo para Probar:</p>
-            <code>admin@auka.cl</code> 
-            <br />
-            <small>Claves: <code>123456</code> </small>
+        <!-- CUENTAS DEMO: solo se muestran en tu propio computador (localhost), nunca a usuarios reales -->
+        @if (Context.Request.Host.Host is "localhost" or "127.0.0.1")
+        {
+            <div class="mt-3 text-muted small pt-2 border-top">
+                <p class="mb-0 fw-semibold">Cuentas Demo para Probar:</p>
+                <code>admin@auka.cl</code>
+                <br />
+                <small>Claves: <code>123456</code> </small>
+            </div>
+        }
+
+        <!-- Ley 21.719 -->
+        <div class="mt-3 pt-2 border-top small text-muted">
+            <a href="/Legal/Privacidad" class="text-muted">Política de privacidad</a> · <a href="/Legal/Terminos" class="text-muted">Términos y condiciones</a>
         </div>
     </div>
 

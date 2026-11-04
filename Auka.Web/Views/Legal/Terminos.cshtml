@@ -1,0 +1,40 @@
+﻿@* Auka.Web/Views/Legal/Terminos.cshtml — Términos y condiciones. BORRADOR: debe revisarlo un abogado antes de cobrar al primer cliente. *@
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Términos y condiciones";
+    Layout = "_LayoutLegal";
+}
+<article class="lg-card">
+    <h1>Términos y condiciones de uso</h1>
+    <p class="lg-meta">Versión @LegalController.Version · Vigente desde el @LegalController.FechaVigencia</p>
+
+    <h2>1. El servicio</h2>
+    <p>AUKA es una plataforma web que permite a colegios y otras organizaciones gestionar su información escolar y psicosocial. La organización contrata el servicio y crea las cuentas de su personal, estudiantes, apoderados o pacientes.</p>
+
+    <h2>2. Tu cuenta</h2>
+    <ul>
+        <li>Tu cuenta es personal e intransferible. No compartas tu clave ni tu segunda clave de fichas.</li>
+        <li>La primera clave es provisoria y debes cambiarla al ingresar. Si la olvidas, puedes restablecerla desde tu correo.</li>
+        <li>Avisa a tu organización si crees que alguien usó tu cuenta.</li>
+    </ul>
+
+    <h2>3. Uso correcto</h2>
+    <ul>
+        <li>Registra solo información verdadera y necesaria para tu función.</li>
+        <li>La información psicosocial es confidencial: úsala solo para el apoyo de la persona atendida y no la copies ni la compartas fuera de AUKA.</li>
+        <li>En citaciones y anotaciones que leen apoderados o estudiantes no escribas detalles clínicos ni sensibles.</li>
+        <li>No intentes acceder a información de otras personas u organizaciones.</li>
+    </ul>
+
+    <h2>4. Responsabilidades</h2>
+    <p>La organización es responsable de los datos que registra y de quién recibe acceso. AUKA se compromete a mantener la plataforma, proteger la información y no usarla para otros fines. AUKA puede tener interrupciones breves por mantención o fallas, y trabajará para resolverlas a la brevedad.</p>
+
+    <h2>5. Privacidad</h2>
+    <p>El tratamiento de datos personales se rige por la <a href="/Legal/Privacidad">Política de privacidad</a>.</p>
+
+    <h2>6. Suspensión</h2>
+    <p>Una cuenta puede suspenderse si se usa de forma indebida, o si la organización termina o no paga el servicio.</p>
+
+    <h2>7. Cambios y contacto</h2>
+    <p>Estos términos pueden actualizarse; la nueva versión se publicará aquí y se pedirá aceptarla al ingresar. Dudas: <a href="mailto:@LegalController.CorreoPrivacidad">@LegalController.CorreoPrivacidad</a>. Se rigen por las leyes de la República de Chile.</p>
+</article>

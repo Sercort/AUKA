@@ -4,6 +4,8 @@
 @{
     ViewData["Title"] = "Mi portafolio";
     Layout = "~/Views/Shared/_LayoutPortafolio.cshtml";
+    // Paciente de una empresa u otra organización: sin curso ni anotaciones de conducta (eso es de colegios)
+    var esColegio = (ViewData["Org"] as Auka.Web.Services.DatosOrganizacion)?.V.EsColegio ?? true;
 }
 
 <style>
@@ -15,13 +17,13 @@
 <div class="container">
     <div class="au-hero p-4 mb-4">
         <h3 class="fw-bold mb-1">@(Model.EsDocente ? "Mi curso · profesor/a jefe" : Model.EsApoderado ? "Portafolio de mi pupilo/a" : "Mi portafolio")</h3>
-        <p class="mb-0" style="color:#dbeafe;">@(Model.EsDocente ? "Aquí ves las citaciones del equipo psicosocial dirigidas a ti y las anotaciones de conducta de tus alumnos/as." : "Aquí ves las citaciones del equipo psicosocial y las anotaciones de conducta.")</p>
+        <p class="mb-0" style="color:#dbeafe;">@(Model.EsDocente ? "Aquí ves las citaciones del equipo psicosocial dirigidas a ti y las anotaciones de conducta de tus alumnos/as." : esColegio ? "Aquí ves las citaciones del equipo psicosocial y las anotaciones de conducta." : "Aquí ves tus citaciones con el equipo psicosocial. Confirma tu asistencia cuando te llegue una nueva.")</p>
     </div>
 
     @if (Model.Actual == null)
     {
         <div class="pf-card p-4 text-center text-secondary">
-            @(Model.EsDocente ? "Aún no tienes un curso asignado como profesor/a jefe. Pide al administrador/a del colegio que lo asigne." : Model.EsApoderado ? "Aún no hay alumnos/as vinculados/as a tu cuenta. Pide al colegio que revise tus datos." : "Tu cuenta aún no está asociada a un curso. Consulta en el colegio.")
+            @(Model.EsDocente ? "Aún no tienes un curso asignado como profesor/a jefe. Pide al administrador/a del colegio que lo asigne." : Model.EsApoderado ? "Aún no hay alumnos/as vinculados/as a tu cuenta. Pide al colegio que revise tus datos." : esColegio ? "Tu cuenta aún no está asociada a un curso. Consulta en el colegio." : "Tu cuenta aún no está lista. Consulta con tu profesional.")
         </div>
     }
     else
@@ -49,18 +51,18 @@
         }
         <div class="pf-card p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
-                <div class="pf-label">ALUMNO/A</div>
+                <div class="pf-label">@(esColegio ? "ALUMNO/A" : "PACIENTE")</div>
                 <div class="fw-bold fs-5">@Model.Actual.Nombre</div>
-                <div class="text-secondary small">@Model.Actual.Curso</div>
+                @if (esColegio) { <div class="text-secondary small">@Model.Actual.Curso</div> }
             </div>
-            <div class="d-flex gap-4">
+            <div class="d-flex gap-4" style="@(esColegio ? "" : "display:none !important")">
                 <div><div class="pf-label">POSITIVAS</div><div class="pf-kpi" style="color:#22a35a;">@Model.Positivas</div></div>
                 <div><div class="pf-label">NEGATIVAS</div><div class="pf-kpi" style="color:#d64545;">@Model.Negativas</div></div>
             </div>
         </div>
 
         <div class="row g-3">
-            <div class="col-lg-6">
+            <div class="@(esColegio ? "col-lg-6" : "col-12")">
                 <div class="pf-card p-3 h-100">
                     <div class="pf-label mb-2">CITACIONES</div>
                     @if (!Model.Citaciones.Any())
@@ -76,7 +78,8 @@
                                     <div class="small text-secondary">Se cita a: @c.CitadoA</div>
                                 </div>
                                 @if (c.Estado == EstadoCitacion.Confirmada) { <span class="badge bg-success">Confirmada</span> }
-                                else if (c.Estado == EstadoCitacion.Realizada) { <span class="badge bg-secondary">Realizada</span> }
+                                else if (c.Estado == EstadoCitacion.Realizada) { <span class="badge bg-secondary">Asistió</span> }
+                                else if (c.Estado == EstadoCitacion.NoAsistio) { <span class="badge bg-danger">No asistió</span> }
                                 else { <span class="badge bg-warning text-dark">Por confirmar</span> }
                             </div>
                             <div class="mt-2">@c.Motivo</div>
@@ -92,7 +95,7 @@
                     }
                 </div>
             </div>
-            <div class="col-lg-6">
+            <div class="col-lg-6" style="@(esColegio ? "" : "display:none")">
                 <div class="pf-card p-3 h-100">
                     <div class="pf-label mb-2">ANOTACIONES DE CONDUCTA</div>
                     @if (!Model.Anotaciones.Any())

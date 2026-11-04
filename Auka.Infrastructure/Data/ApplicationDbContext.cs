@@ -46,6 +46,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ArticuloInventario> ArticulosInventario { get; set; } = null!;
     public DbSet<MovimientoInventario> MovimientosInventario { get; set; } = null!;
     public DbSet<Citacion> Citaciones { get; set; } = null!;
+    public DbSet<RegistroPsicosocial> RegistrosPsicosociales { get; set; } = null!;
     public DbSet<HistorialColegio> HistorialColegios { get; set; } = null!;
     public DbSet<MensajePlataforma> MensajesPlataforma { get; set; } = null!;
     public DbSet<Notificacion> Notificaciones { get; set; } = null!;
@@ -83,6 +84,14 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ArticuloInventario>().ToTable("ArticulosInventario");
         modelBuilder.Entity<MovimientoInventario>().ToTable("MovimientosInventario");
         modelBuilder.Entity<Citacion>().ToTable("Citaciones");
+        modelBuilder.Entity<RegistroPsicosocial>(e =>
+        {
+            e.ToTable("RegistrosPsicosociales");
+            e.Property(r => r.Tipo).HasMaxLength(10);
+            e.Property(r => r.DatosJson).HasColumnType("jsonb");
+            e.HasIndex(r => new { r.ColegioId, r.Tipo });
+            e.HasIndex(r => r.EstudianteId);
+        });
         modelBuilder.Entity<Notificacion>().ToTable("Notificaciones");
 
         modelBuilder.Entity<EstudianteApoderado>()

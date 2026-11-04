@@ -23,6 +23,11 @@ public class Estudiante
     // Necesaria para el listado de vacunación (CESFAM)
     public DateOnly? FechaNacimiento { get; set; }
 
+    // Datos de contacto del paciente (organizaciones que no son colegio). Opcionales también en colegios.
+    public string? Direccion { get; set; }
+    public string? Telefono { get; set; }
+    public string? CorreoContacto { get; set; }   // correo personal o de la empresa
+
     // Usar EstudianteApoderado en lugar de Apoderado
     public ICollection<EstudianteApoderado> Apoderados { get; set; } = new List<EstudianteApoderado>();
 

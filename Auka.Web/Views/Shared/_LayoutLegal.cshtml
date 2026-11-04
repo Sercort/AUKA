@@ -1,0 +1,38 @@
+﻿@* Auka.Web/Views/Shared/_LayoutLegal.cshtml
+   Páginas legales (Ley 21.719): públicas, sin menú, con los colores de AUKA. *@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - AUKA</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    @await Html.PartialAsync("_TemaAuka")
+    <style>
+        body { background: #F4F7FB; color: #1f2d3d; }
+        .lg-top { background: #fff; border-bottom: 1px solid #E3E9F1; }
+        .lg-top .wrap, .lg-main { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+        .lg-top .wrap { display: flex; align-items: center; gap: .6rem; height: 64px; }
+        .lg-top img { height: 34px; }
+        .lg-top b { color: var(--a-navy, #12263A); letter-spacing: .04em; }
+        .lg-card { background: #fff; border: 1px solid #E3E9F1; border-radius: 16px; padding: 28px; margin: 24px 0; box-shadow: 0 1px 3px rgba(20,35,58,.05); }
+        .lg-card h1 { font-size: 1.5rem; font-weight: 800; color: var(--a-navy, #12263A); }
+        .lg-card h2 { font-size: 1.05rem; font-weight: 700; color: var(--a-navy, #12263A); margin-top: 1.4rem; }
+        .lg-card p, .lg-card li { font-size: .95rem; line-height: 1.6; }
+        .lg-meta { font-size: .8rem; color: #64748b; }
+        .lg-foot { text-align: center; font-size: .8rem; color: #64748b; padding: 0 16px 32px; }
+        .lg-foot a { color: inherit; }
+    </style>
+</head>
+<body>
+    <header class="lg-top">
+        <div class="wrap">
+            <img src="~/img/auka-icono.png" alt="AUKA" />
+            <b>AUKA</b>
+            <div class="ms-auto small"><a href="/" class="text-decoration-none">Volver a AUKA</a></div>
+        </div>
+    </header>
+    <main class="lg-main">@RenderBody()</main>
+    <footer class="lg-foot">&copy; 2026 AUKA · <a href="/Legal/Privacidad">Política de privacidad</a> · <a href="/Legal/Terminos">Términos y condiciones</a></footer>
+</body>
+</html>

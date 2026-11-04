@@ -1,7 +1,13 @@
 ﻿@* Auka.Web/Views/Psychosocial/_PlanillaPsicosocial.cshtml
-   Planilla Psicosocial 2026 -> dashboard + 7 pestañas. Solo visual, con DATOS FICTICIOS.
+   Planilla Psicosocial -> dashboard + pestañas. Los registros se guardan en la tabla RegistrosPsicosociales.
    Sin modelo ni dependencias: se incluye desde Index.cshtml con
    @await Html.PartialAsync("_PlanillaPsicosocial") *@
+@{
+    // Vocabulario y planillas de la organización (los deja OrganizacionFilter)
+    var org = ViewData["Org"] as Auka.Web.Services.DatosOrganizacion
+              ?? new Auka.Web.Services.DatosOrganizacion(Auka.Web.Services.Vocabulario.Colegio, Auka.Web.Services.Organizacion.Planillas.Keys.ToArray());
+    var V = org.V;
+}
 <style>
 .psx{--ink:#14233a;--mut:#64748b;--line:#e5eaf1;--bg:#f6f8fb;--b:#2459b0;margin-top:1.5rem;color:var(--ink)}
 .psx *{box-sizing:border-box}
@@ -39,7 +45,13 @@
 .psx-leg{font-size:.72rem;color:var(--mut);margin-top:.5rem}
 .psx-in{width:100%;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem;font-size:.85rem;background:#fff}
 .psx-find-row{display:flex;gap:.5rem;flex-wrap:wrap}.psx-find-row .psx-in{flex:1;min-width:200px}.psx-find-row select{max-width:190px}
-.psx-res{margin-top:.5rem}
+.psx-res{margin-top:.5rem;max-height:340px;overflow-y:auto}
+.psx-cus{display:grid;gap:.5rem;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.psx-cu{border:1px solid var(--line);border-radius:12px;padding:.6rem .75rem;cursor:pointer;background:#fff;transition:border-color .15s,box-shadow .15s}
+.psx-cu:hover{border-color:var(--b);box-shadow:0 2px 10px rgba(36,89,176,.12)}
+.psx-cu b{display:block;font-size:.9rem}.psx-cu span{font-size:.75rem;color:var(--mut)}
+.psx-back{font-size:.78rem;color:var(--b);cursor:pointer;background:none;border:0;padding:0;margin-bottom:.3rem}
+.psx-reg{border-left:3px solid var(--b)}
 .psx-it{display:flex;align-items:center;gap:.6rem;padding:.5rem .6rem;border-radius:8px;cursor:pointer;font-size:.84rem}
 .psx-it:hover{background:var(--bg)}.psx-it span{color:var(--mut);margin-left:auto;font-size:.78rem}
 .psx-ov{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(20,35,58,.55);z-index:2000;align-items:center;justify-content:center;padding:1rem}
@@ -63,15 +75,16 @@
   <div class="psx-head">
     <h5>Planilla Psicosocial 2026</h5>
     <div><button class="psx-btn" id="bImp">Importar planilla</button>
-      <button class="psx-btn" id="bAdd">+ Agregar alumnos/as</button>
+      <button class="psx-btn" id="bAdd">+ Agregar @V.personas</button>
       <button class="psx-btn" id="bYear">Pasar de año</button>
       <span class="psx-c ok" id="psxMsg" style="display:none"></span>
       <button class="psx-btn p" id="psxNew">+ Nuevo registro</button></div>
   </div>
   <div class="psx-card">
-    <h6>Buscar alumno/a</h6>
+    <h6>Buscar @V.persona</h6>
     <div class="psx-find-row"><select id="sCur" class="psx-in"></select>
-      <input id="sTxt" class="psx-in" placeholder="Nombre, RUT o curso del módulo psicosocial..."></div>
+      <input id="sTxt" class="psx-in" placeholder="@(V.EsColegio ? "Nombre, RUT o curso del módulo psicosocial..." : "Nombre o RUT del paciente...")"></div>
+    <p class="psx-leg" style="margin:.35rem 0 0">@(V.EsColegio ? "Elige un curso para ver sus alumnos/as, o escribe para buscar." : "Escribe un nombre o RUT para buscar.") Al elegir un @V.persona se abre su ficha.</p>
     <div id="sRes" class="psx-res"></div>
   </div>
   <div class="psx-tabs" id="psxTabs"></div>
@@ -79,7 +92,7 @@
   <div class="psx-pane" data-p="Resumen">
     
     <div class="psx-grid">
-      <div class="psx-card"><h6>Alumnos/as en seguimiento por curso</h6><div id="gCur"></div></div>
+      <div class="psx-card"><h6>@V.Personas en seguimiento por curso</h6><div id="gCur"></div></div>
       <div class="psx-card"><h6>Informes judiciales de julio</h6><div id="gInf"></div>
         <h6 style="margin-top:1rem">Periodicidad de informes</h6><div id="gPer"></div></div>
       <div class="psx-card"><h6>Asistencia en monitoreo</h6><div id="gAs"></div>
@@ -87,15 +100,15 @@
     </div>
   </div>
 
-  <div class="psx-pane" data-p="Alumnos/as">
-    <div class="psx-card"><div class="psx-head"><h6>Alumnos/as matriculados</h6>
+  <div class="psx-pane" data-p="@V.Personas">
+    <div class="psx-card"><div class="psx-head"><h6>@V.Personas @(V.EsColegio ? "matriculados" : "registrados")</h6>
       <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center"><select id="rCur" class="psx-btn"></select>
         <input id="rTxt" class="psx-in" placeholder="Buscar nombre o RUT" style="max-width:220px"><span class="psx-c info" id="rN"></span><button class="psx-btn" id="rClaves">Claves provisorias</button></div></div>
       <div id="tRos"><p class="psx-leg">Cargando…</p></div>
       <p class="psx-leg">Se muestran hasta 100 a la vez; usa el curso o el buscador para acotar.</p></div>
   </div>
 
-  <div class="psx-pane" data-p="Seguimiento">
+  <div class="psx-pane" data-p="Seguimiento" data-k="seg">
     <div class="psx-card"><div class="psx-head"><h6>Calendarización de seguimiento</h6>
       <select id="fCur" class="psx-btn"></select></div>
       <div id="tSeg"></div>
@@ -104,7 +117,7 @@
         <span class="psx-dots" style="display:inline-flex"><i></i></span> sin acción &nbsp; (Mar a Dic)</p></div>
   </div>
 
-  <div class="psx-pane" data-p="Judicial">
+  <div class="psx-pane" data-p="Judicial" data-k="jud">
     <div class="psx-grid" style="grid-template-columns:2fr 1fr">
       <div class="psx-card"><h6>Casos judicializados</h6><div id="tJud"></div></div>
       <div class="psx-card"><h6>Correlativo de informes</h6>
@@ -113,27 +126,27 @@
     </div>
   </div>
 
-  <div class="psx-pane" data-p="Derivaciones">
+  <div class="psx-pane" data-p="Derivaciones" data-k="der">
     <div class="psx-card"><h6>Derivación a convivencia escolar</h6><div id="tCon"></div></div>
     <div class="psx-card"><h6>Derivación a profesores tutores</h6><div id="tTut"></div></div>
   </div>
 
-  <div class="psx-pane" data-p="Terreno">
+  <div class="psx-pane" data-p="Terreno" data-k="vd">
     <div class="psx-card"><h6>Visitas domiciliarias (V.D.)</h6><div id="tVD"></div></div>
   </div>
 
-  <div class="psx-pane" data-p="Beneficios">
+  <div class="psx-pane" data-p="Beneficios" data-k="ben">
     <div class="psx-card"><div class="psx-head"><h6>Pro-retención: sets</h6>
       <div><button class="psx-btn" id="bSetE">Editar sets</button> <button class="psx-btn" id="bStock">Registrar ingreso</button> <button class="psx-btn" id="bGI">Guía de ingreso</button> <button class="psx-btn p" id="bGD">Guía de despacho</button></div></div>
       <div class="psx-fg" id="bSets"></div></div>
     <div class="psx-grid">
-      <div class="psx-card"><h6>Entrega por alumno/a</h6><div id="tEnt"></div></div>
+      <div class="psx-card"><h6>Entrega por @V.persona</h6><div id="tEnt"></div></div>
       <div class="psx-card"><h6>Inventario de ropa</h6><div id="tInv"></div>
         <p class="psx-leg">Stock bajo = igual o menor al mínimo. En este módulo no se maneja dinero.</p></div>
     </div>
   </div>
 
-  <div class="psx-pane" data-p="Vacunación">
+  <div class="psx-pane" data-p="Vacunación" data-k="vac">
     <div class="psx-card"><div class="psx-head"><h6>Listado para vacunación (CESFAM)</h6>
       <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center"><select id="vCur" class="psx-btn"></select><span class="psx-c info" id="vN"></span>
         <button class="psx-btn" id="vCsv">Exportar Excel (CSV)</button> <button class="psx-btn p" id="vPrn">Imprimir</button></div></div>
@@ -141,7 +154,7 @@
       <p class="psx-leg">Datos de menores: solo para personal autorizado.</p></div>
   </div>
 
-  <div class="psx-pane" data-p="Egresos y plan">
+  <div class="psx-pane" data-p="Egresos y plan" data-k="egr">
     <div class="psx-card"><h6>Egresos psicosociales</h6><div id="tEgr"></div></div>
     <div class="psx-card"><h6>Plan de acción: estudiantes críticos</h6><div class="psx-kan" id="kan"></div></div>
   </div>
@@ -160,9 +173,15 @@
 
 <script>
 (function () {
+  // col = es colegio (alumnos/as y cursos); pl = planillas activas para esta organización
+  var ORG = { col: @(V.EsColegio ? "true" : "false"), pl: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(org.Planillas)) };
   var $ = function (id) { return document.getElementById(id); };
   var c = function (t, k) { return '<span class="psx-c ' + k + '">' + t + '</span>'; };
   var T = function (h, r) {
+    if (!ORG.col) {   // pacientes: no hay curso
+      var ci = h.indexOf('Curso');
+      if (ci > -1) { h = h.filter(function (x, j) { return j !== ci; }); r = r.map(function (a) { return a.filter(function (x, j) { return j !== ci; }); }); }
+    }
     return '<table class="psx-t"><thead><tr>' + h.map(function (x) { return '<th>' + x + '</th>'; }).join('') +
       '</tr></thead><tbody>' + (r.length ? r.map(function (a) { return '<tr>' + a.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="' + h.length + '" style="color:var(--mut);text-align:center;padding:1rem">Sin registros todavía.</td></tr>') + '</tbody></table>';
   };
@@ -176,7 +195,7 @@
   var dots = function (a) { return '<div class="psx-dots">' + a.map(function (s) { return '<i class="d' + s + '"></i>'; }).join('') + '</div>'; };
   var asis = function (n) { return c(n + '%', n < 85 ? 'bad' : 'ok'); };
 
-  // Todo parte vacío: los cursos salen de los alumnos/as realmente cargados
+  // Todo parte vacío: los cursos salen de los @V.personas realmente cargados
   var NIV = ['1° Básico', '2° Básico', '3° Básico', '4° Básico', '5° Básico', '6° Básico', '7° Básico', '8° Básico', 'I° Medio', 'II° Medio', 'III° Medio', 'IV° Medio'];
   var cursos = [];
   var seg = [];
@@ -186,17 +205,20 @@
   $('gAs').innerHTML = B([], 0);
 
   var sel = $('fCur');
-  var opcCursos = function () { return '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option>' + x[0] + '</option>'; }).join(''); };
+  var opcCursos = function () { return '<option value="">Todos los cursos</option>' + cursos.map(function (x) { return '<option value="' + x[0] + '">' + x[0] + '</option>'; }).join(''); };
   sel.innerHTML = opcCursos();
+  // seg = [nombre, curso, último objetivo, [10 meses: 0 sin acción | 2 realizado], última asistencia o null, estudianteId]
   var drawSeg = function () {
     var f = sel.value;
-    $('tSeg').innerHTML = T(['Alumno/a','Curso','Objetivo / acuerdo','Mar a Dic','Asistencia'],
-      seg.filter(function (r) { return !f || r[1] === f; }).map(function (r) { return [r[0], r[1], r[2], dots(r[3]), asis(r[4])]; }));
+    $('tSeg').innerHTML = T(['@V.Persona','Curso','Objetivo / acuerdo','Mar a Dic','Asistencia'],
+      seg.filter(function (r) { return !f || r[1] === f; }).map(function (r) {
+        return ['<a href="#" class="ros-a" data-id="' + r[5] + '" style="font-weight:600;color:#0d6efd;text-decoration:none">' + esc(r[0]) + '</a>', esc(r[1]), esc(r[2]), dots(r[3]), r[4] == null ? '—' : asis(r[4])];
+      }));
   };
   sel.onchange = drawSeg; drawSeg();
 
   var JUD = [];
-  var drawJud = function () { $('tJud').innerHTML = T(['Alumno/a','Curso','Causa','RIT','Informe jul','Informe dic','Periodicidad'], JUD); };
+  var drawJud = function () { $('tJud').innerHTML = T(['@V.Persona','Curso','Causa','RIT','Informe jul','Informe dic','Periodicidad'], JUD); };
   drawJud();
   var COR = [], sigCor = 1;
   var drawCor = function () { $('tCor').innerHTML = T(['N°','Ord.','Fecha'], COR); $('corNext').textContent = 'FEMAR-' + sigCor + '-2026'; };
@@ -205,26 +227,29 @@
   $('tCon').innerHTML = T(['Fecha','Curso','Apoderada','Intervención','Mediación','Situación'], []);
   $('tTut').innerHTML = T(['Curso','Estudiante','Objetivo / acuerdo','Estado'], []);
   $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], []);
-  $('tEgr').innerHTML = T(['Alumno/a','Curso','Motivo','Fecha'], []);
+  $('tEgr').innerHTML = T(['@V.Persona','Curso','Motivo','Fecha'], []);
   $('kan').innerHTML = [['Por iniciar'],['En curso'],['Logrado']]
     .map(function (k) { return '<div class="psx-col"><h6>' + k[0] + '</h6><div class="psx-leg">Sin estudiantes.</div></div>'; }).join('');
 
-  // ---- Nuevo registro: fichas de la planilla + buscador de alumnos/as (visual) ----
+  // ---- Nuevo registro: fichas de la planilla + buscador de @V.personas (visual) ----
   var alu = [];
   var MES = ['Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var F = [
     {k:'seg',n:'Seguimiento mensual',d:'Calendarización: acciones y asistencia del mes',al:1,f:[['Mes','s',MES],['Tipo de acción','s',['Carta de compromiso','Monitoreo','Entrevista presencial','Citación a apoderado','Observación en aula','Coordinación con programa externo']],['Asistencia (%)','n'],['Objetivo / acuerdo','a'],['Observaciones','a']]},
     {k:'jud',n:'Caso judicializado',d:'RIT, informes y resoluciones',al:1,f:[['Origen de la causa','s',['Interno','Externo']],['Año de apertura','n'],['RIT de la causa','t'],['Informe de julio','s',['Enviado','Pendiente','No procede']],['Informe de diciembre','s',['Pendiente','Enviado','Causa cerrada','No procede']],['Periodicidad','s',['Mensual','Trimestral','Semestral','Solo por oficio']],['Resumen de resoluciones','a']]},
-    {k:'inf',n:'Informe evacuado',d:'Correlativo FEMAR automático',al:1,f:[['N° correlativo','t','FEMAR-1-2026'],['Fecha','d'],['Destinatario','t'],['Detalle','a']]},
+    {k:'inf',n:'Informe evacuado',d:'Correlativo FEMAR automático',al:1,f:[['N° correlativo','t','Se asigna al guardar'],['Fecha','d'],['Destinatario','t'],['Detalle','a']]},
     {k:'vd',n:'Visita domiciliaria',d:'Fecha, dirección, jornada y responsable',al:1,f:[['Fecha','d'],['Dirección','t'],['Jornada','s',['AM','PM']],['Responsable','t'],['Pago','s',['Pendiente','OK']],['Observaciones','a']]},
-    {k:'conv',n:'Derivación a convivencia escolar',d:'Entrevista, intervención y mediación',al:1,f:[['Fecha','d'],['Entrevista con apoderada','s',['Registro en Lirmi','Procede','No procede']],['Intervención con alumno/a','s',['Procede','No procede']],['Mediación / acciones','a'],['Situación actual','s',['Monitoreo','Egreso']]]},
+    {k:'conv',n:'Derivación a convivencia escolar',d:'Entrevista, intervención y mediación',al:1,f:[['Fecha','d'],['Entrevista con apoderada','s',['Registro en Lirmi','Procede','No procede']],['Intervención con @V.persona','s',['Procede','No procede']],['Mediación / acciones','a'],['Situación actual','s',['Monitoreo','Egreso']]]},
     {k:'tut',n:'Derivación a profesor tutor',d:'Objetivos y acuerdos con el tutor',al:1,f:[['Profesor tutor','t'],['Objetivos / acuerdos','a'],['Estado','s',['Pendiente','En curso','Logrado']]]},
     {k:'plan',n:'Plan de acción (crítica)',d:'Objetivos, estrategias y estado',al:1,f:[['Objetivos de intervención','a'],['Estrategias','a'],['Estado de objetivos','s',['Por iniciar','En curso','Logrado']]]},
     {k:'pro',n:'Beneficio pro-retención',d:'Entrega de sets y beneficios',al:1,f:[['Año','s',['2026','2025']],['Beneficio','s',['Set 1','Set 2','Tablet']],['Estado','s',['Pendiente','Entregado']]]},
-    {k:'ropa',n:'Movimiento de inventario',d:'Entrada o entrega de ropa',al:0,f:[['Prenda','s',['Blazer','Camisa blanca','Chaqueta polar','Jumper','Polera piqué','Zapatos','Calcetas','Mochila']],['Talla','t'],['Cantidad','n'],['Tipo','s',['Entrada','Entrega a alumno/a']]]},
+    {k:'ropa',n:'Movimiento de inventario',d:'Entrada o entrega de ropa',al:0,f:[['Prenda','s',['Blazer','Camisa blanca','Chaqueta polar','Jumper','Polera piqué','Zapatos','Calcetas','Mochila']],['Talla','t'],['Cantidad','n'],['Tipo','s',['Entrada','Entrega a @V.persona']]]},
     {k:'ano',n:'Anotación de conducta',d:'Positiva o negativa; la ven profesores/as y apoderados/as',al:1,f:[['Tipo','s',['Positiva','Negativa']],['Detalle','a']]},
     {k:'egr',n:'Egreso psicosocial',d:'Motivo, fecha y citación final',al:1,f:[['Motivo','s',['Egreso','Egreso con compromisos','Retirada del colegio']],['Fecha','d'],['Citación a apoderada','d'],['Observaciones','a']]}
   ];
+  var PLA = { seg: 'seg', jud: 'jud', inf: 'jud', vd: 'vd', conv: 'der', tut: 'der', plan: 'egr', egr: 'egr', pro: 'ben', ropa: 'ben' };
+  var FALL = F.slice();
+  F = F.filter(function (f) { return f.k === 'ano' ? ORG.col : ORG.pl.indexOf(PLA[f.k]) > -1; });
   var fld = function (f) {
     var t = f[1], h = '<label class="psx-f"><span>' + f[0] + '</span>';
     if (t === 's') h += '<select class="psx-in">' + f[2].map(function (o) { return '<option>' + o + '</option>'; }).join('') + '</select>';
@@ -232,48 +257,72 @@
     else h += '<input class="psx-in" type="' + (t === 'd' ? 'date' : t === 'n' ? 'number' : 'text') + '"' + (f[2] ? ' value="' + f[2] + '" readonly' : '') + '>';
     return h + '</label>';
   };
-  var curOpts = opcCursos();
+  // Opciones de curso con su cantidad de @V.personas (se recalcula cada vez: los cursos llegan después del fetch)
+  var opcCursosN = function () { return '<option value="">Todos los cursos (' + cursos.length + ')</option>' + cursos.map(function (x) { return '<option value="' + x[0] + '">' + x[0] + ' · ' + x[1] + '</option>'; }).join(''); };
   var rows = function (q, cu) {
     q = (q || '').toLowerCase();
-    return alu.filter(function (a) { return (!cu || a[1].indexOf(cu) === 0) && (!q || (a[0] + ' ' + a[1] + ' ' + a[2]).toLowerCase().indexOf(q) > -1); });
+    return alu.filter(function (a) { return (!cu || a[1] === cu) && (!q || (a[0] + ' ' + a[1] + ' ' + a[2]).toLowerCase().indexOf(q) > -1); });
   };
   var list = function (l) {
-    return l.length ? l.map(function (a) { return '<div class="psx-it" data-n="' + a[2] + '"><b>' + a[0] + '</b><span>' + a[1] + ' · ' + a[2] + '</span>' + (a[3] == null ? '' : asis(a[3])) + '</div>'; }).join('')
+    return l.length ? l.map(function (a) { return '<div class="psx-it" data-n="' + a[2] + '"><b>' + esc(a[0]) + '</b><span>' + (a[1] ? esc(a[1]) + ' · ' : '') + esc(a[2]) + '</span>' + (a[3] == null ? '' : asis(a[3])) + '</div>'; }).join('')
       : '<p class="psx-leg">Sin resultados</p>';
+  };
+  var tarjetasCursos = function () {
+    if (!cursos.length) return '<p class="psx-leg">' + (!ROS ? 'Cargando cursos…' : 'Aún no hay @V.personas cargados. Usa «Importar planilla» o «+ Agregar @V.personas».') + '</p>';
+    return '<div class="psx-cus">' + cursos.map(function (x) { return '<div class="psx-cu" data-c="' + esc(x[0]) + '"><b>' + esc(x[0]) + '</b><span>' + x[1] + ' @V.personas</span></div>'; }).join('') + '</div>';
   };
   var byRut = function (n) { return alu.filter(function (a) { return a[2] === n; })[0]; };
   var wireSearch = function (selId, txtId, resId, onPick) {
     var s = $(selId), t = $(txtId), r = $(resId);
-    s.innerHTML = curOpts;
     var go = function () {
-      r.innerHTML = (!s.value && !t.value) ? '<p class="psx-leg">Elige un curso o escribe un nombre, RUT o curso.</p>' : list(rows(t.value, s.value).slice(0, 6));
+      if (!ORG.col) {   // pacientes: sin cursos, lista directa
+        s.style.display = 'none';
+        r.innerHTML = alu.length ? list(rows(t.value.trim(), '').slice(0, 50)) : '<p class="psx-leg">' + (!ROS ? 'Cargando…' : 'Aún no hay pacientes. Usa «Importar planilla» o «+ Agregar pacientes».') + '</p>';
+        return;
+      }
+      var v = s.value;
+      s.innerHTML = opcCursosN(); s.value = v;
+      if (!s.value && !t.value.trim()) { r.innerHTML = tarjetasCursos(); return; }            // Todos los cursos -> solo los cursos
+      var l = rows(t.value.trim(), s.value);
+      r.innerHTML = (s.value ? '<button class="psx-back" data-all="1">&larr; Ver todos los cursos</button> ' + c(l.length + ' @V.personas en ' + esc(s.value), 'info') : '') +
+        list(s.value ? l : l.slice(0, 50));                                                      // un curso -> todos sus @V.personas
     };
+    s.innerHTML = opcCursosN();
     s.onchange = go; t.oninput = go; go();
-    r.onclick = function (e) { var it = e.target.closest('.psx-it'); if (it) onPick(byRut(it.getAttribute('data-n'))); };
+    s.psxRefresh = go;
+    r.onclick = function (e) {
+      var cu = e.target.closest('.psx-cu'); if (cu) { s.innerHTML = opcCursosN(); s.value = cu.getAttribute('data-c'); go(); return; }
+      if (e.target.closest('[data-all]')) { s.value = ''; t.value = ''; go(); return; }
+      var it = e.target.closest('.psx-it'); if (it) onPick(byRut(it.getAttribute('data-n')));
+    };
   };
 
   var ov = $('psxOv'), mB = $('mB'), st = { s: 1, f: null, a: null, done: 0 };
   var draw = function () {
-    $('mS').innerHTML = ['1 Ficha', '2 Alumno/a', '3 Datos'].map(function (x, i) { return '<span class="psx-st' + (st.s === i + 1 ? ' on' : '') + '">' + x + '</span>'; }).join('');
+    $('mS').innerHTML = ['1 Ficha', '2 @V.Persona', '3 Datos'].map(function (x, i) { return '<span class="psx-st' + (st.s === i + 1 ? ' on' : '') + '">' + x + '</span>'; }).join('');
     var h = '';
     if (st.s === 1) {
       h = '<p class="psx-leg" style="margin:0 0 .6rem">Elige la ficha que quieres completar</p><div class="psx-fg">' +
         F.map(function (f) { return '<div class="psx-fc' + (st.f && st.f.k === f.k ? ' on' : '') + '" data-k="' + f.k + '"><b>' + f.n + '</b><span>' + f.d + '</span></div>'; }).join('') + '</div>';
     } else if (st.s === 2) {
-      h = '<div class="psx-find-row"><select id="mCur" class="psx-in"></select><input id="mTxt" class="psx-in" placeholder="Buscar por nombre, RUT o curso"></div>' +
-        '<div id="mRes" class="psx-res"></div><div id="mSel" style="margin-top:.6rem">' + (st.a ? c('Seleccionada: ' + st.a[0] + ' · ' + st.a[1], 'ok') : '') + '</div>';
+      h = '<div class="psx-find-row"><select id="mCur" class="psx-in"></select><input id="mTxt" class="psx-in" placeholder="Buscar por nombre o RUT"></div>' +
+        '<div id="mRes" class="psx-res"></div><div id="mSel" style="margin-top:.6rem">' + (st.a ? c('Seleccionado/a: ' + st.a[0] + (st.a[1] ? ' · ' + st.a[1] : ''), 'ok') : '') + '</div>';
     } else {
-      h = '<div>' + c(st.f.n, 'info') + (st.a ? ' ' + c(st.a[0] + ' · ' + st.a[1], 'nil') : '') + '</div><div class="psx-fgrid">' + st.f.f.map(fld).join('') + '</div>';
+      h = '<div>' + c(st.f.n, 'info') + (st.a ? ' ' + c(st.a[0] + (st.a[1] ? ' · ' + st.a[1] : ''), 'nil') : '') + '</div><div class="psx-fgrid">' + st.f.f.map(fld).join('') + '</div>';
     }
     mB.innerHTML = h;
     $('mBack').style.visibility = st.s > 1 ? 'visible' : 'hidden';
     $('mNext').textContent = st.s === 3 ? 'Guardar ficha' : 'Siguiente';
     $('mNext').disabled = (st.s === 1 && !st.f) || (st.s === 2 && !st.a);
     if (st.s === 2) wireSearch('mCur', 'mTxt', 'mRes', function (a) {
-      st.a = a; $('mSel').innerHTML = c('Seleccionada: ' + a[0] + ' · ' + a[1], 'ok'); $('mNext').disabled = false;
+      st.a = a; $('mSel').innerHTML = c('Seleccionado/a: ' + a[0] + (a[1] ? ' · ' + a[1] : ''), 'ok'); $('mNext').disabled = false;
     });
   };
-  var openM = function (a) { st = { s: 1, f: null, a: a || null, done: 0 }; ov.classList.add('on'); draw(); };
+  var openM = function (a, k) {
+    var f = k ? F.filter(function (x) { return x.k === k; })[0] : null;
+    st = { s: f ? (f.al && !a ? 2 : 3) : 1, f: f, a: a || null, done: 0 };
+    ov.classList.add('on'); draw();
+  };
   var closeM = function () { ov.classList.remove('on'); };
   mB.onclick = function (e) {
     var fc = e.target.closest('.psx-fc');
@@ -286,24 +335,47 @@
     else if (st.f.k === 'ano') {
       var al = ROS && ROS !== 'error' ? ROS.filter(function (x) { return st.a && x.r === st.a[2]; })[0] : null;
       var cam = mB.querySelectorAll('.psx-fgrid .psx-in');
-      if (!al) { msg('Elige un alumno/a de la lista'); return; }
+      if (!al) { msg('Elige un @V.persona de la lista'); return; }
       post('/Psychosocial/CrearAnotacion', { estudianteId: al.id, tipo: cam[0].value === 'Positiva' ? 1 : 2, detalle: cam[1].value })
         .then(function () { st.done = 1; mB.innerHTML = '<div class="psx-note">Anotación registrada en el libro de <b>' + esc(al.n) + '</b>.</div>'; $('mNext').textContent = 'Cerrar'; $('mBack').style.visibility = 'hidden'; })
         .catch(function (e) { alert(e.message); });
       return;
     }
-    else {
-      st.done = 1;
-      mB.innerHTML = '<div class="psx-note">Vista previa: la ficha <b>' + st.f.n + '</b>' + (st.a ? ' de <b>' + st.a[0] + '</b>' : '') + ' todavía no se guarda en la base de datos.</div>';
-      $('mNext').textContent = 'Cerrar'; $('mBack').style.visibility = 'hidden'; return;
-    }
+    else { guardarRegistro(); return; }
     draw();
+  };
+  // Junta los campos de la ficha y los guarda en la base de datos (tabla RegistrosPsicosociales)
+  var guardarRegistro = function () {
+    var cam = mB.querySelectorAll('.psx-fgrid .psx-in'), datos = {};
+    st.f.f.forEach(function (f, i) { if (cam[i] && !cam[i].readOnly) datos[f[0]] = cam[i].value; });
+    var al = st.a ? byRut(st.a[2]) : null;
+    if (st.f.al && !al) { msg('Elige un @V.persona de la lista', 1); return; }
+    var vacios = Object.keys(datos).filter(function (k) { return !String(datos[k]).trim(); }).length;
+    if (vacios === Object.keys(datos).length) { alert('Completa al menos un campo.'); return; }
+    $('mNext').disabled = true;
+    var extra = Promise.resolve();
+    // Si es una entrada de ropa, además suma el stock del inventario
+    if (st.f.k === 'ropa' && datos['Tipo'] === 'Entrada' && +datos['Cantidad'] > 0)
+      extra = post('/Psychosocial/IngresarStock', { nombre: datos['Prenda'], tallas: datos['Talla'] || '', cantidad: +datos['Cantidad'] }).then(cargarBen);
+    extra.then(function () {
+      return post('/Psychosocial/GuardarRegistro', { tipo: st.f.k, estudianteId: al ? al[4] : '', datosJson: JSON.stringify(datos) });
+    }).then(function (j) {
+      st.done = 1;
+      mB.innerHTML = '<div class="psx-note">' + c('Guardado', 'ok') + ' La ficha <b>' + esc(st.f.n) + '</b>' + (al ? ' de <b>' + esc(al[0]) + '</b>' : '') +
+        ' quedó registrada' + (j.correlativo ? ' con el N° <b>' + esc(j.correlativo) + '</b>' : '') + '. La ve todo el equipo psicosocial' + (al ? ' y aparece en su ficha' : '') + '.</div>' +
+        (al ? '<button class="psx-btn" id="mVer" style="margin-top:.6rem">Ver ficha de ' + esc(al[0]) + '</button>' : '');
+      if ($('mVer')) $('mVer').onclick = function () { closeM(); abrirFicha(al[4]); };
+      $('mNext').textContent = 'Cerrar'; $('mBack').style.visibility = 'hidden';
+      msg('Ficha guardada', 1);
+      cargarReg();
+    }).catch(function (e) { alert('No se pudo guardar: ' + e.message); })
+      .then(function () { $('mNext').disabled = false; });
   };
   $('mBack').onclick = function () { st.s = (st.s === 3 && st.f.al) ? 2 : 1; draw(); };
   $('mX').onclick = closeM;
   ov.onclick = function (e) { if (e.target === ov) closeM(); };
   $('psxNew').onclick = function () { openM(null); };
-  wireSearch('sCur', 'sTxt', 'sRes', function (a) { openM(a); });
+  wireSearch('sCur', 'sTxt', 'sRes', function (a) { if (a) abrirFicha(a[4]); });
   var q0 = new URLSearchParams(window.location.search).get('q');
   if (q0) { $('sTxt').value = q0; $('sTxt').oninput(); }
 
@@ -355,15 +427,19 @@
     $('sAdd').onclick = function () { $('sL').insertAdjacentHTML('beforeend', setF({ n: '', it: [], e: 0, t: 0 })); };
   };
 
-  // ---- Entrega por alumno/a e inventario ----
+  // ---- Entrega por @V.persona e inventario ----
   var ENT = [];
   var drawEnt = function () {
-    $('tEnt').innerHTML = T(['Entregado', 'Alumno/a', 'Curso', 'Set', 'Estado'], ENT.map(function (e, i) {
-      return ['<input type="checkbox" data-i="' + i + '"' + (e[3] ? ' checked' : '') + '>', e[0], e[1], e[2], e[3] ? c('Entregado', 'ok') : c('Pendiente', 'warn')];
+    $('tEnt').innerHTML = T(['Entregado', '@V.Persona', 'Curso', 'Set', 'Estado'], ENT.map(function (e, i) {
+      return ['<input type="checkbox" data-i="' + i + '"' + (e[3] ? ' checked' : '') + '>', esc(e[0]), esc(e[1]), esc(e[2]), e[3] ? c('Entregado', 'ok') : c('Pendiente', 'warn')];
     }));
   };
   drawEnt();
-  $('tEnt').onclick = function (e) { if (e.target.tagName === 'INPUT') { ENT[+e.target.getAttribute('data-i')][3] = e.target.checked ? 1 : 0; drawEnt(); } };
+  $('tEnt').onclick = function (e) {
+    if (e.target.tagName !== 'INPUT') return;
+    var it = ENT[+e.target.getAttribute('data-i')]; it[3] = e.target.checked ? 1 : 0; drawEnt();
+    post('/Psychosocial/ActualizarCampoRegistro', { id: it[4], campo: 'Estado', valor: it[3] ? 'Entregado' : 'Pendiente' }).catch(function () { alert('No se pudo guardar el cambio.'); cargarReg(); });
+  };
   var INV = [];
   var drawInv = function () {
     var ed = function (i, k, v) { return '<input class="psx-in iv" type="number" min="0" data-i="' + i + '" data-k="' + k + '" value="' + v + '" style="max-width:80px">'; };
@@ -384,7 +460,7 @@
     }, 'Registrar ingreso');
   };
   $('bGD').onclick = function () {
-    var f = [['N°', 'Alumno/a', 'Curso', 'Artículo', 'Firma']];
+    var f = [['N°', '@V.Persona', 'Curso', 'Artículo', 'Firma']];
     ENT.filter(function (e) { return e[3]; }).forEach(function (e, i) { f.push([i + 1, e[0], e[1], e[2], '']); });
     guia('Guía de despacho', 'Entrega de beneficios pro-retención ' + ANIO, f, false,
       '<div>Retira: ______________________</div><div>RUT: ______________</div><div>Parentesco: ____________</div>', ['Entrega (equipo psicosocial)', 'Firma de quien retira']);
@@ -395,16 +471,32 @@
     guia('Guía de ingreso', 'Ingreso de artículos a bodega', f, false, '<div>Proveedor / origen: ______________________</div><div>Documento asociado: ______________</div>', ['Recibe en bodega', 'Firma proveedor / responsable']);
   };
 
-  // ---- Agregar alumnos/as, importar planilla y pasar de año ----
+  // ---- Agregar @V.personas, importar planilla y pasar de año ----
   var rowA = function () { return '<tr><td><input class="psx-in an" placeholder="Nombre completo"></td><td><input class="psx-in ar" placeholder="RUT"></td><td><select class="psx-in ac">' + NIV.map(function (n) { return '<option>' + n + '</option>'; }).join('') + '</select></td><td><input class="psx-in af" type="date"></td><td><input class="psx-in ap" placeholder="Apoderado/a"></td><td><input class="psx-in ae" type="email" placeholder="correo@ejemplo.cl"></td></tr>'; };
-  $('bAdd').onclick = function () {
-    dlg('Agregar alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega una o varias alumnos/as; cada una queda en el curso elegido.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th><th>Apoderado/a</th><th>Correo apoderado/a</th></tr></thead><tbody id="aT">' + rowA() + rowA() + rowA() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button><div id="aR"></div>', function () {
+  // Paciente (organización que no es colegio): sin curso ni apoderado/a; con dirección, teléfono y correo propios
+  var rowP = function () { return '<tr><td><input class="psx-in an" placeholder="Nombre completo"></td><td><input class="psx-in ar" placeholder="RUT"></td><td><input class="psx-in af" type="date"></td><td><input class="psx-in ad" placeholder="Dirección"></td><td><input class="psx-in at" placeholder="+569..."></td><td><input class="psx-in am" type="email" placeholder="correo@empresa.cl"></td></tr>'; };
+  if (!ORG.col) $('bAdd').onclick = function () {
+    dlg('Agregar pacientes', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega uno o varios pacientes. Con su correo recibe los avisos de citación.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Nacimiento</th><th>Dirección</th><th>Teléfono</th><th>Correo</th></tr></thead><tbody id="aT">' + rowP() + rowP() + rowP() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button><div id="aR"></div>', function () {
+      var l = [];
+      document.querySelectorAll('#aT tr').forEach(function (tr) {
+        var nm = tr.querySelector('.an').value.trim();
+        if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), f: tr.querySelector('.af').value, d: tr.querySelector('.ad').value.trim(), t: tr.querySelector('.at').value.trim(), m: tr.querySelector('.am').value.trim() });
+      });
+      if (!l.length) { msg('Escribe al menos un paciente', 1); return false; }
+      var b = new URLSearchParams({ alumnosJson: JSON.stringify(l) }); b.append('__RequestVerificationToken', tok());
+      enviarAlumnos('/Psychosocial/AgregarAlumnos', b, 'aR');
+      return false;
+    }, 'Agregar');
+    $('aMas').onclick = function () { $('aT').insertAdjacentHTML('beforeend', rowP()); };
+  }
+  else $('bAdd').onclick = function () {
+    dlg('Agregar @V.personas', '<p class="psx-leg" style="margin:0 0 .5rem">Agrega una o varias @V.personas; cada una queda en el curso elegido.</p><table class="psx-t"><thead><tr><th>Nombre</th><th>RUT</th><th>Curso</th><th>Nacimiento</th><th>Apoderado/a</th><th>Correo apoderado/a</th></tr></thead><tbody id="aT">' + rowA() + rowA() + rowA() + '</tbody></table><button class="psx-btn" id="aMas" style="margin-top:.5rem">+ Fila</button><div id="aR"></div>', function () {
       var l = [];
       document.querySelectorAll('#aT tr').forEach(function (tr) {
         var nm = tr.querySelector('.an').value.trim();
         if (nm) l.push({ n: nm, r: tr.querySelector('.ar').value.trim(), c: tr.querySelector('.ac').value, f: tr.querySelector('.af').value, ap: tr.querySelector('.ap').value.trim(), ce: tr.querySelector('.ae').value.trim() });
       });
-      if (!l.length) { msg('Escribe al menos un alumno/a'); return false; }
+      if (!l.length) { msg('Escribe al menos un @V.persona'); return false; }
       var b = new URLSearchParams({ alumnosJson: JSON.stringify(l) }); b.append('__RequestVerificationToken', tok());
       enviarAlumnos('/Psychosocial/AgregarAlumnos', b, 'aR');
       return false;
@@ -412,7 +504,7 @@
     $('aMas').onclick = function () { $('aT').insertAdjacentHTML('beforeend', rowA()); };
   };
   $('bImp').onclick = function () {
-    dlg('Importar planilla de alumnos/as', '<p class="psx-leg" style="margin:0 0 .5rem">Columnas: Nombre, RUT, Curso, Fecha de nacimiento, Apoderado/a, Correo apoderado/a y Teléfono apoderado/a. Con el correo del apoderado/a se crea su cuenta y ahí le llegan los avisos. Cada alumno/a se asigna automáticamente a su curso.</p><input type="file" id="imF" accept=".csv,.xlsx" class="psx-in"><div style="margin:.5rem 0"><button class="psx-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div><label style="font-size:.8rem;display:block;margin-top:.4rem"><input type="checkbox" id="imCrear" checked> Crear los cursos que no existan</label><label style="font-size:.8rem;display:block"><input type="checkbox" id="imAct" checked> Actualizar alumnos/as que ya existen (por RUT)</label>', function () {
+    dlg('Importar planilla de @V.personas', '<p class="psx-leg" style="margin:0 0 .5rem">Columnas: Nombre, RUT, Curso, Fecha de nacimiento, Apoderado/a, Correo apoderado/a y Teléfono apoderado/a. Con el correo del apoderado/a se crea su cuenta y ahí le llegan los avisos. Cada @V.persona se asigna automáticamente a su curso.</p><input type="file" id="imF" accept=".csv,.xlsx" class="psx-in"><div style="margin:.5rem 0"><button class="psx-btn" id="imP">Descargar plantilla (CSV)</button></div><div id="imR"></div><label style="font-size:.8rem;display:block;margin-top:.4rem"><input type="checkbox" id="imCrear" checked> Crear los cursos que no existan</label><label style="font-size:.8rem;display:block"><input type="checkbox" id="imAct" checked> Actualizar @V.personas que ya existen (por RUT)</label>', function () {
       var f = $('imF').files[0];
       if (!f) { msg('Elige un archivo CSV primero'); return false; }
       if (!/\.csv$/i.test(f.name)) { msg('Por ahora la importación real solo lee CSV'); return false; }
@@ -420,10 +512,14 @@
       enviarAlumnos('/Psychosocial/ImportarAlumnos', fd, 'imR');
       return false;
     }, 'Importar');
-    $('imP').onclick = function () { descargar('plantilla_alumnas.csv', '\ufeffNombre;RUT;Curso;Fecha de nacimiento;Apoderado/a;Correo apoderado/a;Teléfono apoderado/a\nCamila Ramírez Soto;24.000.001-1;5° Básico;2015-03-14;Marta Soto Pérez;marta.soto@correo.cl;+56911112222\n'); };
+    if (!ORG.col) {
+      $('dgB').querySelector('.psx-leg').textContent = 'Columnas: Nombre, RUT, Fecha de nacimiento, Dirección, Teléfono y Correo. Solo Nombre y RUT son obligatorios. Con el correo el paciente recibe los avisos de citación.';
+      $('imCrear').parentNode.style.display = 'none';
+    }
+    $('imP').onclick = !ORG.col ? function () { descargar('plantilla_pacientes.csv', '\ufeffNombre;RUT;Fecha de nacimiento;Dirección;Teléfono;Correo\nCamila Ramírez Soto;24.000.001-1;1990-03-14;Av. Brasil 1234, Antofagasta;+56911112222;camila.ramirez@empresa.cl\n'); } : function () { descargar('plantilla_alumnas.csv', '\ufeffNombre;RUT;Curso;Fecha de nacimiento;Apoderado/a;Correo apoderado/a;Teléfono apoderado/a\nCamila Ramírez Soto;24.000.001-1;5° Básico;2015-03-14;Marta Soto Pérez;marta.soto@correo.cl;+56911112222\n'); };
     var show = function (cnt, tot, nota) {
       var rows = Object.keys(cnt).map(function (k) { return [k, cnt[k]]; });
-      $('imR').innerHTML = '<span class="psx-c ok">' + tot + ' alumnos/as detectadas en ' + rows.length + ' cursos</span>' + B(rows, Math.max.apply(null, rows.map(function (r) { return r[1]; }))) + (nota ? '<p class="psx-leg">' + nota + '</p>' : '');
+      $('imR').innerHTML = '<span class="psx-c ok">' + tot + ' @V.personas detectadas en ' + rows.length + ' cursos</span>' + B(rows, Math.max.apply(null, rows.map(function (r) { return r[1]; }))) + (nota ? '<p class="psx-leg">' + nota + '</p>' : '');
     };
     $('imF').onchange = function () {
       var f = this.files[0]; if (!f) return;
@@ -433,6 +529,7 @@
           var L = r.result.replace(/^\ufeff/, '').split(/\r?\n/).filter(Boolean), d = L[0].indexOf(';') > -1 ? ';' : ',';
           var ci = L[0].toLowerCase().split(d).findIndex(function (x) { return x.indexOf('curso') > -1; }), cnt = {};
           L.slice(1).forEach(function (l) { var k = (l.split(d)[ci] || 'Sin curso').trim(); cnt[k] = (cnt[k] || 0) + 1; });
+          if (!ORG.col) { $('imR').innerHTML = '<span class="psx-c ok">' + (L.length - 1) + ' pacientes detectados</span>'; return; }
           show(cnt, L.length - 1, 'Agrupado automáticamente por la columna Curso.');
         };
         r.readAsText(f, 'utf-8');
@@ -443,10 +540,10 @@
   };
   $('bYear').onclick = function () {
     var cnt = {}; cursos.forEach(function (x) { var k = x[0].replace(/ [A-Za-z]$/, ''); cnt[k] = (cnt[k] || 0) + x[1]; });
-    dlg('Pasar de año', '<p class="psx-leg" style="margin:0 0 .5rem">Cada curso sube al siguiente nivel y IV° Medio egresa. Corrige los números si no calzan: cuántos alumnos/as pasan desde cada curso y cuántos ingresan nuevos a 1° Básico. No se borra nada.</p>' +
-      T(['Curso actual', 'Alumnos/as que pasan', 'Pasan a'], NIV.map(function (n, i) {
+    dlg('Pasar de año', '<p class="psx-leg" style="margin:0 0 .5rem">Cada curso sube al siguiente nivel y IV° Medio egresa. Corrige los números si no calzan: cuántos @V.personas pasan desde cada curso y cuántos ingresan nuevos a 1° Básico. No se borra nada.</p>' +
+      T(['Curso actual', '@V.Personas que pasan', 'Pasan a'], NIV.map(function (n, i) {
         return [n, '<input class="psx-in yc" type="number" min="0" data-n="' + n + '" value="' + (cnt[n] || 0) + '" style="max-width:110px">', i < NIV.length - 1 ? NIV[i + 1] : c('Egresan', 'info')];
-      })) + '<label class="psx-f" style="margin-top:.6rem"><span>Ingreso nuevo a 1° Básico (alumnos/as)</span><input class="psx-in" id="yN" type="number" min="0" value="0" style="max-width:140px"></label>',
+      })) + '<label class="psx-f" style="margin-top:.6rem"><span>Ingreso nuevo a 1° Básico (@V.personas)</span><input class="psx-in" id="yN" type="number" min="0" value="0" style="max-width:140px"></label>',
       function () {
         var nuevo = {};
         NIV.forEach(function (n, i) { if (i < NIV.length - 1) nuevo[NIV[i + 1]] = +document.querySelector('.yc[data-n="' + n + '"]').value || 0; });
@@ -462,39 +559,19 @@
     if (h < new Date(h.getFullYear(), +p[1] - 1, +p[2])) a--;
     return a;
   };
-  var vSel = $('vCur'); vSel.innerHTML = curOpts;
+  var vSel = $('vCur'); vSel.innerHTML = opcCursos();
   var vRows = function () { var f = vSel.value; return VAC.filter(function (x) { return !f || x[1].indexOf(f) === 0; }); };
   var vFila = function (x, i) { return [i + 1, x[0], x[1], x[2], x[3] ? x[3].split('-').reverse().join('-') : '—', x[3] ? edad(x[3]) + ' años' : '—']; };
   var VH = ['N°', 'Nombre completo', 'Curso', 'RUT', 'Fecha de nacimiento', 'Edad'];
-  var drawVac = function () { var r = vRows(); $('tVac').innerHTML = T(VH, r.map(vFila)); $('vN').textContent = r.length + ' alumnos/as'; };
+  var drawVac = function () { var r = vRows(); $('tVac').innerHTML = T(VH, r.map(vFila)); $('vN').textContent = r.length + ' @V.personas'; };
   vSel.onchange = drawVac; drawVac();
   $('vPrn').onclick = function () { guia('Listado para vacunación', 'Curso: ' + (vSel.value || 'Todos'), [VH].concat(vRows().map(vFila)), true); };
   $('vCsv').onclick = function () {
     descargar('vacunacion.csv', '\ufeff' + VH.join(';') + '\n' + vRows().map(function (x, i) { return vFila(x, i).join(';'); }).join('\n'));
   };
 
-  // ---- Generar correlativo: queda en el listado y, si es judicial, también en Casos judicializados ----
-  $('bCor').onclick = function () {
-    dlg('Generar correlativo de informe', '<label class="psx-f"><span>Alumno/a</span><input class="psx-in" id="cA" list="cL" placeholder="Nombre"><datalist id="cL">' + alu.map(function (a) { return '<option>' + a[0]; }).join('') + '</datalist></label>' +
-      '<div class="psx-find-row" style="margin-top:.6rem"><label class="psx-f" style="flex:1"><span>Tipo de informe</span><select class="psx-in" id="cT"><option>Judicial (tribunal)</option><option>Escolar</option><option>Derivación a red de salud</option><option>Otro</option></select></label>' +
-      '<label class="psx-f" style="flex:1"><span>Destinatario</span><input class="psx-in" id="cD"></label></div>' +
-      '<label class="psx-f" style="margin-top:.6rem"><span>Detalle</span><textarea class="psx-in" id="cX" rows="3"></textarea></label>' +
-      '<p class="psx-leg">Se asigna <b>FEMAR-' + sigCor + '-2026</b>. Si es judicial, también queda en Casos judicializados.</p>', function () {
-        var nom = $('cA').value.trim(); if (!nom) return false;
-        var f = new Date(), fs = String(f.getDate()).padStart(2, '0') + '-' + String(f.getMonth() + 1).padStart(2, '0'), ord = 'FEMAR-' + sigCor + '-2026';
-        COR.unshift([sigCor, ord, fs]);
-        if ($('cT').value.indexOf('Judicial') === 0) {
-          var a = alu.filter(function (x) { return x[0].toLowerCase() === nom.toLowerCase(); })[0];
-          var ya = JUD.filter(function (r) { return r[0].toLowerCase() === nom.toLowerCase(); })[0];
-          if (ya) { ya[2] = ya[2] + ' · ' + ord; ya[4] = c('Enviado', 'ok'); }
-          else JUD.unshift([nom, a ? a[1] : '—', 'Informe ' + ord, c('Sin RIT', 'bad'), c('Enviado', 'ok'), c('Pendiente', 'warn'), 'Por definir']);
-          drawJud();
-        }
-        sigCor++; drawCor();
-        document.dispatchEvent(new CustomEvent('psx-informe', { detail: { ord: ord } }));
-        msg('Correlativo ' + ord + ' generado');
-      }, 'Generar');
-  };
+  // ---- Generar correlativo: abre "Nuevo registro" en la ficha Informe evacuado (el N° lo asigna el servidor) ----
+  $('bCor').onclick = function () { openM(null, 'inf'); };
 
   // ---- Conexión con el servidor: sets e inventario compartidos por el equipo ----
   var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
@@ -516,7 +593,7 @@
     if (!document.hidden && !$('dgOv').classList.contains('on') && !ed) cargarBen();
   }, 30000);
 
-  // ---- Listado real de alumnos/as matriculados ----
+  // ---- Listado real de @V.personas matriculados ----
   var ROS = null, ROSerr = '';
   var ordenCurso = function (c) { var i = NIV.indexOf(c.replace(/ [A-Za-z]$/, '')); return i < 0 ? 99 : i; };
   var llenarRos = function () {
@@ -529,10 +606,10 @@
   var drawRos = function () {
     if (ROS === 'error') { $('tRos').innerHTML = '<p class="psx-leg" style="color:#b42323">No se pudo cargar el listado (' + ROSerr + '). Abre la consola del navegador (F12) y revisa la pestaña Network.</p>'; return; }
     if (!ROS) return;
-    if (!ROS.length) { $('rN').textContent = '0'; $('tRos').innerHTML = '<p class="psx-leg">Aún no hay alumnos/as cargados. Usa «Importar planilla» o «+ Agregar alumnos/as».</p>'; return; }
+    if (!ROS.length) { $('rN').textContent = '0'; $('tRos').innerHTML = '<p class="psx-leg">Aún no hay @V.personas cargados. Usa «Importar planilla» o «+ Agregar @V.personas».</p>'; return; }
     var f = $('rCur').value, q = $('rTxt').value.trim().toLowerCase();
     var r = ROS.filter(function (a) { return (!f || a.c === f) && (!q || (a.n + ' ' + a.r).toLowerCase().indexOf(q) > -1); });
-    $('rN').textContent = r.length + ' de ' + ROS.length + ' alumnos/as';
+    $('rN').textContent = r.length + ' de ' + ROS.length + ' @V.personas';
     $('tRos').innerHTML = T(['N°', 'Nombre', 'RUT', 'Curso', 'Nacimiento', 'Edad', 'Ficha'], r.slice(0, 100).map(function (a, i) {
       return [i + 1, '<a href="#" class="ros-a" data-id="' + a.id + '" style="font-weight:600;color:#0d6efd;text-decoration:none">' + esc(a.n) + '</a>', a.r, a.c, a.f ? a.f.split('-').reverse().join('-') : '—', a.f ? edad(a.f) + ' años' : '—',
         '<button class="psx-btn ros-a" data-id="' + a.id + '">Abrir ficha</button>'];
@@ -540,14 +617,15 @@
   };
   $('rCur').onchange = drawRos; $('rTxt').oninput = drawRos;
 
-  // ---- Ficha confidencial del alumno/a (pide la segunda clave) ----
+  // ---- Ficha confidencial del @V.persona (pide la segunda clave) ----
   var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var fichaId = 0;
   var abrirFicha = function (id) {
     fichaId = id;
-    dlg('Ficha del alumno/a', '<div id="fiB"><p class="psx-leg">Cargando…</p></div>', function () {}, 'Cerrar');
+    dlg('Ficha del @V.persona', '<div id="fiB"><p class="psx-leg">Cargando…</p></div>', function () {}, 'Cerrar');
     cargarFicha();
   };
+  window.psxAbrirFicha = function (id) { abrirFicha(id); };   // lo usa el panel (alertas)
   var cargarFicha = function () {
     fetch('/Psychosocial/Expediente/' + fichaId, { credentials: 'same-origin' })
       .then(function (r) { if (r.status === 403) throw 'bloqueada'; if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -584,16 +662,37 @@
       return '<div class="psx-note"><div class="psx-leg" style="margin:0">' + new Date(x.f).toLocaleString('es-CL') + ' · ' + esc(x.a) + (x.m ? ' · editada' : '') + '</div>' +
         '<div id="bt' + x.id + '" style="white-space:pre-wrap;margin:.25rem 0">' + esc(x.t) + '</div><button class="psx-btn" data-ed="' + x.id + '">Editar</button></div>';
     }).join('') || '<p class="psx-leg">Sin anotaciones todavía.</p>';
-    $('fiB').innerHTML = '<div><b style="font-size:1.05rem">' + esc(f.n) + '</b><div class="psx-leg">' + esc(f.c) + ' · RUT ' + esc(f.r) +
-      (f.f ? ' · Nacimiento ' + f.f.split('-').reverse().join('-') + ' (' + edad(f.f) + ' años)' : '') + '</div></div>' +
+    var cont = [f.d ? '📍 ' + esc(f.d) : '', f.t ? '📞 ' + esc(f.t) : '', f.m ? '✉️ ' + esc(f.m) : ''].filter(Boolean).join(' · ');
+    $('fiB').innerHTML = '<div><b style="font-size:1.05rem">' + esc(f.n) + '</b><div class="psx-leg">' + (f.c ? esc(f.c) + ' · ' : '') + 'RUT ' + esc(f.r) +
+      (f.f ? ' · Nacimiento ' + f.f.split('-').reverse().join('-') + ' (' + edad(f.f) + ' años)' : '') + '</div>' + (cont ? '<div class="psx-leg" style="margin-top:.15rem">' + cont + '</div>' : '') + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin:.9rem 0 .4rem"><h6 style="margin:0">Registros de la planilla</h6><button class="psx-btn p" id="fiNew">+ Nuevo registro</button></div>' +
+      '<div id="fiReg">' + fichaRegistros(f.reg || []) + '</div>' +
+      '<h6 style="margin:.9rem 0 .4rem">Citaciones y asistencia</h6><div id="fiCit">' + fichaCitaciones(f.cit || [], f.hoy || new Date().toISOString().slice(0, 10)) + '</div>' +
       '<h6 style="margin:.9rem 0 .4rem">Bitácora confidencial</h6><textarea class="psx-in" id="fiT" rows="3" placeholder="Nueva anotación…"></textarea>' +
       '<button class="psx-btn p" id="fiAdd" style="margin:.4rem 0">Agregar anotación</button><div id="fiL">' + lista + '</div>' +
-      '<h6 style="margin:.9rem 0 .4rem">Anotaciones de conducta</h6><p class="psx-leg" style="margin:0 0 .4rem">Las ven profesores/as y apoderados/as, como cualquier anotación del libro de clases.</p>' +
+      (ORG.col ? '' : '<div style="display:none">') + '<h6 style="margin:.9rem 0 .4rem">Anotaciones de conducta</h6><p class="psx-leg" style="margin:0 0 .4rem">Las ven profesores/as y apoderados/as, como cualquier anotación del libro de clases.</p>' +
       '<div class="psx-find-row"><select class="psx-in" id="anT" style="max-width:150px"><option value="1">Positiva</option><option value="2">Negativa</option></select><input class="psx-in" id="anD" placeholder="Detalle de la anotación" maxlength="500"></div>' +
-      '<button class="psx-btn p" id="anAdd" style="margin:.4rem 0">Registrar anotación</button><div id="anL"></div>' +
-      '<h6 style="margin:.9rem 0 .4rem">Cuenta del alumno/a</h6><p class="psx-leg">Usuario: ' + esc(f.email) + '. La clave de ingreso se guarda cifrada y no se puede ver; si se perdió, genera una nueva provisoria.</p>' +
+      '<button class="psx-btn p" id="anAdd" style="margin:.4rem 0">Registrar anotación</button><div id="anL"></div>' + (ORG.col ? '' : '</div>') +
+      '<h6 style="margin:.9rem 0 .4rem">Cuenta del @V.persona</h6><p class="psx-leg">Usuario: ' + esc(f.email) + '. La clave de ingreso se guarda cifrada y no se puede ver; si se perdió, genera una nueva provisoria.</p>' +
       '<button class="psx-btn" id="fiRes">Generar nueva clave provisoria</button><div id="fiC"></div>';
     cargarAnot(f.id);
+    $('fiNew').onclick = function () { dgClose(); openM(byRut(f.r) || [f.n, f.c, f.r, null, f.id]); };
+    $('fiReg').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      var buscar = function (id) { return (f.reg || []).filter(function (r) { return r.id === +id; })[0]; };
+      if (b.hasAttribute('data-rged')) editarRegistro(buscar(b.getAttribute('data-rged')));
+      else if (b.hasAttribute('data-rgdel')) eliminarRegistro(buscar(b.getAttribute('data-rgdel')));
+      else if (b.hasAttribute('data-rgsv')) guardarEdicion(+b.getAttribute('data-rgsv'));
+      else if (b.hasAttribute('data-rgno')) $('fiReg').innerHTML = fichaRegistros(f.reg || []);
+    };
+    $('fiCit').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      var id = b.getAttribute('data-asi') || b.getAttribute('data-noa'); if (!id) return;
+      b.disabled = true;
+      post('/Psychosocial/MarcarAsistencia', { id: id, asistio: b.hasAttribute('data-asi') })
+        .then(function () { msg('Asistencia registrada', 1); cargarFicha(); document.dispatchEvent(new CustomEvent('psx-alumnos')); })
+        .catch(function (er) { b.disabled = false; alert(er.message); });
+    };
     $('anAdd').onclick = function () {
       post('/Psychosocial/CrearAnotacion', { estudianteId: f.id, tipo: $('anT').value, detalle: $('anD').value })
         .then(function () { $('anD').value = ''; cargarAnot(f.id); msg('Anotación registrada', 1); })
@@ -620,6 +719,137 @@
     };
   };
   $('tRos').onclick = function (e) { var a = e.target.closest('.ros-a'); if (a) { e.preventDefault(); abrirFicha(+a.getAttribute('data-id')); } };
+  $('tSeg').onclick = $('tRos').onclick;
+
+  // Lista de registros dentro de la ficha (lo más nuevo arriba)
+  var fichaRegistros = function (l) {
+    if (!l.length) return '<p class="psx-leg">Sin registros todavía. Usa «+ Nuevo registro» para agregar seguimiento, derivaciones, visitas, etc.</p>';
+    return l.map(function (r) {
+      return '<div class="psx-note psx-reg" id="rg' + r.id + '"><div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center"><div class="psx-leg" style="margin:0">' + c(esc(r.nk), 'info') + ' ' + new Date(r.f).toLocaleDateString('es-CL') + '</div>' +
+        '<div style="display:flex;gap:.3rem"><button class="psx-btn" data-rged="' + r.id + '">Editar</button><button class="psx-btn" data-rgdel="' + r.id + '" style="color:#b42323">Eliminar</button></div></div>' +
+        Object.keys(r.d).map(function (k) { return '<div style="margin-top:.2rem"><b style="font-size:.74rem;color:var(--mut);text-transform:uppercase">' + esc(k) + ':</b> <span style="white-space:pre-wrap">' + esc(r.d[k]) + '</span></div>'; }).join('') + '</div>';
+    }).join('');
+  };
+
+  // Edita un registro dentro de la misma ficha (mismos campos que "+ Nuevo registro", ya llenos)
+  var editarRegistro = function (r) {
+    var def = FALL.filter(function (x) { return x.k === r.k; })[0];
+    var campos = def ? def.f : Object.keys(r.d).map(function (k) { return [k, 'a']; });
+    var caja = $('rg' + r.id);
+    caja.innerHTML = '<div class="psx-leg" style="margin:0 0 .3rem">' + c('Editando: ' + esc(r.nk), 'warn') + '</div><div class="psx-fgrid">' + campos.map(fld).join('') + '</div>' +
+      '<div style="display:flex;gap:.4rem;margin-top:.5rem"><button class="psx-btn p" data-rgsv="' + r.id + '">Guardar cambios</button><button class="psx-btn" data-rgno="1">Cancelar</button></div>';
+    var ins = caja.querySelectorAll('.psx-fgrid .psx-in');
+    campos.forEach(function (f, i) {
+      var v = r.d[f[0]];
+      if (!ins[i]) return;
+      if (ins[i].readOnly) { ins[i].value = v || ins[i].value; return; }
+      if (v === undefined) return;
+      if (ins[i].tagName === 'SELECT' && !Array.prototype.some.call(ins[i].options, function (o) { return o.text === v; })) ins[i].insertAdjacentHTML('beforeend', '<option>' + esc(v) + '</option>');
+      ins[i].value = v;
+    });
+    caja.psxCampos = campos;
+  };
+  var guardarEdicion = function (id) {
+    var caja = $('rg' + id), ins = caja.querySelectorAll('.psx-fgrid .psx-in'), datos = {};
+    caja.psxCampos.forEach(function (f, i) { if (ins[i] && !ins[i].readOnly) datos[f[0]] = ins[i].value; });
+    post('/Psychosocial/EditarRegistro', { id: id, datosJson: JSON.stringify(datos) })
+      .then(function () { msg('Registro actualizado', 1); cargarFicha(); cargarReg(); })
+      .catch(function (e) { alert('No se pudo guardar: ' + e.message); });
+  };
+  var eliminarRegistro = function (r) {
+    if (!confirm('¿Eliminar el registro «' + r.nk + '» del ' + new Date(r.f).toLocaleDateString('es-CL') + '?\n\nDeja de verse en la ficha y en las pestañas de la planilla. Queda guardado en el historial de la base de datos.')) return;
+    post('/Psychosocial/EliminarRegistro', { id: r.id })
+      .then(function () { msg('Registro eliminado', 1); cargarFicha(); cargarReg(); })
+      .catch(function (e) { alert('No se pudo eliminar: ' + e.message); });
+  };
+
+  // ---- Citaciones dentro de la ficha: marcar si asistió ----
+  var ESTCIT = { 0: ['Por confirmar', 'warn'], 1: ['Confirmada', 'info'], 2: ['Asistió', 'ok'], 3: ['Cancelada', 'nil'], 4: ['No asistió', 'bad'] };
+  var fichaCitaciones = function (l, hoy) {
+    if (!l.length) return '<p class="psx-leg">Sin citaciones. Usa «Solicitar citación» en el panel para agendar una.</p>';
+    var ult = l.filter(function (x) { return x.e === 2; })[0];
+    var dias = ult ? Math.round((new Date(hoy) - new Date(ult.f)) / 864e5) : null;
+    return (dias != null ? '<p class="psx-leg" style="margin:0 0 .4rem">Última asistencia: hace <b>' + dias + '</b> día' + (dias === 1 ? '' : 's') + (dias > 60 ? ' ' + c('Sin venir hace más de 60 días', 'bad') : '') + '</p>' : '') +
+      l.map(function (x) {
+        var e = ESTCIT[x.e] || ['—', 'nil'], marcable = x.f <= hoy && (x.e === 0 || x.e === 1);
+        return '<div class="psx-note" style="display:flex;justify-content:space-between;gap:.6rem;align-items:center;flex-wrap:wrap"><div><b>' + x.f.split('-').reverse().join('-') + (x.h ? ' · ' + x.h : '') + '</b> ' + c(e[0], e[1]) +
+          '<div class="psx-leg" style="margin:.15rem 0 0">Se cita a: ' + esc(x.a) + ' · ' + esc(x.m) + '</div></div>' +
+          (marcable ? '<div style="display:flex;gap:.3rem"><button class="psx-btn p" data-asi="' + x.id + '">✓ Asistió</button><button class="psx-btn" data-noa="' + x.id + '">✗ No asistió</button></div>' : '') + '</div>';
+      }).join('');
+  };
+
+  // ---- Registros reales de la planilla: llenan Resumen, Seguimiento, Judicial, Derivaciones, Terreno, Beneficios y Egresos ----
+  var REG = [];
+  var g = function (r, k) { return r.d[k] || ''; };
+  var fechaCL = function (v) { return v ? v.split('-').reverse().join('-') : '—'; };
+  var estadoChip = function (v) { return !v ? '—' : c(esc(v), /enviado|ok|logrado|entregado|procede$/i.test(v) && !/no procede/i.test(v) ? 'ok' : /pendiente|por iniciar|monitoreo/i.test(v) ? 'warn' : 'nil'); };
+  var dibujarRegistros = function () {
+    var de = function (k) { return REG.filter(function (r) { return r.k === k; }); };
+
+    // Seguimiento: una fila por @V.persona con los 10 meses (Mar a Dic)
+    var porAl = {};
+    de('seg').slice().reverse().forEach(function (r) {   // de más antiguo a más nuevo: el último gana
+      var x = porAl[r.eid] || (porAl[r.eid] = [r.n, r.c, '', [0,0,0,0,0,0,0,0,0,0], null, r.eid]);
+      var m = MES.indexOf(g(r, 'Mes')); if (m > -1) x[3][m] = 2;
+      if (g(r, 'Objetivo / acuerdo')) x[2] = g(r, 'Objetivo / acuerdo');
+      if (g(r, 'Asistencia (%)') !== '') x[4] = +g(r, 'Asistencia (%)');
+    });
+    seg = Object.keys(porAl).map(function (k) { return porAl[k]; }).sort(function (a, b) { return ordenCurso(a[1]) - ordenCurso(b[1]) || (a[0] < b[0] ? -1 : 1); });
+    drawSeg();
+
+    // Resumen
+    var cnt = {}; seg.forEach(function (x) { cnt[x[1]] = (cnt[x[1]] || 0) + 1; });
+    var rc = Object.keys(cnt).sort(function (a, b) { return ordenCurso(a) - ordenCurso(b); }).map(function (k) { return [k, cnt[k]]; });
+    $('gCur').innerHTML = rc.length ? B(rc, Math.max.apply(null, rc.map(function (x) { return x[1]; }))) : '<p class="psx-leg">Aún no hay seguimientos registrados.</p>';
+    var jud = de('jud');
+    var cuenta = function (l, k) { var o = {}; l.forEach(function (r) { var v = g(r, k) || 'Sin dato'; o[v] = (o[v] || 0) + 1; }); return Object.keys(o).map(function (x) { return [x, o[x]]; }); };
+    var inf = cuenta(jud, 'Informe de julio'), per = cuenta(jud, 'Periodicidad');
+    $('gInf').innerHTML = inf.length ? B(inf, Math.max.apply(null, inf.map(function (x) { return x[1]; }))) : '<p class="psx-leg">Sin casos judicializados.</p>';
+    $('gPer').innerHTML = per.length ? B(per, Math.max.apply(null, per.map(function (x) { return x[1]; }))) : '<p class="psx-leg">—</p>';
+    var as = seg.filter(function (x) { return x[4] != null; }).map(function (x) { return [x[0], x[4]]; }).sort(function (a, b) { return a[1] - b[1]; }).slice(0, 10);
+    $('gAs').innerHTML = as.length ? as.map(function (x) { return '<div class="psx-row"><em style="width:auto;flex:1">' + esc(x[0]) + '</em>' + asis(x[1]) + '</div>'; }).join('') : '<p class="psx-leg">Sin asistencia registrada.</p>';
+
+    // Judicial y correlativo
+    $('tJud').innerHTML = T(['@V.Persona','Curso','Origen','RIT','Informe jul','Informe dic','Periodicidad'], jud.map(function (r) {
+      return [esc(r.n), esc(r.c), esc(g(r, 'Origen de la causa')), g(r, 'RIT de la causa') ? esc(g(r, 'RIT de la causa')) : c('Sin RIT', 'bad'), estadoChip(g(r, 'Informe de julio')), estadoChip(g(r, 'Informe de diciembre')), esc(g(r, 'Periodicidad'))];
+    }));
+    var infs = de('inf');
+    $('tCor').innerHTML = T(['N°','@V.Persona','Fecha'], infs.map(function (r) { return [esc(g(r, 'N° correlativo')), esc(r.n), fechaCL(g(r, 'Fecha')) !== '—' ? fechaCL(g(r, 'Fecha')) : new Date(r.f).toLocaleDateString('es-CL')]; }));
+    fetch('/Psychosocial/SiguienteCorrelativo', { credentials: 'same-origin' }).then(function (x) { return x.json(); }).then(function (j) { $('corNext').textContent = j.n; }).catch(function () {});
+
+    // Derivaciones, terreno y egresos
+    $('tCon').innerHTML = T(['Fecha','@V.Persona','Curso','Entrevista apoderada','Intervención','Mediación / acciones','Situación'], de('conv').map(function (r) {
+      return [fechaCL(g(r, 'Fecha')), esc(r.n), esc(r.c), esc(g(r, 'Entrevista con apoderada')), esc(g(r, 'Intervención con @V.persona')), esc(g(r, 'Mediación / acciones')), estadoChip(g(r, 'Situación actual'))];
+    }));
+    $('tTut').innerHTML = T(['Curso','Estudiante','Profesor tutor','Objetivo / acuerdo','Estado'], de('tut').map(function (r) {
+      return [esc(r.c), esc(r.n), esc(g(r, 'Profesor tutor')), esc(g(r, 'Objetivos / acuerdos')), estadoChip(g(r, 'Estado'))];
+    }));
+    $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], de('vd').map(function (r) {
+      return [fechaCL(g(r, 'Fecha')), esc(r.n), esc(g(r, 'Dirección')), esc(g(r, 'Jornada')), esc(g(r, 'Responsable')), estadoChip(g(r, 'Pago'))];
+    }));
+    $('tEgr').innerHTML = T(['@V.Persona','Curso','Motivo','Fecha'], de('egr').map(function (r) { return [esc(r.n), esc(r.c), esc(g(r, 'Motivo')), fechaCL(g(r, 'Fecha'))]; }));
+
+    // Plan de acción (kanban por estado; queda el plan más reciente de cada @V.persona)
+    var ult = {}; de('plan').forEach(function (r) { if (!ult[r.eid]) ult[r.eid] = r; });
+    var planes = Object.keys(ult).map(function (k) { return ult[k]; });
+    $('kan').innerHTML = ['Por iniciar', 'En curso', 'Logrado'].map(function (col) {
+      var l = planes.filter(function (r) { return (g(r, 'Estado de objetivos') || 'Por iniciar') === col; });
+      return '<div class="psx-col"><h6>' + col + ' (' + l.length + ')</h6>' + (l.length ? l.map(function (r) {
+        return '<div class="psx-note ros-a" data-id="' + r.eid + '" style="cursor:pointer"><b>' + esc(r.n) + '</b><div class="psx-leg" style="margin:0">' + esc(r.c) + '</div><div>' + esc(g(r, 'Objetivos de intervención')) + '</div></div>';
+      }).join('') : '<div class="psx-leg">Sin estudiantes.</div>') + '</div>';
+    }).join('');
+
+    // Beneficios: entrega por @V.persona
+    ENT = de('pro').map(function (r) { return [r.n, r.c, (g(r, 'Beneficio') + ' ' + g(r, 'Año')).trim(), g(r, 'Estado') === 'Entregado' ? 1 : 0, r.id]; });
+    drawEnt();
+  };
+  $('kan').onclick = $('tRos').onclick;
+  var cargarReg = function () {
+    return fetch('/Psychosocial/Registros', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (l) { REG = l; dibujarRegistros(); document.dispatchEvent(new CustomEvent('psx-registros', { detail: REG })); })
+      .catch(function () { /* sin conexión: se mantiene lo que se ve */ });
+  };
 
   var resultadoAlu = function (j, cont) {
     var h = '<div style="margin-top:.6rem"><span class="psx-c ok">' + j.creados + ' creados</span> <span class="psx-c info">' + j.actualizados + ' actualizados</span> ' + (j.apoderados ? '<span class="psx-c ok">' + j.apoderados + ' apoderados/as creados/as</span> ' : '') +
@@ -633,7 +863,7 @@
     };
     msg(j.creados + ' creados, ' + j.actualizados + ' actualizados' + (j.totalErrores ? ', ' + j.totalErrores + ' con error' : ''), 1);
     $('dgOk').textContent = 'Cerrar';
-    dgOk = function () { var t = Array.prototype.filter.call(document.querySelectorAll('.psx-tab'), function (b) { return b.textContent === 'Alumnos/as'; })[0]; if (t) t.click(); };
+    dgOk = function () { var t = Array.prototype.filter.call(document.querySelectorAll('.psx-tab'), function (b) { return b.textContent === '@V.Personas'; })[0]; if (t) t.click(); };
     cargarAlu();
   };
   var enviarAlumnos = function (url, cuerpo, cont) {
@@ -651,31 +881,37 @@
         ROS = l; llenarRos();
         var cnt = {}; l.forEach(function (a) { cnt[a.c] = (cnt[a.c] || 0) + 1; });
         cursos = Object.keys(cnt).sort(function (x, y) { return ordenCurso(x) - ordenCurso(y) || (x < y ? -1 : 1); }).map(function (k) { return [k, cnt[k]]; });
-        $('gCur').innerHTML = B(cursos, Math.max.apply(null, cursos.map(function (x) { return x[1]; })) || 1);
-        alu = l.map(function (a) { return [a.n, a.c, a.r, null]; });
+        alu = l.map(function (a) { return [a.n, a.c, a.r, null, a.id]; });
         VAC = l.map(function (a) { return [a.n, a.c, a.r, a.f]; });
-        var v1 = sel.value, v2 = vSel.value, v3 = $('sCur').value;
-        sel.innerHTML = opcCursos(); sel.value = v1; vSel.innerHTML = opcCursos(); vSel.value = v2; $('sCur').innerHTML = opcCursos(); $('sCur').value = v3;
-        drawSeg(); drawVac(); if ($('sTxt').oninput) $('sTxt').oninput();
+        var v1 = sel.value, v2 = vSel.value;
+        sel.innerHTML = opcCursos(); sel.value = v1; vSel.innerHTML = opcCursos(); vSel.value = v2;
+        drawVac(); if ($('sCur').psxRefresh) $('sCur').psxRefresh();
+        cargarReg();
         document.dispatchEvent(new CustomEvent('psx-alumnos'));
       }).catch(function (e) { ROS = 'error'; ROSerr = e.message; drawRos(); });
   };
   cargarAlu();
 
-  // ---- Claves provisorias nuevas para alumnos/as que aún no cambian la suya ----
+  // ---- Claves provisorias nuevas para @V.personas que aún no cambian la suya ----
   $('rClaves').onclick = function () {
     var f = $('rCur').value;
-    if (!confirm('Se generarán claves provisorias nuevas para los alumnos/as' + (f ? ' de ' + f : '') + ' que aún no han cambiado la suya. Las anteriores dejan de servir. ¿Continuar?')) return;
+    if (!confirm('Se generarán claves provisorias nuevas para los @V.personas' + (f ? ' de ' + f : '') + ' que aún no han cambiado la suya. Las anteriores dejan de servir. ¿Continuar?')) return;
     post('/Psychosocial/RegenerarClavesAlumnos', { curso: f }).then(function (j) {
       if (!j.total) { msg('Todos ya cambiaron su clave', 1); return; }
       descargar('claves_provisorias.csv', '\ufeffRUT;Nombre;Correo;Clave provisoria\n' + j.credenciales.map(function (c) { return [c.rut, c.n, c.e, c.c].join(';'); }).join('\n'));
       msg(j.total + ' claves nuevas generadas', 1);
     }).catch(function (e) {
-      alert(String(e && e.message) === '403' ? 'Primero desbloquea tus fichas: abre la ficha de cualquier alumno/a e ingresa tu segunda clave.' : 'No se pudo completar (' + (e && e.message) + ').');
+      alert(String(e && e.message) === '403' ? 'Primero desbloquea tus fichas: abre la ficha de cualquier @V.persona e ingresa tu segunda clave.' : 'No se pudo completar (' + (e && e.message) + ').');
     });
   };
 
   var tabs = $('psxTabs'), panes = document.querySelectorAll('#psx .psx-pane');
+  if (!ORG.col) ['bYear', 'rCur', 'fCur'].forEach(function (id) { $(id).style.display = 'none'; });
+  panes = Array.prototype.filter.call(panes, function (p) {
+    var k = p.getAttribute('data-k');
+    if (k && ORG.pl.indexOf(k) < 0) return false;   // planilla no activa: queda oculta y sin pestaña
+    return true;
+  });
   panes.forEach(function (p, i) {
     var b = document.createElement('button');
     b.className = 'psx-tab' + (i ? '' : ' on'); b.textContent = p.getAttribute('data-p');

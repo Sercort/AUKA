@@ -1,10 +1,11 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Auka.Application.Interfaces;
 using Auka.Application.Services;
 using Auka.Infrastructure.Data;
 using Auka.Infrastructure.Repositories;
 using Auka.Web.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;   // TryGetValue / Set de IMemoryCache (aceptación de términos)
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,7 +88,9 @@ builder.Services.AddAuthorization(options =>
               .RequireClaim("PlanPsicosocial", "true"));
 });
 
-builder.Services.AddControllersWithViews();
+// OrganizacionFilter: cada vista sabe si la organización es colegio (alumnos/as) u otra (pacientes)
+builder.Services.AddScoped<Auka.Web.Services.OrganizacionFilter>();
+builder.Services.AddControllersWithViews(o => o.Filters.AddService<Auka.Web.Services.OrganizacionFilter>());
 
 var app = builder.Build();
 
@@ -110,8 +113,8 @@ app.UseAuthorization();
 //  - Equipo psicosocial (con el módulo activo) va siempre a su panel, no al Home institucional.
 //  - Plan Psicosocial (sin Premium): solo existen las secciones del módulo; todo lo demás se bloquea.
 var rolesPsicosociales = new[] { "Psicologo", "Psicopedagogo", "TrabajadorSocial", "Orientadora" };
-var rutasPlanPsicosocial = new[] { "/Administracion", "/Personal", "/Psychosocial", "/Notificaciones", "/Account", "/Home/Error" };
-var rutasFamilia = new[] { "/Portafolio", "/Notificaciones", "/Account", "/Home/Error" };
+var rutasPlanPsicosocial = new[] { "/Administracion", "/Personal", "/Psychosocial", "/Notificaciones", "/Account", "/Legal", "/Home/Error" };
+var rutasFamilia = new[] { "/Portafolio", "/Notificaciones", "/Account", "/Legal", "/Home/Error" };
 app.Use(async (context, next) =>
 {
     var ruta = context.Request.Path.Value ?? "/";
@@ -149,6 +152,40 @@ app.Use(async (context, next) =>
     {
         context.Response.Redirect("/Psychosocial");
         return;
+    }
+    await next();
+});
+
+// Ley 21.719: nadie usa AUKA sin aceptar la Política de privacidad y los Términos (se pide una vez por versión)
+app.Use(async (context, next) =>
+{
+    var ruta = context.Request.Path.Value ?? "/";
+    var user = context.User;
+    var esPagina = HttpMethods.IsGet(context.Request.Method) &&
+                   (context.Request.Headers.Accept.ToString().Contains("text/html") || string.IsNullOrEmpty(context.Request.Headers.Accept));
+    if (user.Identity?.IsAuthenticated != true || !esPagina ||
+        ruta.StartsWith("/Legal", StringComparison.OrdinalIgnoreCase) || ruta.StartsWith("/Account", StringComparison.OrdinalIgnoreCase))
+    {
+        await next();
+        return;
+    }
+
+    if (int.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid))
+    {
+        var cache = context.RequestServices.GetRequiredService<IMemoryCache>();
+        var llave = $"terminos:{uid}:{Auka.Web.Controllers.LegalController.Version}";
+        if (!cache.TryGetValue(llave, out bool acepto))
+        {
+            var db = context.RequestServices.GetRequiredService<Auka.Infrastructure.Data.ApplicationDbContext>();
+            acepto = await db.Usuarios.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(u => u.Id == uid && u.VersionTerminosAceptada == Auka.Web.Controllers.LegalController.Version);
+            if (acepto) cache.Set(llave, true, TimeSpan.FromHours(12));
+        }
+        if (!acepto)
+        {
+            context.Response.Redirect("/Legal/Aceptar?volver=" + Uri.EscapeDataString(ruta + context.Request.QueryString));
+            return;
+        }
     }
     await next();
 });

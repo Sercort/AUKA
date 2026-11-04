@@ -19,6 +19,14 @@ public class Colegio
     // true = Plan Psicosocial (solo el módulo psicosocial). false (por defecto) = Plan Premium, la plataforma completa.
     public bool SoloPsicosocial { get; set; } = false;
 
+    // ---- Globalización: Auka Psicosocial no es solo para colegios ----
+    // Colegio | Empresa | Instituto | Fundación | Particular. Fuera de "Colegio" se habla de pacientes y no hay cursos.
+    public string TipoOrganizacion { get; set; } = "Colegio";
+
+    // Planillas psicosociales activas, separadas por coma (seg,jud,der,vd,ben,vac,egr). null = todas.
+    // Las elige el dueño de la plataforma para cada organización.
+    public string? PlanillasActivas { get; set; }
+
     // ---- Datos comerciales (los ve solo el dueño de la plataforma) ----
     public string? ContactoNombre { get; set; }       // sostenedor/a o director/a que contrató
     public string? ContactoCorreo { get; set; }

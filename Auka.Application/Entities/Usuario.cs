@@ -48,4 +48,8 @@ public class Usuario
     public string? ClaveFichaHash { get; set; }
     public int ClaveFichaIntentos { get; set; } = 0;
     public DateTime? ClaveFichaBloqueadaHasta { get; set; }
+
+    // Ley 21.719: cuándo aceptó la Política de privacidad y los Términos, y qué versión
+    public DateTime? AceptoTerminosUtc { get; set; }
+    public string? VersionTerminosAceptada { get; set; }
 }

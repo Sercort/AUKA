@@ -53,6 +53,9 @@ public class PsychosocialController : Controller
         _notif = notif;
     }
 
+    // Tipo de organización de la sesión: colegio (alumnos/as, cursos) u otra (pacientes, sin curso)
+    private Task<DatosOrganizacion> OrgAsync() => OrganizacionFilter.ObtenerAsync(_context, _cache);
+
     // GET: /Psychosocial
     [HttpGet]
     public IActionResult Index()
@@ -93,10 +96,35 @@ public class PsychosocialController : Controller
             .Where(c => c.Fecha >= hoy && c.Estado == EstadoCitacion.Pendiente)
             .OrderBy(c => c.Fecha).ThenBy(c => c.Hora).Take(5).ToListAsync();
 
+        // Citaciones cuya fecha ya pasó y nadie marcó si asistió
+        var porMarcar = await _context.Citaciones.AsNoTracking()
+            .CountAsync(c => c.Fecha < hoy && (c.Estado == EstadoCitacion.Pendiente || c.Estado == EstadoCitacion.Confirmada));
+
+        // Inactivos: su última asistencia fue hace más de DiasInactividad días y no tienen una cita futura
+        var limite = hoy.AddDays(-DiasInactividad);
+        var ultimas = await _context.Citaciones.AsNoTracking()
+            .Where(c => c.Estado == EstadoCitacion.Realizada)
+            .GroupBy(c => c.EstudianteId)
+            .Select(g => new { id = g.Key, ultima = g.Max(c => c.Fecha) })
+            .Where(x => x.ultima < limite)
+            .ToListAsync();
+        var conCitaFutura = (await _context.Citaciones.AsNoTracking()
+            .Where(c => c.Fecha >= hoy && c.Estado != EstadoCitacion.Cancelada)
+            .Select(c => c.EstudianteId).Distinct().ToListAsync()).ToHashSet();
+        var idsInactivos = ultimas.Where(x => !conCitaFutura.Contains(x.id)).OrderBy(x => x.ultima).Take(8).ToList();
+        var idsLista = idsInactivos.Select(x => x.id).ToList();
+        var nombresIn = await _context.Estudiantes.AsNoTracking().Include(e => e.Usuario)
+            .Where(e => idsLista.Contains(e.Id) && e.Usuario != null && e.Usuario.Activo)
+            .ToDictionaryAsync(e => e.Id, e => $"{e.Usuario!.Nombre} {e.Usuario.Apellido}".Trim());
+
         return Json(new
         {
             alumnos = alumnos.Count,
             cursos = porCurso.Count,
+            porMarcar,
+            diasInactividad = DiasInactividad,
+            inactivos = idsInactivos.Where(x => nombresIn.ContainsKey(x.id))
+                .Select(x => new { id = x.id, n = nombresIn[x.id], d = hoy.DayNumber - x.ultima.DayNumber }),
             porCurso,
             citasSemana = semana.Count,
             citasSinConfirmar = semana.Count(x => x == EstadoCitacion.Pendiente),
@@ -165,7 +193,7 @@ public class PsychosocialController : Controller
     // CITACIONES (se guardan, quedan en el calendario y avisan por correo y por la plataforma)
     // ---------------------------------------------------------------
 
-    private static readonly string[] CitadosValidos = { "Alumno", "Apoderado", "Alumno + apoderado", "Profesor jefe" };
+    private static readonly string[] CitadosValidos = { "Alumno", "Apoderado", "Alumno + apoderado", "Profesor jefe", "Paciente" };
 
     // POST: /Psychosocial/CrearCitacion
     [HttpPost]
@@ -222,14 +250,15 @@ public class PsychosocialController : Controller
 
         // A quién se avisa
         var ids = new List<int>();
-        if (citadoA.Contains("Alumno")) ids.Add(est.UsuarioId);
+        if (citadoA.Contains("Alumno") || citadoA == "Paciente") ids.Add(est.UsuarioId);
         if (citadoA.Contains("Apoderado"))
             ids.AddRange(await _context.EstudiantesApoderados.Where(x => x.EstudianteId == est.Id && x.Apoderado != null)
                 .Select(x => x.Apoderado!.UsuarioId).ToListAsync());
         if (citadoA == "Profesor jefe" && est.Curso?.ProfesorJefeId != null) ids.Add(est.Curso.ProfesorJefeId.Value);
 
         var cuando = f.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) + (h.HasValue ? " a las " + h.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "");
-        var mensaje = $"Se solicita su presencia en el colegio el {cuando} para una citación con el equipo psicosocial, por {nombre}.\nMotivo: {motivo}\nPuede confirmar su asistencia desde AUKA.";
+        var lugar = (await OrgAsync()).V.EsColegio ? "en el colegio" : "";
+        var mensaje = $"Se solicita su presencia {lugar} el {cuando} para una citación con el equipo psicosocial, por {nombre}.\nMotivo: {motivo}\nPuede confirmar su asistencia desde AUKA.";
         var r = await _notif.NotificarAsync(ids, "Citación del equipo psicosocial", mensaje, "/Portafolio?estudianteId=" + est.Id);
 
         return Json(new
@@ -493,6 +522,7 @@ public class PsychosocialController : Controller
     [HttpGet]
     public async Task<IActionResult> Alumnos()
     {
+        var col = (await OrgAsync()).V.EsColegio;
         var lista = await _context.Estudiantes.AsNoTracking()
             .Include(e => e.Usuario).Include(e => e.Curso)
             .Where(e => e.Usuario != null && e.Usuario.Activo && e.Curso != null)
@@ -505,8 +535,11 @@ public class PsychosocialController : Controller
                 id = e.Id,
                 n = $"{e.Usuario!.Nombre} {e.Usuario.Apellido}".Trim(),
                 r = e.Usuario.Rut,
-                c = string.IsNullOrEmpty(e.Curso!.Letra) ? e.Curso.Nombre : $"{e.Curso.Nombre} {e.Curso.Letra}",
-                f = e.FechaNacimiento.HasValue ? e.FechaNacimiento.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : ""
+                c = col ? NombreCurso(e.Curso) : "",
+                f = e.FechaNacimiento.HasValue ? e.FechaNacimiento.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "",
+                d = e.Direccion ?? "",
+                t = e.Telefono ?? "",
+                m = e.CorreoContacto ?? ""
             }));
     }
 
@@ -534,16 +567,20 @@ public class PsychosocialController : Controller
         var cab = lineas[0].Split(sep).Select(h => h.Trim().Trim('"').ToLowerInvariant()).ToList();
         int Col(params string[] claves) => cab.FindIndex(h => claves.Any(k => h.StartsWith(k)));
         int iNom = Col("nombre"), iRut = Col("rut"), iCur = Col("curso"), iNac = Col("fecha", "nacimiento");
-        int iApo = Col("apoderado"), iCor = Col("correo"), iTel = Col("tel");
-        if (iNom < 0 || iRut < 0 || iCur < 0)
-            return BadRequest(new { error = "Faltan columnas obligatorias: Nombre, RUT y Curso." });
+        int iApo = Col("apoderado"), iCor = Col("correo"), iTel = Col("tel"), iDir = Col("direc", "domicilio");
+        var esColegio = (await OrgAsync()).V.EsColegio;
+        if (iNom < 0 || iRut < 0 || (esColegio && iCur < 0))
+            return BadRequest(new { error = esColegio ? "Faltan columnas obligatorias: Nombre, RUT y Curso." : "Faltan columnas obligatorias: Nombre y RUT." });
 
         string Celda(string[] p, int i) => i >= 0 && i < p.Length ? p[i].Trim().Trim('"').Trim() : "";
         var filas = new List<FilaAlumno>();
         for (var i = 1; i < lineas.Count; i++)
         {
             var p = lineas[i].Split(sep);
-            filas.Add(new FilaAlumno(i + 1, Celda(p, iNom), Celda(p, iRut), Celda(p, iCur), Celda(p, iNac), Celda(p, iApo), Celda(p, iCor), Celda(p, iTel)));
+            filas.Add(esColegio
+                ? new FilaAlumno(i + 1, Celda(p, iNom), Celda(p, iRut), Celda(p, iCur), Celda(p, iNac), Celda(p, iApo), Celda(p, iCor), Celda(p, iTel), Celda(p, iDir))
+                // Paciente: el correo y el teléfono son suyos (no de un apoderado/a)
+                : new FilaAlumno(i + 1, Celda(p, iNom), Celda(p, iRut), "", Celda(p, iNac), Direccion: Celda(p, iDir), Telefono: Celda(p, iTel), Correo: Celda(p, iCor)));
         }
 
         return Json(await ProcesarAlumnosAsync(filas, crearCursos, actualizar));
@@ -560,7 +597,8 @@ public class PsychosocialController : Controller
         if (lista == null || lista.Count == 0 || lista.Count > 200)
             return BadRequest(new { error = "Agrega entre 1 y 200 alumnos/as." });
 
-        var filas = lista.Select((a, i) => new FilaAlumno(i + 1, a.n?.Trim() ?? "", a.r?.Trim() ?? "", a.c?.Trim() ?? "", a.f, a.ap?.Trim(), a.ce?.Trim(), a.te?.Trim())).ToList();
+        var filas = lista.Select((a, i) => new FilaAlumno(i + 1, a.n?.Trim() ?? "", a.r?.Trim() ?? "", a.c?.Trim() ?? "", a.f, a.ap?.Trim(), a.ce?.Trim(), a.te?.Trim(),
+            a.d?.Trim(), a.t?.Trim(), a.m?.Trim())).ToList();
         return Json(await ProcesarAlumnosAsync(filas, true, true));
     }
 
@@ -656,13 +694,22 @@ public class PsychosocialController : Controller
         var autores = await _context.Usuarios.AsNoTracking().Where(u => autoresIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => $"{u.Nombre} {u.Apellido}".Trim());
 
+        var registros = await _context.RegistrosPsicosociales.AsNoTracking()
+            .Where(r => r.EstudianteId == id).OrderByDescending(r => r.FechaUtc).ToListAsync();
+        var esColegio = (await OrgAsync()).V.EsColegio;
+        var citaciones = await _context.Citaciones.AsNoTracking()
+            .Where(c => c.EstudianteId == id).OrderByDescending(c => c.Fecha).ThenByDescending(c => c.Hora).Take(30).ToListAsync();
+
         return Json(new
         {
             id = est.Id,
             n = $"{est.Usuario.Nombre} {est.Usuario.Apellido}".Trim(),
             r = est.Usuario.Rut,
-            c = string.IsNullOrEmpty(est.Curso.Letra) ? est.Curso.Nombre : $"{est.Curso.Nombre} {est.Curso.Letra}",
+            c = esColegio ? NombreCurso(est.Curso) : "",
             f = est.FechaNacimiento.HasValue ? est.FechaNacimiento.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "",
+            d = est.Direccion ?? "",
+            t = est.Telefono ?? "",
+            m = est.CorreoContacto ?? "",
             email = est.Usuario.Email,
             bit = bitacora.Select(b => new
             {
@@ -671,6 +718,17 @@ public class PsychosocialController : Controller
                 f = b.FechaAtencion.ToString("o", CultureInfo.InvariantCulture),
                 a = autores.GetValueOrDefault(b.ProfesionalId, "—"),
                 m = b.FechaUltimaModificacion.HasValue
+            }),
+            reg = registros.Select(r => ProyectarRegistro(r, esColegio)),
+            hoy = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            cit = citaciones.Select(c => new
+            {
+                id = c.Id,
+                f = c.Fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                h = c.Hora.HasValue ? c.Hora.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "",
+                a = c.CitadoA,
+                m = c.Motivo,
+                e = (int)c.Estado
             })
         });
     }
@@ -732,6 +790,7 @@ public class PsychosocialController : Controller
         var credenciales = new List<object>();
         int creados = 0, actualizados = 0, omitidos = 0, cursosCreados = 0;
         var anio = DateTime.Now.Year;
+        var esColegio = (await OrgAsync()).V.EsColegio;
 
         // El filtro multitenant limita todo esto al colegio de la sesión
         var cursos = await _context.Cursos.Where(c => c.AnioAcademico == anio).ToListAsync();
@@ -739,7 +798,7 @@ public class PsychosocialController : Controller
         var porRut = estudiantes.Where(e => e.Usuario != null)
             .GroupBy(e => NormalizarRut(e.Usuario!.Rut)).ToDictionary(g => g.Key, g => g.First());
         var correos = (await _context.Usuarios.IgnoreQueryFilters()
-            .Where(u => u.Email.EndsWith("@alumnos.auka.cl")).Select(u => u.Email).ToListAsync()).ToHashSet();
+            .Where(u => u.Email.EndsWith("@alumnos.auka.cl") || u.Email.EndsWith("@pacientes.auka.cl")).Select(u => u.Email).ToListAsync()).ToHashSet();
 
         var vistos = new HashSet<string>();
         var hasher = new PasswordHasher<string>();
@@ -810,17 +869,19 @@ public class PsychosocialController : Controller
             if (string.IsNullOrWhiteSpace(f.Nombre)) { errores.Add($"Fila {f.Linea}: falta el nombre."); continue; }
             if (!TryNormalizarRut(f.Rut, out var rutNorm, out var rutFmt)) { errores.Add($"Fila {f.Linea}: RUT inválido ({f.Rut})."); continue; }
             if (!vistos.Add(rutNorm)) { errores.Add($"Fila {f.Linea}: RUT repetido en el archivo ({rutFmt})."); continue; }
-            if (string.IsNullOrWhiteSpace(f.Curso)) { errores.Add($"Fila {f.Linea}: falta el curso."); continue; }
+            if (esColegio && string.IsNullOrWhiteSpace(f.Curso)) { errores.Add($"Fila {f.Linea}: falta el curso."); continue; }
+            if (!string.IsNullOrWhiteSpace(f.Correo) && !EsCorreo(f.Correo.Trim().ToLowerInvariant())) { errores.Add($"Fila {f.Linea}: correo inválido ({f.Correo})."); continue; }
             var nac = ParseFecha(f.Nacimiento);
             if (!string.IsNullOrWhiteSpace(f.Nacimiento) && nac == null) { errores.Add($"Fila {f.Linea}: fecha de nacimiento inválida ({f.Nacimiento})."); continue; }
 
-            var (nombreCurso, letra) = SepararCurso(f.Curso);
+            // Fuera de un colegio no hay cursos: todos los pacientes quedan en un grupo interno "Pacientes" que no se muestra
+            var (nombreCurso, letra) = esColegio ? SepararCurso(f.Curso) : ("Pacientes", "");
             var curso = cursos.FirstOrDefault(c =>
                 string.Equals(c.Nombre.Trim(), nombreCurso, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals((c.Letra ?? "").Trim(), letra, StringComparison.OrdinalIgnoreCase));
             if (curso == null)
             {
-                if (!crearCursos) { errores.Add($"Fila {f.Linea}: el curso «{f.Curso}» no existe."); continue; }
+                if (!crearCursos && esColegio) { errores.Add($"Fila {f.Linea}: el curso «{f.Curso}» no existe."); continue; }
                 curso = new Curso { Nombre = nombreCurso, Letra = letra, AnioAcademico = anio };
                 _context.Cursos.Add(curso);
                 cursos.Add(curso);
@@ -832,12 +893,22 @@ public class PsychosocialController : Controller
                 if (!actualizar) { omitidos++; continue; }
                 existente.Curso = curso;
                 if (nac != null) existente.FechaNacimiento = nac;
-                Vincular(existente, f, rutNorm);
+                if (!string.IsNullOrWhiteSpace(f.Direccion)) existente.Direccion = f.Direccion.Trim();
+                if (!string.IsNullOrWhiteSpace(f.Telefono)) existente.Telefono = f.Telefono.Trim();
+                if (!string.IsNullOrWhiteSpace(f.Correo)) existente.CorreoContacto = f.Correo.Trim().ToLowerInvariant();
+                if (esColegio) Vincular(existente, f, rutNorm);
                 actualizados++;
                 continue;
             }
 
-            var email = $"{rutNorm.ToLowerInvariant()}@alumnos.auka.cl";
+            var email = $"{rutNorm.ToLowerInvariant()}@{(esColegio ? "alumnos" : "pacientes")}.auka.cl";
+            // Paciente con correo propio: ese es su usuario (ahí le llegan las citaciones y la recuperación de clave)
+            if (!esColegio && !string.IsNullOrWhiteSpace(f.Correo))
+            {
+                var real = f.Correo.Trim().ToLowerInvariant();
+                if (!correos.Contains(real) && !await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == real))
+                    email = real;
+            }
             if (correos.Contains(email)) { errores.Add($"Fila {f.Linea}: el RUT {rutFmt} ya está registrado en otro colegio."); continue; }
 
             var (nombres, apellidos) = SepararNombre(f.Nombre);
@@ -858,11 +929,14 @@ public class PsychosocialController : Controller
                 Usuario = usuario,
                 Curso = curso,
                 FechaNacimiento = nac,
+                Direccion = string.IsNullOrWhiteSpace(f.Direccion) ? null : f.Direccion.Trim(),
+                Telefono = string.IsNullOrWhiteSpace(f.Telefono) ? null : f.Telefono.Trim(),
+                CorreoContacto = string.IsNullOrWhiteSpace(f.Correo) ? null : f.Correo.Trim().ToLowerInvariant(),
                 TipoMatricula = TipoMatricula.Nuevo,
                 FechaMatricula = DateTime.UtcNow
             };
             _context.Estudiantes.Add(nuevoEst);
-            Vincular(nuevoEst, f, rutNorm);
+            if (esColegio) Vincular(nuevoEst, f, rutNorm);
             correos.Add(email);
             credenciales.Add(new { rut = rutFmt, n = f.Nombre, e = email, c = clave });
             creados++;
@@ -987,8 +1061,220 @@ public class PsychosocialController : Controller
         await _context.SaveChangesAsync();
         return Json(new { total = credenciales.Count, credenciales });
     }
+
+    // ---------------------------------------------------------------
+    // REGISTROS DE LA PLANILLA PSICOSOCIAL ("+ Nuevo registro")
+    // Una sola tabla para las 10 fichas; los campos van en JSON. Así se agregan fichas
+    // nuevas (o se activan por organización) sin crear una tabla por planilla.
+    // ---------------------------------------------------------------
+
+    private static readonly Dictionary<string, string> TiposRegistro = new()
+    {
+        ["seg"] = "Seguimiento mensual",
+        ["jud"] = "Caso judicializado",
+        ["inf"] = "Informe evacuado",
+        ["vd"] = "Visita domiciliaria",
+        ["conv"] = "Derivación a convivencia escolar",
+        ["tut"] = "Derivación a profesor tutor",
+        ["plan"] = "Plan de acción",
+        ["pro"] = "Beneficio pro-retención",
+        ["ropa"] = "Movimiento de inventario",
+        ["egr"] = "Egreso psicosocial"
+    };
+
+    private static string NombreCurso(Curso? c) =>
+        c == null ? "" : string.IsNullOrEmpty(c.Letra) ? c.Nombre : $"{c.Nombre} {c.Letra}";
+
+    // Próximo correlativo de informes del año (cuenta también los eliminados para no repetir números)
+    private async Task<string> SiguienteCorrelativoAsync()
+    {
+        var anio = DateTime.UtcNow.Year;
+        var desde = new DateTime(anio, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var colegioId = _context.CurrentTenantId;
+        var n = await _context.RegistrosPsicosociales.IgnoreQueryFilters()
+            .CountAsync(r => r.ColegioId == colegioId && r.Tipo == "inf" && r.FechaUtc >= desde);
+        return $"FEMAR-{n + 1}-{anio}";
+    }
+
+    // GET: /Psychosocial/SiguienteCorrelativo
+    [HttpGet]
+    public async Task<IActionResult> SiguienteCorrelativo() => Json(new { n = await SiguienteCorrelativoAsync() });
+
+    // GET: /Psychosocial/Registros  -> todos los registros del colegio (llenan las pestañas de la planilla)
+    [HttpGet]
+    public async Task<IActionResult> Registros(string? tipo)
+    {
+        var q = _context.RegistrosPsicosociales.AsNoTracking()
+            .Include(r => r.Estudiante).ThenInclude(e => e!.Usuario)
+            .Include(r => r.Estudiante).ThenInclude(e => e!.Curso)
+            .AsQueryable();
+        if (!string.IsNullOrWhiteSpace(tipo)) q = q.Where(r => r.Tipo == tipo);
+
+        var lista = await q.OrderByDescending(r => r.FechaUtc).Take(3000).ToListAsync();
+        var esColegio = (await OrgAsync()).V.EsColegio;
+        return Json(lista.Select(r => ProyectarRegistro(r, esColegio)));
+    }
+
+    private static object ProyectarRegistro(RegistroPsicosocial r, bool esColegio)
+    {
+        Dictionary<string, string>? datos;
+        try { datos = JsonSerializer.Deserialize<Dictionary<string, string>>(r.DatosJson); }
+        catch { datos = null; }
+        return new
+        {
+            id = r.Id,
+            k = r.Tipo,
+            nk = TiposRegistro.GetValueOrDefault(r.Tipo, r.Tipo),
+            eid = r.EstudianteId,
+            n = r.Estudiante?.Usuario != null ? $"{r.Estudiante.Usuario.Nombre} {r.Estudiante.Usuario.Apellido}".Trim() : "",
+            c = esColegio ? NombreCurso(r.Estudiante?.Curso) : "",
+            d = datos ?? new Dictionary<string, string>(),
+            f = r.FechaUtc.ToString("o", CultureInfo.InvariantCulture)
+        };
+    }
+
+    // POST: guarda un registro nuevo de la planilla
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GuardarRegistro(string tipo, int? estudianteId, string datosJson)
+    {
+        if (string.IsNullOrWhiteSpace(tipo) || !TiposRegistro.ContainsKey(tipo))
+            return BadRequest(new { error = "Tipo de ficha no válido." });
+        if (!(await OrgAsync()).Planillas.Contains(Organizacion.PlanillaDeFicha[tipo]))
+            return BadRequest(new { error = "Esa planilla no está activa para tu organización." });
+
+        Dictionary<string, string>? datos;
+        try { datos = JsonSerializer.Deserialize<Dictionary<string, string>>(datosJson ?? "{}"); }
+        catch { return BadRequest(new { error = "Datos inválidos." }); }
+        if (datos == null || datos.Count == 0 || datos.Count > 30)
+            return BadRequest(new { error = "La ficha no tiene datos." });
+        if (datos.Any(kv => kv.Key.Length > 60 || (kv.Value?.Length ?? 0) > 4000))
+            return BadRequest(new { error = "Algún campo es demasiado largo (máximo 4.000 caracteres)." });
+
+        // Limpia espacios y descarta campos vacíos
+        datos = datos.Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
+            .ToDictionary(kv => kv.Key.Trim(), kv => kv.Value.Trim());
+        if (datos.Count == 0) return BadRequest(new { error = "Completa al menos un campo." });
+
+        if (tipo != "ropa")
+        {
+            // El filtro multitenant hace que una alumna de otro colegio "no exista" para esta sesión
+            if (estudianteId == null || !await _context.Estudiantes.AnyAsync(e => e.Id == estudianteId))
+                return BadRequest(new { error = "Elige un alumno/a de la lista." });
+        }
+        else estudianteId = null;
+
+        // El correlativo lo pone el servidor (evita números repetidos si dos personas guardan a la vez)
+        if (tipo == "inf") datos["N° correlativo"] = await SiguienteCorrelativoAsync();
+
+        var reg = new RegistroPsicosocial
+        {
+            Tipo = tipo,
+            EstudianteId = estudianteId,
+            DatosJson = JsonSerializer.Serialize(datos),
+            CreadoPorId = UsuarioActualId()
+        };
+        _context.RegistrosPsicosociales.Add(reg);
+        await _context.SaveChangesAsync();
+
+        return Json(new { ok = true, id = reg.Id, correlativo = tipo == "inf" ? datos["N° correlativo"] : null });
+    }
+
+    // POST: cambia un campo de un registro (ej.: marcar un beneficio como "Entregado")
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ActualizarCampoRegistro(int id, string campo, string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(campo) || campo.Length > 60 || (valor?.Length ?? 0) > 4000)
+            return BadRequest(new { error = "Datos inválidos." });
+        var r = await _context.RegistrosPsicosociales.FirstOrDefaultAsync(x => x.Id == id);
+        if (r == null) return NotFound();
+
+        Dictionary<string, string> datos;
+        try { datos = JsonSerializer.Deserialize<Dictionary<string, string>>(r.DatosJson) ?? new(); }
+        catch { datos = new(); }
+        if (string.IsNullOrWhiteSpace(valor)) datos.Remove(campo.Trim());
+        else datos[campo.Trim()] = valor.Trim();
+
+        r.DatosJson = JsonSerializer.Serialize(datos);
+        r.ModificadoPorId = UsuarioActualId();
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true });
+    }
+
+    // POST: reemplaza los campos de un registro (botón "Editar" en la ficha)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditarRegistro(int id, string datosJson)
+    {
+        var r = await _context.RegistrosPsicosociales.FirstOrDefaultAsync(x => x.Id == id);
+        if (r == null) return NotFound();
+
+        Dictionary<string, string>? datos;
+        try { datos = JsonSerializer.Deserialize<Dictionary<string, string>>(datosJson ?? "{}"); }
+        catch { return BadRequest(new { error = "Datos inválidos." }); }
+        if (datos == null || datos.Count > 30 || datos.Any(kv => kv.Key.Length > 60 || (kv.Value?.Length ?? 0) > 4000))
+            return BadRequest(new { error = "Datos inválidos." });
+        datos = datos.Where(kv => !string.IsNullOrWhiteSpace(kv.Value)).ToDictionary(kv => kv.Key.Trim(), kv => kv.Value.Trim());
+        if (datos.Count == 0) return BadRequest(new { error = "Completa al menos un campo." });
+
+        // El correlativo de un informe no se cambia
+        if (r.Tipo == "inf")
+        {
+            var antes = JsonSerializer.Deserialize<Dictionary<string, string>>(r.DatosJson) ?? new();
+            if (antes.TryGetValue("N° correlativo", out var n)) datos["N° correlativo"] = n;
+        }
+
+        r.DatosJson = JsonSerializer.Serialize(datos);
+        r.ModificadoPorId = UsuarioActualId();
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true });
+    }
+
+    // ---------------------------------------------------------------
+    // ASISTENCIA A CITACIONES
+    // ---------------------------------------------------------------
+
+    // Días sin venir para considerar a alguien "inactivo" (se le sugiere una consulta de seguimiento)
+    private const int DiasInactividad = 60;
+
+    // POST: marca si la persona asistió (Realizada) o no (NoAsistio). Solo para citas de hoy o anteriores.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> MarcarAsistencia(int id, bool asistio)
+    {
+        var c = await _context.Citaciones.FirstOrDefaultAsync(x => x.Id == id);
+        if (c == null) return NotFound();
+        if (c.Estado == EstadoCitacion.Cancelada) return BadRequest(new { error = "La citación está cancelada." });
+        if (c.Fecha > DateOnly.FromDateTime(DateTime.Today)) return BadRequest(new { error = "La citación todavía no ocurre." });
+
+        c.Estado = asistio ? EstadoCitacion.Realizada : EstadoCitacion.NoAsistio;
+        if (c.EventoCalendarioId != null)
+        {
+            var ev = await _context.EventosCalendario.FirstOrDefaultAsync(e => e.Id == c.EventoCalendarioId);
+            if (ev != null) ev.Realizada = asistio;
+        }
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true, e = (int)c.Estado });
+    }
+
+    // POST: elimina un registro (borrado lógico: se conserva en la base de datos)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EliminarRegistro(int id)
+    {
+        var r = await _context.RegistrosPsicosociales.FirstOrDefaultAsync(x => x.Id == id);
+        if (r == null) return NotFound();
+        r.ModificadoPorId = UsuarioActualId();
+        _context.RegistrosPsicosociales.Remove(r); // el DbContext lo convierte en IsDeleted = true
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true });
+    }
 }
 
 public record SetDto(int id, string n, string[]? it, int t, int e);
-public record FilaAlumno(int Linea, string Nombre, string Rut, string Curso, string? Nacimiento, string? ApoNombre = null, string? ApoCorreo = null, string? ApoTel = null);
-public record AlumnoDto(string? n, string? r, string? c, string? f, string? ap = null, string? ce = null, string? te = null);
+public record FilaAlumno(int Linea, string Nombre, string Rut, string Curso, string? Nacimiento, string? ApoNombre = null, string? ApoCorreo = null, string? ApoTel = null,
+    string? Direccion = null, string? Telefono = null, string? Correo = null);
+// d = dirección, t = teléfono, m = correo del paciente (organizaciones que no son colegio)
+public record AlumnoDto(string? n, string? r, string? c, string? f, string? ap = null, string? ce = null, string? te = null,
+    string? d = null, string? t = null, string? m = null);

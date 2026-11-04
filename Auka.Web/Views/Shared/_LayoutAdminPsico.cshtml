@@ -1,6 +1,8 @@
 ﻿@* Auka.Web/Views/Shared/_LayoutAdminPsico.cshtml
    Diseño del administrador de un colegio con Plan Psicosocial. Colores tomados del logo de AUKA. *@
 @{
+    // Fuera de un colegio no hay cursos y se habla de pacientes
+    var esColegioMenu = (ViewData["Org"] as Auka.Web.Services.DatosOrganizacion)?.V.EsColegio ?? true;
     var ruta = (ViewContext.RouteData.Values["controller"]?.ToString() ?? "") + "/" + (ViewContext.RouteData.Values["action"]?.ToString() ?? "");
     Func<string, string> act = p => ruta.StartsWith(p, StringComparison.OrdinalIgnoreCase) ? " on" : "";
 }
@@ -24,8 +26,11 @@
             <nav class="ad-links">
                 <a class="@(act("Administracion/Index").Trim())" asp-controller="Administracion" asp-action="Index">Inicio</a>
                 <a class="@(act("Personal").Trim())" asp-controller="Personal" asp-action="Index">Equipo</a>
-                <a class="@(act("Administracion/Alumnos").Trim())" asp-controller="Administracion" asp-action="Alumnos">Alumnos/as</a>
-                <a class="@(act("Administracion/Cursos").Trim())" asp-controller="Administracion" asp-action="Cursos">Cursos</a>
+                <a class="@(act("Administracion/Alumnos").Trim())" asp-controller="Administracion" asp-action="Alumnos">@(esColegioMenu ? "Alumnos/as" : "Pacientes")</a>
+                @if (esColegioMenu)
+                {
+                    <a class="@(act("Administracion/Cursos").Trim())" asp-controller="Administracion" asp-action="Cursos">Cursos</a>
+                }
             </nav>
             <div class="ad-user">
                 <span class="ad-plan">PLAN PSICOSOCIAL</span>

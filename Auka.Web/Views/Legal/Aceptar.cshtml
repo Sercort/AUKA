@@ -1,0 +1,30 @@
+﻿@* Auka.Web/Views/Legal/Aceptar.cshtml — aceptación obligatoria al primer ingreso (Ley 21.719). Se guarda la fecha y la versión. *@
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Antes de comenzar";
+    Layout = "_LayoutLegal";
+}
+<section class="lg-card" style="max-width:620px;margin-left:auto;margin-right:auto">
+    <h1>Antes de comenzar</h1>
+    <p>Hola, <b>@User.Identity?.Name</b>. En AUKA se guarda información personal y, en el área psicosocial, información sensible. Antes de usar la plataforma, lee y acepta cómo se protege y cuáles son las reglas de uso.</p>
+    <ul>
+        <li><a href="/Legal/Privacidad" target="_blank" rel="noopener">Política de privacidad</a></li>
+        <li><a href="/Legal/Terminos" target="_blank" rel="noopener">Términos y condiciones</a></li>
+    </ul>
+    <form method="post" asp-action="Aceptar">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="volver" value="@ViewData["Volver"]" />
+        <label class="d-flex gap-2 align-items-start my-3" style="cursor:pointer">
+            <input type="checkbox" name="acepto" value="true" class="form-check-input mt-1" required />
+            <span>He leído y acepto la Política de privacidad y los Términos y condiciones de AUKA (versión @LegalController.Version).</span>
+        </label>
+        @if (ViewData["Error"] != null)
+        {
+            <div class="alert alert-warning py-2 small">@ViewData["Error"]</div>
+        }
+        <div class="d-flex gap-2 justify-content-end">
+            <a class="btn btn-light rounded-pill px-4" href="/Account/Logout">Salir</a>
+            <button type="submit" class="btn btn-primary rounded-pill px-4">Aceptar y continuar</button>
+        </div>
+    </form>
+</section>

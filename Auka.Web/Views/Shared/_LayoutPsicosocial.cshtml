@@ -33,7 +33,7 @@
             @if (User.Identity != null && User.Identity.IsAuthenticated)
             {
                 <form id="psxTopForm" class="ad-search ad-grow" role="search">
-                    <input type="text" id="psxTopQ" placeholder="🔍 Buscar alumno/a: nombre, RUT o curso..." autocomplete="off" />
+                    <input type="text" id="psxTopQ" placeholder="@((ViewData["Org"] as Auka.Web.Services.DatosOrganizacion)?.V.EsColegio == false ? "🔍 Buscar paciente: nombre o RUT..." : "🔍 Buscar alumno/a: nombre, RUT o curso...")" autocomplete="off" />
                     <button type="submit">Buscar</button>
                 </form>
                 <div class="ad-user">

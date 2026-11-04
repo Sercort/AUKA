@@ -23,8 +23,8 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-    <div><h3 class="fw-bold mb-0" style="color:var(--a-navy)">Colegios</h3><div class="text-secondary small">Haz clic en un colegio para ver su ficha, renovar o cambiar su plan.</div></div>
-    <button type="button" class="au-btn px-4" id="bNuevo">➕ Nuevo colegio</button>
+    <div><h3 class="fw-bold mb-0" style="color:var(--a-navy)">Organizaciones</h3><div class="text-secondary small">Colegios, empresas, institutos y particulares. Haz clic en uno para ver su ficha, renovar o cambiar su plan.</div></div>
+    <button type="button" class="au-btn px-4" id="bNuevo">➕ Nueva organización</button>
 </div>
 
 <div class="ad-card p-3">
@@ -49,6 +49,12 @@
                     <div class="col-md-6"><label class="small fw-bold">NOMBRE</label><input id="fCon" class="form-control" maxlength="120"></div>
                     <div class="col-md-6"><label class="small fw-bold">CORREO</label><input id="fCor" type="email" class="form-control" maxlength="160"></div>
                     <div class="col-md-6"><label class="small fw-bold">TELÉFONO</label><input id="fTel" class="form-control" maxlength="40"></div>
+                </div>
+                <div class="pl-h">TIPO DE ORGANIZACIÓN Y PLANILLAS</div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4"><label class="small fw-bold">TIPO</label><select id="fTipo" class="form-select">@foreach (var t in Auka.Web.Services.Organizacion.Tipos) {<option value="@t">@t</option>}</select></div>
+                    <div class="col-md-8"><label class="small fw-bold">PLANILLAS ACTIVAS</label><div class="d-flex flex-wrap gap-3">@foreach (var kv in Auka.Web.Services.Organizacion.Planillas) {<label class="small"><input type="checkbox" class="form-check-input me-1 fPla" value="@kv.Key"> @kv.Value</label>}</div>
+                        <div class="small text-secondary mt-1">Colegio: alumnos/as y cursos. Otro tipo: pacientes, sin curso.</div></div>
                 </div>
                 <div class="pl-h">PLAN Y VIGENCIA</div>
                 <div class="row g-2 mb-2">
@@ -79,11 +85,13 @@
 
 <!-- NUEVO COLEGIO -->
 <div class="modal fade" id="mNuevo" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content" style="border-radius:16px">
-    <div class="modal-header border-0"><h5 class="modal-title fw-bold">➕ Nuevo colegio</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-header border-0"><h5 class="modal-title fw-bold">➕ Nueva organización</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
         <div id="nRes"></div>
         <div id="nForm" class="row g-3">
-            <div class="col-md-8"><label class="small fw-bold">NOMBRE DEL COLEGIO*</label><input id="nNom" class="form-control" maxlength="120"></div>
+            <div class="col-md-4"><label class="small fw-bold">TIPO*</label><select id="nTipo" class="form-select">@foreach (var t in Auka.Web.Services.Organizacion.Tipos) {<option value="@t">@t</option>}</select></div>
+            <div class="col-md-8"><label class="small fw-bold">PLANILLAS ACTIVAS</label><div class="d-flex flex-wrap gap-3">@foreach (var kv in Auka.Web.Services.Organizacion.Planillas) {<label class="small"><input type="checkbox" class="form-check-input me-1 nPla" value="@kv.Key"> @kv.Value</label>}</div></div>
+            <div class="col-md-8"><label class="small fw-bold">NOMBRE DE LA ORGANIZACIÓN*</label><input id="nNom" class="form-control" maxlength="120"></div>
             <div class="col-md-4"><label class="small fw-bold">RBD / RUT</label><input id="nRut" class="form-control" maxlength="20"></div>
             <div class="col-md-6"><label class="small fw-bold">TELÉFONO DEL COLEGIO</label><input id="nTel" class="form-control" maxlength="30"></div>
             <div class="col-md-6"><label class="small fw-bold">DIRECCIÓN</label><input id="nDir" class="form-control" maxlength="160"></div>
@@ -101,7 +109,7 @@
             <div class="col-md-6"><label class="small fw-bold">CORREO*</label><input id="aCor" type="email" class="form-control"></div>
         </div>
     </div>
-    <div class="modal-footer border-0"><button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button><button type="button" class="au-btn px-4" id="nOk">Crear colegio</button></div>
+    <div class="modal-footer border-0"><button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button><button type="button" class="au-btn px-4" id="nOk">Crear</button></div>
 </div></div></div>
 
 @section Scripts {
@@ -122,6 +130,9 @@
   var EST = { activo: ['Activo', 'on'], porvencer: ['Por vencer', 'warn'], vencido: ['Vencido', 'off'], suspendido: ['Suspendido', 'off'], baja: ['De baja', 'ins'] };
 
   var L = [], estado = '', ficha = null;
+  var marcar = function (cls, keys) { document.querySelectorAll('.' + cls).forEach(function (x) { x.checked = keys.indexOf(x.value) > -1; }); };
+  var marcadas = function (cls) { return Array.prototype.filter.call(document.querySelectorAll('.' + cls), function (x) { return x.checked; }).map(function (x) { return x.value; }).join(','); };
+  var PORDEF_ORG = '@Auka.Web.Services.Organizacion.PlanillasPorDefectoOrganizacion'.split(',');
   var mFicha, mNuevo;
   var chip = function (m, k) { var x = m[k] || [k, 'ins']; return '<span class="pl-chip ' + x[1] + '">' + x[0] + '</span>'; };
   var cargar = function () {
@@ -136,9 +147,9 @@
     $('vacio').style.display = f.length ? 'none' : '';
     $('tb').innerHTML = f.map(function (c) {
       var vence = c.vence ? fecha(c.vence) + (c.dias != null && c.dias <= 30 ? ' <span class="text-muted small">(' + (c.dias < 0 ? 'hace ' + (-c.dias) + ' d' : c.dias + ' d') + ')</span>' : '') : '—';
-      return '<tr data-id="' + c.id + '"><td class="fw-bold">' + c.id + '</td><td><div class="fw-bold">' + esc(c.nombre) + '</div><div class="small text-secondary">' + esc(c.rut || '') + '</div></td>' +
+      return '<tr data-id="' + c.id + '"><td class="fw-bold">' + c.id + '</td><td><div class="fw-bold">' + esc(c.nombre) + '</div><div class="small text-secondary">' + esc(c.tipo || 'Colegio') + (c.rut ? ' · ' + esc(c.rut) : '') + '</div></td>' +
         '<td><div>' + esc(c.contacto || '—') + '</div><div class="small text-secondary">' + esc(c.correo || '') + '</div></td><td>' + chip(PLAN, c.plan) + '</td><td>' + chip(EST, c.estado) + '</td><td>' + vence + '</td><td>' + (c.precio != null ? clp(c.precio) : '—') + '</td>' +
-        '<td>' + (c.funcionarios + c.alumnos + c.apoderados) + '<div class="small text-secondary">' + c.alumnos + ' alumnos/as</div></td></tr>';
+        '<td>' + (c.funcionarios + c.alumnos + c.apoderados) + '<div class="small text-secondary">' + c.alumnos + ((c.tipo || 'Colegio') === 'Colegio' ? ' alumnos/as' : ' pacientes') + '</div></td></tr>';
     }).join('');
   };
   $('chips').onclick = function (e) { var b = e.target.closest('[data-e]'); if (b) { estado = b.getAttribute('data-e'); pintar(); } };
@@ -151,6 +162,7 @@
       ficha = c; msg('fMsg', '');
       $('fTit').textContent = c.nombre; $('fSub').textContent = 'N° ' + c.id + (c.rut ? ' · RBD/RUT ' + c.rut : '') + (c.registro ? ' · cliente desde ' + fecha(c.registro) : '');
       $('fCon').value = c.contacto || ''; $('fCor').value = c.correo || ''; $('fTel').value = c.telefonoContacto || '';
+      $('fTipo').value = c.tipo || 'Colegio'; marcar('fPla', c.planillas || []);
       $('fPl').value = c.plan; $('fVen').value = c.vence ? c.vence.slice(0, 10) : ''; $('fPre').value = c.precio != null ? c.precio : ''; $('fNot').value = c.notas || '';
       $('fEst').innerHTML = chip(EST, c.estado) + (c.baja ? ' <span class="small text-secondary">desde ' + fecha(c.baja) + (c.motivoBaja ? ' · ' + esc(c.motivoBaja) : '') + '</span>' : '');
       var acc = c.estado === 'suspendido' || c.estado === 'baja'
@@ -163,7 +175,7 @@
     });
   };
   $('bGuardar').onclick = function () {
-    post('/Plataforma/GuardarColegio', { id: ficha.id, plan: $('fPl').value, contacto: $('fCon').value, correo: $('fCor').value, telefono: $('fTel').value, vence: $('fVen').value, precio: $('fPre').value, notas: $('fNot').value })
+    post('/Plataforma/GuardarColegio', { id: ficha.id, plan: $('fPl').value, contacto: $('fCon').value, correo: $('fCor').value, telefono: $('fTel').value, vence: $('fVen').value, precio: $('fPre').value, notas: $('fNot').value, tipo: $('fTipo').value, planillas: marcadas('fPla') })
       .then(function () { msg('fMsg', 'Cambios guardados.', true); cargar(); abrir(ficha.id); }).catch(function (e) { msg('fMsg', e.message, false); });
   };
   $('mFicha').addEventListener('click', function (e) {
@@ -178,14 +190,16 @@
       .then(function (j) { msg('fMsg', '🔑 Nueva clave de <b>' + esc(j.correo) + '</b>: <b>' + esc(j.clave) + '</b> — anótala ahora, no se vuelve a mostrar.', true); }).catch(function (er) { msg('fMsg', er.message, false); });
   });
 
-  $('bNuevo').onclick = function () { msg('nRes', ''); $('nForm').style.display = ''; $('nOk').style.display = ''; mNuevo.show(); };
+  // Al elegir el tipo se sugieren las planillas (se pueden cambiar)
+  $('nTipo').onchange = function () { marcar('nPla', $('nTipo').value === 'Colegio' ? Array.prototype.map.call(document.querySelectorAll('.nPla'), function (x) { return x.value; }) : PORDEF_ORG); };
+  $('bNuevo').onclick = function () { msg('nRes', ''); $('nForm').style.display = ''; $('nOk').style.display = ''; $('nTipo').value = 'Colegio'; $('nTipo').onchange(); mNuevo.show(); };
   $('nOk').onclick = function () {
     $('nOk').disabled = true;
     post('/Plataforma/CrearColegio', { nombre: $('nNom').value, rut: $('nRut').value, telefono: $('nTel').value, direccion: $('nDir').value, plan: $('nPlan').value, vence: $('nVen').value, precio: $('nPre').value,
-      contacto: $('nCon').value, correoContacto: $('nCor').value, telefonoContacto: $('nCte').value, adminNombre: $('aNom').value, adminApellido: $('aApe').value, adminRut: $('aRut').value, adminCorreo: $('aCor').value })
+      contacto: $('nCon').value, correoContacto: $('nCor').value, telefonoContacto: $('nCte').value, adminNombre: $('aNom').value, adminApellido: $('aApe').value, adminRut: $('aRut').value, adminCorreo: $('aCor').value, tipo: $('nTipo').value, planillas: marcadas('nPla') })
       .then(function (j) {
         $('nForm').style.display = 'none'; $('nOk').style.display = 'none';
-        msg('nRes', '✅ Colegio <b>' + esc(j.colegio) + '</b> (N° ' + j.numero + ') creado.<br>Administrador/a: <b>' + esc(j.correo) + '</b><br>Clave provisoria: <b>' + esc(j.clave) + '</b><br><span class="text-secondary">Anótala ahora: no se vuelve a mostrar y deberá cambiarla al entrar.</span>', true);
+        msg('nRes', '✅ ' + esc($('nTipo').value) + ' <b>' + esc(j.colegio) + '</b> (N° ' + j.numero + ') creado.<br>Administrador/a: <b>' + esc(j.correo) + '</b><br>Clave provisoria: <b>' + esc(j.clave) + '</b><br><span class="text-secondary">Anótala ahora: no se vuelve a mostrar y deberá cambiarla al entrar.</span>', true);
         cargar();
       }).catch(function (e) { msg('nRes', e.message, false); }).then(function () { $('nOk').disabled = false; });
   };
