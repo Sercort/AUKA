@@ -55,13 +55,33 @@ public class AccountController : Controller
         email = (email ?? string.Empty).Trim();
         password = password ?? string.Empty;
         var emailNorm = email.ToLower();
-        var usuario = await _context.Usuarios
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Email.ToLower() == emailNorm && u.Activo);
+        Usuario? usuario;
+        if (email.Contains('@'))
+        {
+            usuario = await _context.Usuarios
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == emailNorm && u.Activo);
+        }
+        else
+        {
+            // Ingreso con RUT (12.345.678-5, 12345678-5 o 123456785): se compara sin puntos ni guion
+            var rutNorm = new string(email.Where(ch => char.IsDigit(ch) || ch == 'k' || ch == 'K').ToArray()).ToUpperInvariant();
+            var coinciden = rutNorm.Length < 7 ? new List<Usuario>() : await _context.Usuarios
+                .IgnoreQueryFilters()
+                .Where(u => u.Activo && u.Rut.Replace(".", "").Replace("-", "").ToUpper() == rutNorm)
+                .Take(2).ToListAsync();
+            if (coinciden.Count > 1)
+            {
+                // La misma persona tiene cuentas en dos organizaciones: con el RUT no se sabe a cuál quiere entrar
+                ViewBag.Error = "Ese RUT tiene más de una cuenta. Ingresa con tu correo.";
+                return View();
+            }
+            usuario = coinciden.FirstOrDefault();
+        }
 
         if (usuario == null)
         {
-            ViewBag.Error = "Correo electrónico o contraseña incorrectos, o la cuenta está desactivada.";
+            ViewBag.Error = "Correo/RUT o contraseña incorrectos, o la cuenta está desactivada.";
             return View();
         }
 
@@ -103,7 +123,7 @@ public class AccountController : Controller
 
         if (!esValido)
         {
-            ViewBag.Error = "Correo electrónico o contraseña incorrectos, o la cuenta está desactivada.";
+            ViewBag.Error = "Correo/RUT o contraseña incorrectos, o la cuenta está desactivada.";
             return View();
         }
 
@@ -252,9 +272,12 @@ public class AccountController : Controller
 
         var dato = emailOusuario.Trim();
         var datoMin = dato.ToLower();
+        // RUT escrito con o sin puntos y guion
+        var rutDato = dato.Contains('@') ? "" : new string(dato.Where(ch => char.IsDigit(ch) || ch == 'k' || ch == 'K').ToArray()).ToUpperInvariant();
         var usuario = await _context.Usuarios
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Activo && (u.Email.ToLower() == datoMin || u.Rut == dato));
+            .FirstOrDefaultAsync(u => u.Activo && (u.Email.ToLower() == datoMin || u.Rut == dato ||
+                (rutDato.Length >= 7 && u.Rut.Replace(".", "").Replace("-", "").ToUpper() == rutDato)));
 
         if (usuario != null)
         {

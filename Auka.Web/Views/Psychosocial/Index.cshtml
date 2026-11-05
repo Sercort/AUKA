@@ -98,7 +98,8 @@
                     <h5 class="fw-bold mb-0">Alertas</h5>
                     <span class="ps-pill" style="background:#FBE4E0;color:#8E2C1F;" id="alTot"></span>
                 </div>
-                <div class="al-sec"><span>ASISTENCIA BAJO 85%</span></div><div id="alAs"></div>
+                <div class="al-sec"><span>RIESGO VITAL ABIERTO</span></div><div id="alVit"></div>
+                <div class="al-sec"><span>@(V.EsColegio ? "ASISTENCIA BAJO 85%" : "RIESGO ALTO")</span></div><div id="alAs"></div>
                 <div class="al-sec"><span>DERIVACIONES SIN GESTIONAR</span></div><div id="alDer"></div>
                 <div class="al-sec"><span>CITAS SIN CONFIRMAR</span></div><div id="alCit"></div>
                 <div class="al-sec"><span>SIN VENIR HACE MÁS DE 60 DÍAS</span></div><div id="alIn"></div>
@@ -227,25 +228,36 @@
     var ultAs = {};
     de('seg').forEach(function (r) { var v = r.d['Asistencia (%)']; if (v !== undefined && v !== '' && !(r.eid in ultAs)) ultAs[r.eid] = [r.n, +v, r.c, r.eid]; });
     var bajas = Object.keys(ultAs).map(function (k) { return ultAs[k]; }).filter(function (x) { return x[1] < 85; }).sort(function (a, b) { return a[1] - b[1]; });
+    // Empresas: la alerta es el nivel de riesgo "Alto" del último seguimiento (no hay asistencia escolar)
+    var riesgo = {};
+    de('seg').forEach(function (r) { var v = r.d['Nivel de riesgo']; if (v && !(r.eid in riesgo)) riesgo[r.eid] = [r.n, v, '', r.eid]; });
+    var altos = Object.keys(riesgo).map(function (k) { return riesgo[k]; }).filter(function (x) { return x[1] === 'Alto'; });
+    if (!ORG.col) bajas = altos;
     var derPend = de('conv').concat(de('tut')).filter(function (r) { return /pendiente|monitoreo/i.test((r.d['Estado'] || '') + (r.d['Situación actual'] || '')); });
     var enSeg = {}; de('seg').forEach(function (r) { enSeg[r.eid] = 1; });
     var nSeg = Object.keys(enSeg).length;
     var K = [['@V.Personas en seguimiento', nSeg, 'de ' + d.alumnos + (ORG.col ? ' · ' + d.cursos + (d.cursos === 1 ? ' curso' : ' cursos') : ' registrados'), '', '@V.Personas'],
-             ['@V.Personas en alerta', bajas.length, bajas.length ? 'asistencia bajo 85%' : 'sin alertas', bajas.length ? '#B4402F' : '', 'alert'],
+             ['@V.Personas en alerta', bajas.length, bajas.length ? (ORG.col ? 'asistencia bajo 85%' : 'riesgo alto') : 'sin alertas', bajas.length ? '#B4402F' : '', 'alert'],
              ['Derivaciones sin gestionar', derPend.length, derPend.length ? 'pendientes o en monitoreo' : 'sin pendientes', derPend.length ? '#d98a00' : '', 'Derivaciones', 'der'],
              ['Citas esta semana', d.citasSemana, d.citasSinConfirmar + ' sin confirmar' + (d.porMarcar ? ' · ' + d.porMarcar + ' sin marcar asistencia' : ''), d.porMarcar ? '#d98a00' : '', 'cal'],
-             ['Causas judiciales', de('jud').length, de('jud').length ? 'casos registrados' : 'sin casos', '', 'Judicial', 'jud'],
-             ['Informes evacuados', de('inf').length, de('inf').length ? 'este año' : 'sin informes', '', 'Judicial', 'jud']]
+             [ORG.col ? 'Causas judiciales' : 'Casos Ley Karin', de('jud').length, de('jud').length ? 'casos registrados' : 'sin casos', '', '@(V.EsColegio ? "Judicial" : "Ley Karin")', 'jud'],
+             [ORG.col ? 'Informes evacuados' : 'Informes emitidos', de('inf').length, de('inf').length ? 'este año' : 'sin informes', '', '@(V.EsColegio ? "Judicial" : "Ley Karin")', 'jud']]
       .filter(function (k) { return !k[5] || ORG.pl.indexOf(k[5]) > -1; });
     $('kpis').innerHTML = K.map(kpiCard).join('').replace(/col-lg-2/g, K.length <= 4 ? 'col-lg-3' : 'col-lg-2');
     var inact = d.inactivos || [];
-    $('alTot').textContent = (bajas.length + derPend.length + inact.length) + ' alertas';
+    // Riesgo vital: el registro más reciente de cada persona, si no está cerrado
+    var vitU = {}; de('vit').forEach(function (r) { if (!(r.eid in vitU)) vitU[r.eid] = r; });
+    var vit = Object.keys(vitU).map(function (k) { return vitU[k]; }).filter(function (r) { return (r.d['Estado'] || 'Abierto') !== 'Cerrado'; });
+    $('alVit').innerHTML = vit.length
+      ? vit.map(function (r) { var nv = r.d['Nivel de riesgo (evaluación profesional)'] || 'Sin nivel'; return '<div class="al-row" data-fi="' + r.eid + '"><b class="al-bad">' + esc(nv) + '</b> ' + esc(r.n) + '<span>' + esc(r.d['Estado'] || 'Abierto') + (r.d['Fecha de próximo control'] ? ' · control ' + r.d['Fecha de próximo control'].split('-').reverse().join('-') : '') + '</span></div>'; }).join('')
+      : '<div class="small text-secondary px-2">Sin casos abiertos.</div>';
+    $('alTot').textContent = (vit.length + bajas.length + derPend.length + inact.length) + ' alertas';
     $('alIn').innerHTML = inact.length
       ? inact.map(function (x) { return '<div class="al-row" data-fi="' + x.id + '"><b class="al-bad">' + x.d + ' días</b> ' + esc(x.n) + '<span>Sugerido: consulta de seguimiento</span></div>'; }).join('')
       : '<div class="small text-secondary px-2">Todos han asistido en los últimos 60 días.</div>';
     $('alAs').innerHTML = bajas.length
-      ? bajas.slice(0, 6).map(function (x) { return '<div class="al-row" data-fi="' + x[3] + '"><b class="al-bad">' + x[1] + '%</b> ' + esc(x[0]) + '<span>' + esc(x[2]) + '</span></div>'; }).join('')
-      : '<div class="small text-secondary px-2">Sin @V.personas bajo 85% de asistencia.</div>';
+      ? bajas.slice(0, 6).map(function (x) { return '<div class="al-row" data-fi="' + x[3] + '"><b class="al-bad">' + (ORG.col ? x[1] + '%' : 'Riesgo alto') + '</b> ' + esc(x[0]) + '<span>' + esc(x[2]) + '</span></div>'; }).join('')
+      : '<div class="small text-secondary px-2">' + (ORG.col ? 'Sin @V.personas bajo 85% de asistencia.' : 'Sin @V.personas en riesgo alto.') + '</div>';
     $('alDer').innerHTML = derPend.length
       ? derPend.slice(0, 6).map(function (r) { return '<div class="al-row">' + esc(r.n) + '<span>' + esc(r.nk.replace('Derivación a ', '')) + '</span></div>'; }).join('')
       : '<div class="small text-secondary px-2">Sin derivaciones pendientes.</div>';
@@ -264,7 +276,7 @@
   document.addEventListener('psx-calendario', cargarResumen);
 
   // Clic en una alerta -> abre la ficha de esa persona
-  ['alAs', 'alIn'].forEach(function (id) {
+  ['alVit', 'alAs', 'alIn'].forEach(function (id) {
     $(id).onclick = function (e) { var r = e.target.closest('[data-fi]'); if (r && window.psxAbrirFicha) window.psxAbrirFicha(+r.getAttribute('data-fi')); };
   });
   $('kpis').onclick = function (e) {

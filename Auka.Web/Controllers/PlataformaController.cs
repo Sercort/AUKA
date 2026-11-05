@@ -237,6 +237,9 @@ public class PlataformaController : Controller
         if (!string.IsNullOrWhiteSpace(correo) && !Regex.IsMatch(correo.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
             return BadRequest(new { error = "El correo de contacto no es válido." });
 
+        // Empresa, fundación o particular: solo Plan Psicosocial
+        if (!Organizacion.PermitePremium(TipoValido(tipo))) plan = "psicosocial";
+
         var antes = PlanDe(c);
         AplicarPlan(c, plan);
         var despues = PlanDe(c);
@@ -339,7 +342,7 @@ public class PlataformaController : Controller
         // Un colegio parte con todas las planillas; otra organización, con las básicas (si no se eligieron)
         c.PlanillasActivas = Organizacion.Normalizar(string.IsNullOrWhiteSpace(planillas) && c.TipoOrganizacion != "Colegio"
             ? Organizacion.PlanillasPorDefectoOrganizacion : planillas);
-        AplicarPlan(c, plan);
+        AplicarPlan(c, Organizacion.PermitePremium(c.TipoOrganizacion) ? plan : "psicosocial");
         _context.Colegios.Add(c);
         await _context.SaveChangesAsync();
 

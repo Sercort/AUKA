@@ -190,6 +190,8 @@
               (j.omitidos ? '<span class="al-chip nil">' + j.omitidos + ' omitidos</span> ' : '') + (j.cursosCreados ? '<span class="al-chip nil">' + j.cursosCreados + ' cursos nuevos</span> ' : '') +
               (j.totalErrores ? '<span class="al-chip bad">' + j.totalErrores + ' con error</span>' : '') + '</div>';
             if (j.errores && j.errores.length) h += '<ul class="al-note" style="margin:.5rem 0 0 1rem">' + j.errores.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';
+            if (j.avisos && j.avisos.length) h += '<div class="al-note mt-2"><span class="al-chip">Avisos</span><ul style="margin:.3rem 0 0 1rem">' + j.avisos.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
+            if (j.invitados) h += '<p class="al-note mt-2"><span class="al-chip ok">' + j.invitados + ' recibieron un correo para crear su contraseña</span></p>';
             if (j.credenciales && j.credenciales.length) h += '<p class="al-note mt-2">Las cuentas nuevas tienen una clave provisoria que deben cambiar al entrar. <b>Descárgala ahora: no se vuelve a mostrar.</b></p><button class="al-btn p" id="bCred">Descargar claves provisorias (CSV)</button>';
             $(cont).innerHTML = h;
             if ($('bCred')) $('bCred').onclick = function () {

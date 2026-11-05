@@ -46,11 +46,14 @@ public class PsychosocialController : Controller
     private readonly IMemoryCache _cache;
     private readonly INotificacionService _notif;
 
-    public PsychosocialController(ApplicationDbContext context, IMemoryCache cache, INotificacionService notif)
+    private readonly IAccesoService _acceso;
+
+    public PsychosocialController(ApplicationDbContext context, IMemoryCache cache, INotificacionService notif, IAccesoService acceso)
     {
         _context = context;
         _cache = cache;
         _notif = notif;
+        _acceso = acceso;
     }
 
     // Tipo de organización de la sesión: colegio (alumnos/as, cursos) u otra (pacientes, sin curso)
@@ -784,9 +787,50 @@ public class PsychosocialController : Controller
         return Json(new { email = est.Usuario.Email, clave });
     }
 
+    // POST: cambia el correo con que la persona entra a AUKA (y donde le llegan las citaciones)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CambiarCorreoAcceso(int estudianteId, string correo)
+    {
+        if (!FichasDesbloqueadas()) return Bloqueado();
+        var nuevo = (correo ?? "").Trim().ToLowerInvariant();
+        if (!EsCorreo(nuevo)) return BadRequest(new { error = "Escribe un correo válido." });
+        if (nuevo.EndsWith("@alumnos.auka.cl") || nuevo.EndsWith("@pacientes.auka.cl"))
+            return BadRequest(new { error = "Usa el correo personal o de trabajo de la persona." });
+
+        var est = await _context.Estudiantes.Include(e => e.Usuario).FirstOrDefaultAsync(e => e.Id == estudianteId);
+        if (est?.Usuario == null) return NotFound();
+        if (est.Usuario.Email.ToLower() == nuevo) return Json(new { ok = true, email = nuevo });
+
+        // El correo de ingreso es único en toda la plataforma
+        if (await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Id != est.UsuarioId && u.Email.ToLower() == nuevo))
+            return BadRequest(new { error = "Ese correo ya lo usa otra cuenta en AUKA." });
+
+        est.Usuario.Email = nuevo;      // la clave no cambia: PasswordHasher no depende del correo
+        est.CorreoContacto = nuevo;
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true, email = nuevo });
+    }
+
+    // POST: envía a la persona un correo con un enlace para crear su propia contraseña (no se envía ninguna clave)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EnviarAccesoCorreo(int estudianteId)
+    {
+        if (!FichasDesbloqueadas()) return Bloqueado();
+        var est = await _context.Estudiantes.Include(e => e.Usuario).FirstOrDefaultAsync(e => e.Id == estudianteId);
+        if (est?.Usuario == null) return NotFound();
+
+        var r = await _acceso.EnviarInvitacionAsync(est.Usuario, $"{Request.Scheme}://{Request.Host}", User.FindFirst("ColegioNombre")?.Value ?? "Tu organización");
+        if (!r.Enviado && !r.Simulado) return BadRequest(new { error = r.Motivo ?? "No se pudo enviar el correo." });
+        return Json(new { ok = true, simulado = r.Simulado, email = est.Usuario.Email });
+    }
+
     private async Task<object> ProcesarAlumnosAsync(List<FilaAlumno> filas, bool crearCursos, bool actualizar)
     {
         var errores = new List<string>();
+        var avisos = new List<string>();          // no impiden crear la cuenta
+        var invitar = new List<Usuario>();         // pacientes con correo propio: reciben el enlace para crear su contraseña
         var credenciales = new List<object>();
         int creados = 0, actualizados = 0, omitidos = 0, cursosCreados = 0;
         var anio = DateTime.Now.Year;
@@ -902,13 +946,20 @@ public class PsychosocialController : Controller
             }
 
             var email = $"{rutNorm.ToLowerInvariant()}@{(esColegio ? "alumnos" : "pacientes")}.auka.cl";
+            var conCorreoPropio = false;
             // Paciente con correo propio: ese es su usuario (ahí le llegan las citaciones y la recuperación de clave)
             if (!esColegio && !string.IsNullOrWhiteSpace(f.Correo))
             {
                 var real = f.Correo.Trim().ToLowerInvariant();
                 if (!correos.Contains(real) && !await _context.Usuarios.IgnoreQueryFilters().AnyAsync(u => u.Email.ToLower() == real))
+                {
                     email = real;
+                    conCorreoPropio = true;
+                }
+                else avisos.Add($"Fila {f.Linea}: el correo {real} ya lo usa otra cuenta; {f.Nombre} quedó para entrar con su RUT {rutFmt}. Puedes cambiarle el correo desde su ficha.");
             }
+            else if (!esColegio)
+                avisos.Add($"Fila {f.Linea}: {f.Nombre} no tiene correo; entrará con su RUT {rutFmt}. Agrégale su correo desde la ficha para que reciba las citaciones.");
             if (correos.Contains(email)) { errores.Add($"Fila {f.Linea}: el RUT {rutFmt} ya está registrado en otro colegio."); continue; }
 
             var (nombres, apellidos) = SepararNombre(f.Nombre);
@@ -937,6 +988,7 @@ public class PsychosocialController : Controller
             };
             _context.Estudiantes.Add(nuevoEst);
             if (esColegio) Vincular(nuevoEst, f, rutNorm);
+            if (conCorreoPropio) invitar.Add(usuario);
             correos.Add(email);
             credenciales.Add(new { rut = rutFmt, n = f.Nombre, e = email, c = clave });
             creados++;
@@ -944,8 +996,19 @@ public class PsychosocialController : Controller
 
         await _context.SaveChangesAsync();
 
+        // Correo de bienvenida con enlace para crear la contraseña (máximo 50 por carga para no demorar la respuesta)
+        var invitados = 0;
+        var nombreOrg = User.FindFirst("ColegioNombre")?.Value ?? "Tu organización";
+        foreach (var inv in invitar.Take(50))
+        {
+            try { if ((await _acceso.EnviarInvitacionAsync(inv, $"{Request.Scheme}://{Request.Host}", nombreOrg)).Enviado) invitados++; }
+            catch { /* si el correo falla, igual quedan la clave provisoria y "¿Olvidaste tu contraseña?" */ }
+        }
+
         return new
         {
+            avisos = avisos.Take(30),
+            invitados,
             creados,
             actualizados,
             omitidos,
@@ -1079,7 +1142,33 @@ public class PsychosocialController : Controller
         ["plan"] = "Plan de acción",
         ["pro"] = "Beneficio pro-retención",
         ["ropa"] = "Movimiento de inventario",
-        ["egr"] = "Egreso psicosocial"
+        ["egr"] = "Egreso psicosocial",
+        ["rein"] = "Reintegro escolar",
+        // Protocolos de actuación del Reglamento Interno
+        ["mal"] = "Protocolo de maltrato escolar",
+        ["vul"] = "Vulneración de derechos",
+        ["dec"] = "Desregulación emocional (DEC)",
+        ["vit"] = "Protocolo de riesgo vital"
+    };
+
+    // Las mismas fichas con el nombre que usa una empresa, fundación o particular
+    private static readonly Dictionary<string, string> TiposRegistroOrg = new()
+    {
+        ["seg"] = "Seguimiento mensual",
+        ["jud"] = "Caso Ley Karin",
+        ["inf"] = "Informe emitido",
+        ["vd"] = "Visita en terreno",
+        ["conv"] = "Derivación externa",
+        ["tut"] = "Acuerdo con jefatura",
+        ["plan"] = "Plan de intervención",
+        ["pro"] = "Beneficio",
+        ["ropa"] = "Movimiento de inventario",
+        ["egr"] = "Alta / cierre de caso",
+        ["rein"] = "Reintegro laboral",
+        ["mal"] = "Protocolo de maltrato",
+        ["vul"] = "Vulneración de derechos",
+        ["dec"] = "Desregulación emocional",
+        ["vit"] = "Protocolo de riesgo vital"
     };
 
     private static string NombreCurso(Curso? c) =>
@@ -1093,7 +1182,8 @@ public class PsychosocialController : Controller
         var colegioId = _context.CurrentTenantId;
         var n = await _context.RegistrosPsicosociales.IgnoreQueryFilters()
             .CountAsync(r => r.ColegioId == colegioId && r.Tipo == "inf" && r.FechaUtc >= desde);
-        return $"FEMAR-{n + 1}-{anio}";
+        var prefijo = (await OrgAsync()).V.EsColegio ? "FEMAR" : "INF";
+        return $"{prefijo}-{n + 1}-{anio}";
     }
 
     // GET: /Psychosocial/SiguienteCorrelativo
@@ -1124,7 +1214,7 @@ public class PsychosocialController : Controller
         {
             id = r.Id,
             k = r.Tipo,
-            nk = TiposRegistro.GetValueOrDefault(r.Tipo, r.Tipo),
+            nk = (esColegio ? TiposRegistro : TiposRegistroOrg).GetValueOrDefault(r.Tipo, r.Tipo),
             eid = r.EstudianteId,
             n = r.Estudiante?.Usuario != null ? $"{r.Estudiante.Usuario.Nombre} {r.Estudiante.Usuario.Apellido}".Trim() : "",
             c = esColegio ? NombreCurso(r.Estudiante?.Curso) : "",

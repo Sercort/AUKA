@@ -92,9 +92,9 @@
   <div class="psx-pane" data-p="Resumen">
     
     <div class="psx-grid">
-      <div class="psx-card"><h6>@V.Personas en seguimiento por curso</h6><div id="gCur"></div></div>
-      <div class="psx-card"><h6>Informes judiciales de julio</h6><div id="gInf"></div>
-        <h6 style="margin-top:1rem">Periodicidad de informes</h6><div id="gPer"></div></div>
+      <div class="psx-card"><h6>@V.Personas en seguimiento @(V.EsColegio ? "por curso" : "por nivel de riesgo")</h6><div id="gCur"></div></div>
+      <div class="psx-card"><h6>@(V.EsColegio ? "Informes judiciales de julio" : "Casos Ley Karin por estado")</h6><div id="gInf"></div>
+        <h6 style="margin-top:1rem">@(V.EsColegio ? "Periodicidad de informes" : "Casos Ley Karin por tipo")</h6><div id="gPer"></div></div>
       <div class="psx-card"><h6>Asistencia en monitoreo</h6><div id="gAs"></div>
         <p class="psx-leg">Menciones de asistencia en la calendarización; bajo 85% se marca como riesgo.</p></div>
     </div>
@@ -115,24 +115,29 @@
       <p class="psx-leg"><span class="psx-dots" style="display:inline-flex"><i class="d2"></i></span> realizado &nbsp;
         <span class="psx-dots" style="display:inline-flex"><i class="d1"></i></span> pendiente &nbsp;
         <span class="psx-dots" style="display:inline-flex"><i></i></span> sin acción &nbsp; (Mar a Dic)</p></div>
+    <div class="psx-card"><h6>Protocolo de riesgo vital</h6><p class="psx-leg" style="margin:0 0 .4rem">El detalle queda en la ficha (con segunda clave). Riesgo inminente: urgencia o SAMU 131 · Línea de prevención del suicidio *4141 (gratuita, 24 horas).</p><div id="tVit"></div></div>
+    @if (V.EsColegio) {<div class="psx-card"><h6>Desregulaciones emocionales (DEC · Ley TEA 21.545)</h6><div id="tDec"></div></div>}
+    <div class="psx-card"><h6>@(V.EsColegio ? "Reintegros escolares" : "Reintegros laborales")</h6><div id="tRein"></div></div>
   </div>
 
-  <div class="psx-pane" data-p="Judicial" data-k="jud">
+  <div class="psx-pane" data-p="@(V.EsColegio ? "Judicial" : "Ley Karin")" data-k="jud">
     <div class="psx-grid" style="grid-template-columns:2fr 1fr">
-      <div class="psx-card"><h6>Casos judicializados</h6><div id="tJud"></div></div>
+      <div class="psx-card"><h6>@(V.EsColegio ? "Casos judicializados" : "Casos Ley Karin (acoso y violencia en el trabajo)")</h6><div id="tJud"></div>
+        @if (V.EsColegio) {<h6 style="margin-top:1rem">Vulneración de derechos</h6><div id="tVul"></div>}</div>
       <div class="psx-card"><h6>Correlativo de informes</h6>
-        <p style="margin:0">Próximo N°: <b id="corNext">FEMAR-1-2026</b></p>
+        <p style="margin:0">Próximo N°: <b id="corNext">@(V.EsColegio ? "FEMAR" : "INF")-1-@DateTime.Now.Year</b></p>
         <button class="psx-btn p" style="margin:.6rem 0" id="bCor">Generar correlativo</button><div id="tCor"></div></div>
     </div>
   </div>
 
   <div class="psx-pane" data-p="Derivaciones" data-k="der">
-    <div class="psx-card"><h6>Derivación a convivencia escolar</h6><div id="tCon"></div></div>
-    <div class="psx-card"><h6>Derivación a profesores tutores</h6><div id="tTut"></div></div>
+    <div class="psx-card"><h6>@(V.EsColegio ? "Derivación a convivencia escolar" : "Derivaciones externas (mutualidad, salud mental, red de apoyo)")</h6><div id="tCon"></div></div>
+    @if (V.EsColegio) {<div class="psx-card"><h6>Protocolo de maltrato escolar (Ley 20.536)</h6><div id="tMal"></div></div>}
+    <div class="psx-card"><h6>@(V.EsColegio ? "Derivación a profesores tutores" : "Acuerdos con jefatura")</h6>@if (!V.EsColegio) {<p class="psx-leg" style="margin:0 0 .4rem">Solo los ajustes laborales acordados. La jefatura no ve la ficha ni la información clínica.</p>}<div id="tTut"></div></div>
   </div>
 
   <div class="psx-pane" data-p="Terreno" data-k="vd">
-    <div class="psx-card"><h6>Visitas domiciliarias (V.D.)</h6><div id="tVD"></div></div>
+    <div class="psx-card"><h6>@(V.EsColegio ? "Visitas domiciliarias (V.D.)" : "Visitas en terreno")</h6><div id="tVD"></div></div>
   </div>
 
   <div class="psx-pane" data-p="Beneficios" data-k="ben">
@@ -154,9 +159,9 @@
       <p class="psx-leg">Datos de menores: solo para personal autorizado.</p></div>
   </div>
 
-  <div class="psx-pane" data-p="Egresos y plan" data-k="egr">
-    <div class="psx-card"><h6>Egresos psicosociales</h6><div id="tEgr"></div></div>
-    <div class="psx-card"><h6>Plan de acción: estudiantes críticos</h6><div class="psx-kan" id="kan"></div></div>
+  <div class="psx-pane" data-p="@(V.EsColegio ? "Egresos y plan" : "Altas y plan")" data-k="egr">
+    <div class="psx-card"><h6>@(V.EsColegio ? "Egresos psicosociales" : "Altas y cierres de caso")</h6><div id="tEgr"></div></div>
+    <div class="psx-card"><h6>@(V.EsColegio ? "Plan de acción: estudiantes críticos" : "Plan de intervención")</h6><div class="psx-kan" id="kan"></div></div>
   </div>
 <div class="psx-ov" id="psxOv"><div class="psx-mod">
     <div class="psx-mh"><b>Nuevo registro</b><button class="psx-x" id="mX">&times;</button></div>
@@ -210,9 +215,9 @@
   // seg = [nombre, curso, último objetivo, [10 meses: 0 sin acción | 2 realizado], última asistencia o null, estudianteId]
   var drawSeg = function () {
     var f = sel.value;
-    $('tSeg').innerHTML = T(['@V.Persona','Curso','Objetivo / acuerdo','Mar a Dic','Asistencia'],
+    $('tSeg').innerHTML = T(['@V.Persona','Curso','Objetivo / acuerdo','Mar a Dic', ORG.col ? 'Asistencia' : 'Nivel de riesgo'],
       seg.filter(function (r) { return !f || r[1] === f; }).map(function (r) {
-        return ['<a href="#" class="ros-a" data-id="' + r[5] + '" style="font-weight:600;color:#0d6efd;text-decoration:none">' + esc(r[0]) + '</a>', esc(r[1]), esc(r[2]), dots(r[3]), r[4] == null ? '—' : asis(r[4])];
+        return ['<a href="#" class="ros-a" data-id="' + r[5] + '" style="font-weight:600;color:#0d6efd;text-decoration:none">' + esc(r[0]) + '</a>', esc(r[1]), esc(r[2]), dots(r[3]), r[4] == null ? '—' : ORG.col ? asis(r[4]) : c(esc(r[4]), r[4] === 'Alto' ? 'bad' : r[4] === 'Medio' ? 'warn' : 'ok')];
       }));
   };
   sel.onchange = drawSeg; drawSeg();
@@ -247,7 +252,44 @@
     {k:'ano',n:'Anotación de conducta',d:'Positiva o negativa; la ven profesores/as y apoderados/as',al:1,f:[['Tipo','s',['Positiva','Negativa']],['Detalle','a']]},
     {k:'egr',n:'Egreso psicosocial',d:'Motivo, fecha y citación final',al:1,f:[['Motivo','s',['Egreso','Egreso con compromisos','Retirada del colegio']],['Fecha','d'],['Citación a apoderada','d'],['Observaciones','a']]}
   ];
-  var PLA = { seg: 'seg', jud: 'jud', inf: 'jud', vd: 'vd', conv: 'der', tut: 'der', plan: 'egr', egr: 'egr', pro: 'ben', ropa: 'ben' };
+  // Empresa, fundación o particular: las fichas del colegio cambian de nombre y de campos.
+  // Basado en lo que se usa en Chile: Ley 16.744 (mutualidades), Ley Karin 21.643 y reintegro tras licencia médica.
+  var FORG = {
+    seg:  { n: 'Seguimiento mensual', d: 'Sesiones, nivel de riesgo y acuerdos del mes', f: [['Mes','s',MES],['Tipo de acción','s',['Sesión individual','Entrevista de seguimiento','Contención en crisis','Coordinación con jefatura','Coordinación con mutualidad','Taller grupal']],['Nivel de riesgo','s',['Bajo','Medio','Alto']],['Objetivo / acuerdo','a'],['Observaciones','a']] },
+    jud:  { n: 'Caso Ley Karin', d: 'Denuncia, medidas de resguardo e investigación', f: [['Tipo de caso','s',['Acoso laboral','Acoso sexual','Violencia en el trabajo']],['Fecha de denuncia','d'],['Canal','s',['Denuncia interna','Dirección del Trabajo']],['Medidas de resguardo','a'],['Estado de la investigación','s',['En investigación','Derivada a la Dirección del Trabajo','Concluida']],['Apoyo psicológico','s',['Ofrecido','En curso','No requerido']],['Observaciones','a']] },
+    inf:  { n: 'Informe emitido', d: 'Correlativo INF automático', f: [['N° correlativo','t','Se asigna al guardar'],['Fecha','d'],['Destinatario','t'],['Detalle','a']] },
+    vd:   { n: 'Visita en terreno', d: 'Domicilio o lugar de trabajo', f: [['Fecha','d'],['Lugar','s',['Domicilio','Lugar de trabajo','Otro']],['Dirección','t'],['Jornada','s',['AM','PM']],['Responsable','t'],['Observaciones','a']] },
+    conv: { n: 'Derivación externa', d: 'A mutualidad, salud mental o red de apoyo', f: [['Fecha','d'],['Derivado a','s',['Mutualidad (Ley 16.744)','Médico / psiquiatra tratante','CESFAM / COSAM','Isapre / Fonasa','Programa de asistencia al empleado','Otro']],['Motivo','a'],['Acciones realizadas','a'],['Situación actual','s',['Pendiente','En monitoreo','Resuelto']]] },
+    tut:  { n: 'Acuerdo con jefatura', d: 'Ajustes laborales acordados (sin datos clínicos)', f: [['Jefatura / área','t'],['Acuerdos (horario, carga, funciones)','a'],['Fecha de revisión','d'],['Estado','s',['Pendiente','En curso','Cumplido']]] },
+    plan: { n: 'Plan de intervención', d: 'Objetivos, estrategias y estado', f: [['Objetivos de intervención','a'],['Estrategias','a'],['Estado de objetivos','s',['Por iniciar','En curso','Logrado']]] },
+    egr:  { n: 'Alta / cierre de caso', d: 'Motivo, fecha y recomendaciones', f: [['Motivo','s',['Alta','Alta con recomendaciones','Derivado a otro profesional','Abandono','Término de contrato']],['Fecha','d'],['Recomendaciones','a'],['Observaciones','a']] }
+  };
+  // Colegios: protocolos de actuación que exige el Reglamento Interno (Superintendencia de Educación).
+  // Se agregan sin tocar las fichas que el equipo ya usa.
+  var FCOL = [
+    { k: 'mal', n: 'Protocolo de maltrato escolar', d: 'Ley 20.536: denuncia, investigación, medidas y seguimiento', al: 1, f: [['Fecha de la denuncia','d'],['Tipo de situación','s',['Maltrato entre estudiantes','Adulto hacia estudiante','Estudiante hacia adulto','Ciberacoso','Discriminación']],['Rol del @V.persona','s',['Afectado/a','Involucrado/a','Testigo']],['Etapa del protocolo','s',['Recepción de la denuncia','Investigación','Resolución','Seguimiento','Cerrado']],['Aviso al apoderado/a','d'],['Medidas formativas o de resguardo','a'],['Observaciones','a']] },
+    { k: 'vul', n: 'Vulneración de derechos', d: 'Detección y derivación: OLN, Tribunal de Familia o denuncia', al: 1, f: [['Fecha de detección','d'],['Tipo de situación','s',['Negligencia','Maltrato físico o psicológico','Sospecha de abuso sexual','Violencia intrafamiliar','Otra']],['Acción realizada','s',['Derivación a Oficina Local de la Niñez','Solicitud de medida de protección (Tribunal de Familia)','Denuncia (Fiscalía, Carabineros o PDI)','Entrevista y monitoreo interno']],['Fecha de la acción','d'],['Institución y N° de causa','t'],['Estado','s',['Pendiente','En curso','Cerrado']],['Seguimiento','a']] },
+    { k: 'dec', n: 'Desregulación emocional (DEC)', d: 'Ley TEA 21.545: registro de cada episodio y acompañamiento', al: 1, f: [['Fecha','d'],['Hora','t'],['Etapa','s',['1. Inicial','2. Aumento','3. Descontrol']],['Contexto o detonante','a'],['Acciones de contención','a'],['Aviso al apoderado/a','s',['Sí','No']],['Observaciones','a']] },
+    { k: 'rein', n: 'Reintegro escolar', d: 'Vuelta a clases después de una licencia u hospitalización', al: 1, f: [['Motivo de la ausencia','s',['Licencia médica','Hospitalización','Embarazo o maternidad/paternidad','Otro']],['Fecha de inicio','d'],['Fecha de retorno','d'],['Ajustes acordados (horario, evaluaciones, apoyos)','a'],['Estado','s',['Planificado','En curso','Completado']]] }
+  ];
+  if (ORG.col) F.splice(F.length - 2, 0, FCOL[0], FCOL[1], FCOL[2], FCOL[3]);
+  // Protocolo de riesgo vital (guía MINSAL/MINEDUC). El nivel lo define la evaluación del profesional.
+  var FVIT = { k: 'vit', n: 'Protocolo de riesgo vital', d: 'Sigue el protocolo de tu organización. Riesgo inminente: urgencia o SAMU 131 · Línea de prevención *4141', al: 1, f: [
+    ['Fecha de detección','d'],
+    ['Quién informa','s', ORG.col ? ['El/la estudiante','Un compañero/a','Docente o funcionario/a','Apoderado/a','Redes sociales','Otro'] : ['El/la paciente','Familiar','Compañero/a de trabajo','Jefatura','Otro']],
+    ['Nivel de riesgo (evaluación profesional)','s',['Bajo','Medio','Alto','Inminente']],
+    ['Acciones inmediatas','a'],
+    [ORG.col ? 'Aviso al apoderado/a (fecha y hora)' : 'Aviso a contacto de emergencia (fecha y hora)','t'],
+    ['Derivación a salud','s',['Urgencia (SAPU, SAR u hospital)','CESFAM / COSAM','Salud mental privada','Ya está en tratamiento','No requiere']],
+    ['Fecha de próximo control','d'],
+    ['Estado','s',['Abierto','En seguimiento','Cerrado']],
+    ['Observaciones','a']] };
+  F.splice(1, 0, FVIT);
+  if (!ORG.col) {
+    F = F.map(function (f) { return FORG[f.k] ? { k: f.k, n: FORG[f.k].n, d: FORG[f.k].d, al: f.al, f: FORG[f.k].f } : f; });
+    F.splice(1, 0, { k: 'rein', n: 'Reintegro laboral', d: 'Vuelta al trabajo después de una licencia médica', al: 1, f: [['Fecha de inicio de licencia','d'],['Fecha de retorno','d'],['Tipo de licencia','s',['Común','Laboral (mutualidad)']],['Ajustes acordados','a'],['Estado','s',['Planificado','En curso','Completado']]] });
+  }
+  var PLA = { seg: 'seg', rein: 'seg', dec: 'seg', vit: 'seg', jud: 'jud', inf: 'jud', vul: 'jud', vd: 'vd', conv: 'der', tut: 'der', mal: 'der', plan: 'egr', egr: 'egr', pro: 'ben', ropa: 'ben' };
   var FALL = F.slice();
   F = F.filter(function (f) { return f.k === 'ano' ? ORG.col : ORG.pl.indexOf(PLA[f.k]) > -1; });
   var fld = function (f) {
@@ -308,7 +350,9 @@
       h = '<div class="psx-find-row"><select id="mCur" class="psx-in"></select><input id="mTxt" class="psx-in" placeholder="Buscar por nombre o RUT"></div>' +
         '<div id="mRes" class="psx-res"></div><div id="mSel" style="margin-top:.6rem">' + (st.a ? c('Seleccionado/a: ' + st.a[0] + (st.a[1] ? ' · ' + st.a[1] : ''), 'ok') : '') + '</div>';
     } else {
-      h = '<div>' + c(st.f.n, 'info') + (st.a ? ' ' + c(st.a[0] + (st.a[1] ? ' · ' + st.a[1] : ''), 'nil') : '') + '</div><div class="psx-fgrid">' + st.f.f.map(fld).join('') + '</div>';
+      h = '<div>' + c(st.f.n, 'info') + (st.a ? ' ' + c(st.a[0] + (st.a[1] ? ' · ' + st.a[1] : ''), 'nil') : '') + '</div>' +
+        (st.f.k === 'vit' ? '<div class="psx-note" style="margin-top:.5rem;border-left:3px solid #B4402F">' + c('Importante', 'bad') + ' Sigue el protocolo de riesgo de tu organización. Si el riesgo es <b>inminente</b>: no dejes sola a la persona, llama a urgencia o <b>SAMU 131</b> y avisa de inmediato a su familia. Línea de prevención del suicidio <b>*4141</b> (gratuita, 24 horas).</div>' : '') +
+        '<div class="psx-fgrid">' + st.f.f.map(fld).join('') + '</div>';
     }
     mB.innerHTML = h;
     $('mBack').style.visibility = st.s > 1 ? 'visible' : 'hidden';
@@ -662,6 +706,7 @@
       return '<div class="psx-note"><div class="psx-leg" style="margin:0">' + new Date(x.f).toLocaleString('es-CL') + ' · ' + esc(x.a) + (x.m ? ' · editada' : '') + '</div>' +
         '<div id="bt' + x.id + '" style="white-space:pre-wrap;margin:.25rem 0">' + esc(x.t) + '</div><button class="psx-btn" data-ed="' + x.id + '">Editar</button></div>';
     }).join('') || '<p class="psx-leg">Sin anotaciones todavía.</p>';
+    var interno = /@@(alumnos|pacientes)\.auka\.cl$/i.test(f.email || '');
     var cont = [f.d ? '📍 ' + esc(f.d) : '', f.t ? '📞 ' + esc(f.t) : '', f.m ? '✉️ ' + esc(f.m) : ''].filter(Boolean).join(' · ');
     $('fiB').innerHTML = '<div><b style="font-size:1.05rem">' + esc(f.n) + '</b><div class="psx-leg">' + (f.c ? esc(f.c) + ' · ' : '') + 'RUT ' + esc(f.r) +
       (f.f ? ' · Nacimiento ' + f.f.split('-').reverse().join('-') + ' (' + edad(f.f) + ' años)' : '') + '</div>' + (cont ? '<div class="psx-leg" style="margin-top:.15rem">' + cont + '</div>' : '') + '</div>' +
@@ -673,8 +718,11 @@
       (ORG.col ? '' : '<div style="display:none">') + '<h6 style="margin:.9rem 0 .4rem">Anotaciones de conducta</h6><p class="psx-leg" style="margin:0 0 .4rem">Las ven profesores/as y apoderados/as, como cualquier anotación del libro de clases.</p>' +
       '<div class="psx-find-row"><select class="psx-in" id="anT" style="max-width:150px"><option value="1">Positiva</option><option value="2">Negativa</option></select><input class="psx-in" id="anD" placeholder="Detalle de la anotación" maxlength="500"></div>' +
       '<button class="psx-btn p" id="anAdd" style="margin:.4rem 0">Registrar anotación</button><div id="anL"></div>' + (ORG.col ? '' : '</div>') +
-      '<h6 style="margin:.9rem 0 .4rem">Cuenta del @V.persona</h6><p class="psx-leg">Usuario: ' + esc(f.email) + '. La clave de ingreso se guarda cifrada y no se puede ver; si se perdió, genera una nueva provisoria.</p>' +
-      '<button class="psx-btn" id="fiRes">Generar nueva clave provisoria</button><div id="fiC"></div>';
+      '<h6 style="margin:.9rem 0 .4rem">Cuenta del @V.persona</h6>' +
+      '<p class="psx-leg" style="margin:0 0 .4rem">Entra con su correo <b>' + esc(f.email) + '</b> o con su RUT <b>' + esc(f.r) + '</b>.' + (interno && !ORG.col ? ' ' + c('Sin correo propio: no recibe avisos', 'warn') : '') + ' La clave se guarda cifrada y no se puede ver.</p>' +
+      '<div class="psx-find-row"><input class="psx-in" id="fiMail" type="email" placeholder="Correo personal o de trabajo" value="' + (interno ? '' : esc(f.email)) + '"><button class="psx-btn" id="fiMailOk">Cambiar correo de acceso</button></div>' +
+      '<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem"><button class="psx-btn p" id="fiInv"' + (interno ? ' disabled title="Primero agrega su correo"' : '') + '>Enviar acceso por correo</button><button class="psx-btn" id="fiRes">Generar clave provisoria</button></div>' +
+      '<p class="psx-leg" style="margin:.3rem 0 0">«Enviar acceso por correo» le manda un enlace para que cree su propia contraseña (no se envía ninguna clave). Dura ' + 72 + ' horas.</p><div id="fiC"></div>';
     cargarAnot(f.id);
     $('fiNew').onclick = function () { dgClose(); openM(byRut(f.r) || [f.n, f.c, f.r, null, f.id]); };
     $('fiReg').onclick = function (e) {
@@ -710,6 +758,20 @@
       } else if (sv) {
         post('/Psychosocial/EditarBitacora', { id: sv, observaciones: $('be' + sv).value }).then(cargarFicha).catch(falloFicha);
       }
+    };
+    $('fiMailOk').onclick = function () {
+      post('/Psychosocial/CambiarCorreoAcceso', { estudianteId: f.id, correo: $('fiMail').value })
+        .then(function (j) { msg('Correo de acceso actualizado: ' + j.email, 1); cargarFicha(); cargarAlu(); })
+        .catch(falloFicha);
+    };
+    $('fiInv').onclick = function () {
+      $('fiInv').disabled = true;
+      post('/Psychosocial/EnviarAccesoCorreo', { estudianteId: f.id })
+        .then(function (j) {
+          $('fiC').innerHTML = '<div class="psx-note">' + c(j.simulado ? 'Correo simulado' : 'Correo enviado', j.simulado ? 'warn' : 'ok') + ' a <b>' + esc(j.email) + '</b>.' +
+            (j.simulado ? '<p class="psx-leg" style="margin:.3rem 0 0">El envío de correos está apagado (modo pruebas). Actívalo en la sección "Correo" de la configuración para que llegue de verdad.</p>' : '<p class="psx-leg" style="margin:.3rem 0 0">Pídele que revise también la carpeta de spam.</p>') + '</div>';
+        })
+        .catch(falloFicha).then(function () { $('fiInv').disabled = false; });
     };
     $('fiRes').onclick = function () {
       post('/Psychosocial/RestablecerClaveAlumno', { estudianteId: f.id }).then(function (j) {
@@ -792,25 +854,50 @@
       var x = porAl[r.eid] || (porAl[r.eid] = [r.n, r.c, '', [0,0,0,0,0,0,0,0,0,0], null, r.eid]);
       var m = MES.indexOf(g(r, 'Mes')); if (m > -1) x[3][m] = 2;
       if (g(r, 'Objetivo / acuerdo')) x[2] = g(r, 'Objetivo / acuerdo');
-      if (g(r, 'Asistencia (%)') !== '') x[4] = +g(r, 'Asistencia (%)');
+      if (ORG.col) { if (g(r, 'Asistencia (%)') !== '') x[4] = +g(r, 'Asistencia (%)'); }
+      else if (g(r, 'Nivel de riesgo')) x[4] = g(r, 'Nivel de riesgo');
     });
     seg = Object.keys(porAl).map(function (k) { return porAl[k]; }).sort(function (a, b) { return ordenCurso(a[1]) - ordenCurso(b[1]) || (a[0] < b[0] ? -1 : 1); });
     drawSeg();
 
     // Resumen
-    var cnt = {}; seg.forEach(function (x) { cnt[x[1]] = (cnt[x[1]] || 0) + 1; });
+    var cnt = {}; seg.forEach(function (x) { var k = ORG.col ? x[1] : 'Riesgo ' + (x[4] || 'sin dato').toLowerCase(); cnt[k] = (cnt[k] || 0) + 1; });
     var rc = Object.keys(cnt).sort(function (a, b) { return ordenCurso(a) - ordenCurso(b); }).map(function (k) { return [k, cnt[k]]; });
     $('gCur').innerHTML = rc.length ? B(rc, Math.max.apply(null, rc.map(function (x) { return x[1]; }))) : '<p class="psx-leg">Aún no hay seguimientos registrados.</p>';
     var jud = de('jud');
     var cuenta = function (l, k) { var o = {}; l.forEach(function (r) { var v = g(r, k) || 'Sin dato'; o[v] = (o[v] || 0) + 1; }); return Object.keys(o).map(function (x) { return [x, o[x]]; }); };
     var inf = cuenta(jud, 'Informe de julio'), per = cuenta(jud, 'Periodicidad');
-    $('gInf').innerHTML = inf.length ? B(inf, Math.max.apply(null, inf.map(function (x) { return x[1]; }))) : '<p class="psx-leg">Sin casos judicializados.</p>';
-    $('gPer').innerHTML = per.length ? B(per, Math.max.apply(null, per.map(function (x) { return x[1]; }))) : '<p class="psx-leg">—</p>';
-    var as = seg.filter(function (x) { return x[4] != null; }).map(function (x) { return [x[0], x[4]]; }).sort(function (a, b) { return a[1] - b[1]; }).slice(0, 10);
+    if (ORG.col) $('gInf').innerHTML = inf.length ? B(inf, Math.max.apply(null, inf.map(function (x) { return x[1]; }))) : '<p class="psx-leg">Sin casos judicializados.</p>';
+    if (ORG.col) $('gPer').innerHTML = per.length ? B(per, Math.max.apply(null, per.map(function (x) { return x[1]; }))) : '<p class="psx-leg">—</p>';
+    var as = !ORG.col ? [] : seg.filter(function (x) { return x[4] != null; }).map(function (x) { return [x[0], x[4]]; }).sort(function (a, b) { return a[1] - b[1]; }).slice(0, 10);
     $('gAs').innerHTML = as.length ? as.map(function (x) { return '<div class="psx-row"><em style="width:auto;flex:1">' + esc(x[0]) + '</em>' + asis(x[1]) + '</div>'; }).join('') : '<p class="psx-leg">Sin asistencia registrada.</p>';
 
+    // Tabla genérica con los campos de una ficha (sirve para empresas y para los protocolos del colegio)
+    var tablaOrg = function (k, id, cols) {
+        $(id).innerHTML = T(['@V.Persona'].concat(cols), de(k).map(function (r) {
+          return [esc(r.n)].concat(cols.map(function (k2) { var v = g(r, k2); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? fechaCL(v) : /^(Alto|Inminente)$/.test(v) ? c(v, 'bad') : v === 'Medio' ? c(v, 'warn') : /^(Abierto)$/.test(v) ? c(v, 'warn') : /^(Pendiente|En monitoreo|En curso|En investigación|Resuelto|Cumplido|Concluida|Completado|Cerrado|Planificado|Seguimiento|Investigación)$/.test(v) ? estadoChip(v) : esc(v || '—'); }));
+        }));
+      };
+    tablaOrg('vit', 'tVit', ['Fecha de detección', 'Nivel de riesgo (evaluación profesional)', 'Derivación a salud', 'Fecha de próximo control', 'Estado']);
+    if (ORG.col) {
+      tablaOrg('mal', 'tMal', ['Fecha de la denuncia', 'Tipo de situación', 'Rol del @V.persona', 'Etapa del protocolo', 'Aviso al apoderado/a']);
+      tablaOrg('vul', 'tVul', ['Fecha de detección', 'Tipo de situación', 'Acción realizada', 'Fecha de la acción', 'Estado']);
+      tablaOrg('dec', 'tDec', ['Fecha', 'Hora', 'Etapa', 'Aviso al apoderado/a']);
+      tablaOrg('rein', 'tRein', ['Motivo de la ausencia', 'Fecha de inicio', 'Fecha de retorno', 'Estado']);
+    }
+    if (!ORG.col) {
+      tablaOrg('jud', 'tJud', ['Tipo de caso', 'Fecha de denuncia', 'Canal', 'Estado de la investigación', 'Apoyo psicológico']);
+      tablaOrg('conv', 'tCon', ['Fecha', 'Derivado a', 'Motivo', 'Situación actual']);
+      tablaOrg('tut', 'tTut', ['Jefatura / área', 'Acuerdos (horario, carga, funciones)', 'Fecha de revisión', 'Estado']);
+      tablaOrg('vd', 'tVD', ['Fecha', 'Lugar', 'Dirección', 'Responsable']);
+      tablaOrg('egr', 'tEgr', ['Motivo', 'Fecha', 'Recomendaciones']);
+      tablaOrg('rein', 'tRein', ['Fecha de inicio de licencia', 'Fecha de retorno', 'Tipo de licencia', 'Estado']);
+      var kj = cuenta(jud, 'Estado de la investigación'), tj = cuenta(jud, 'Tipo de caso');
+      $('gInf').innerHTML = kj.length ? B(kj, Math.max.apply(null, kj.map(function (x) { return x[1]; }))) : '<p class="psx-leg">Sin casos Ley Karin.</p>';
+      $('gPer').innerHTML = tj.length ? B(tj, Math.max.apply(null, tj.map(function (x) { return x[1]; }))) : '<p class="psx-leg">—</p>';
+    }
     // Judicial y correlativo
-    $('tJud').innerHTML = T(['@V.Persona','Curso','Origen','RIT','Informe jul','Informe dic','Periodicidad'], jud.map(function (r) {
+    if (ORG.col) $('tJud').innerHTML = T(['@V.Persona','Curso','Origen','RIT','Informe jul','Informe dic','Periodicidad'], jud.map(function (r) {
       return [esc(r.n), esc(r.c), esc(g(r, 'Origen de la causa')), g(r, 'RIT de la causa') ? esc(g(r, 'RIT de la causa')) : c('Sin RIT', 'bad'), estadoChip(g(r, 'Informe de julio')), estadoChip(g(r, 'Informe de diciembre')), esc(g(r, 'Periodicidad'))];
     }));
     var infs = de('inf');
@@ -818,16 +905,16 @@
     fetch('/Psychosocial/SiguienteCorrelativo', { credentials: 'same-origin' }).then(function (x) { return x.json(); }).then(function (j) { $('corNext').textContent = j.n; }).catch(function () {});
 
     // Derivaciones, terreno y egresos
-    $('tCon').innerHTML = T(['Fecha','@V.Persona','Curso','Entrevista apoderada','Intervención','Mediación / acciones','Situación'], de('conv').map(function (r) {
+    if (ORG.col) $('tCon').innerHTML = T(['Fecha','@V.Persona','Curso','Entrevista apoderada','Intervención','Mediación / acciones','Situación'], de('conv').map(function (r) {
       return [fechaCL(g(r, 'Fecha')), esc(r.n), esc(r.c), esc(g(r, 'Entrevista con apoderada')), esc(g(r, 'Intervención con @V.persona')), esc(g(r, 'Mediación / acciones')), estadoChip(g(r, 'Situación actual'))];
     }));
-    $('tTut').innerHTML = T(['Curso','Estudiante','Profesor tutor','Objetivo / acuerdo','Estado'], de('tut').map(function (r) {
+    if (ORG.col) $('tTut').innerHTML = T(['Curso','Estudiante','Profesor tutor','Objetivo / acuerdo','Estado'], de('tut').map(function (r) {
       return [esc(r.c), esc(r.n), esc(g(r, 'Profesor tutor')), esc(g(r, 'Objetivos / acuerdos')), estadoChip(g(r, 'Estado'))];
     }));
-    $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], de('vd').map(function (r) {
+    if (ORG.col) $('tVD').innerHTML = T(['Fecha','Estudiante','Dirección','Jornada','Responsable','Pago'], de('vd').map(function (r) {
       return [fechaCL(g(r, 'Fecha')), esc(r.n), esc(g(r, 'Dirección')), esc(g(r, 'Jornada')), esc(g(r, 'Responsable')), estadoChip(g(r, 'Pago'))];
     }));
-    $('tEgr').innerHTML = T(['@V.Persona','Curso','Motivo','Fecha'], de('egr').map(function (r) { return [esc(r.n), esc(r.c), esc(g(r, 'Motivo')), fechaCL(g(r, 'Fecha'))]; }));
+    if (ORG.col) $('tEgr').innerHTML = T(['@V.Persona','Curso','Motivo','Fecha'], de('egr').map(function (r) { return [esc(r.n), esc(r.c), esc(g(r, 'Motivo')), fechaCL(g(r, 'Fecha'))]; }));
 
     // Plan de acción (kanban por estado; queda el plan más reciente de cada @V.persona)
     var ult = {}; de('plan').forEach(function (r) { if (!ult[r.eid]) ult[r.eid] = r; });
@@ -855,7 +942,9 @@
     var h = '<div style="margin-top:.6rem"><span class="psx-c ok">' + j.creados + ' creados</span> <span class="psx-c info">' + j.actualizados + ' actualizados</span> ' + (j.apoderados ? '<span class="psx-c ok">' + j.apoderados + ' apoderados/as creados/as</span> ' : '') +
       (j.omitidos ? '<span class="psx-c nil">' + j.omitidos + ' omitidos</span> ' : '') + (j.cursosCreados ? '<span class="psx-c nil">' + j.cursosCreados + ' cursos nuevos</span> ' : '') +
       (j.totalErrores ? '<span class="psx-c bad">' + j.totalErrores + ' con error</span>' : '') + '</div>';
-    if (j.errores && j.errores.length) h += '<ul class="psx-leg" style="margin:.4rem 0 0 1rem">' + j.errores.map(function (e) { return '<li>' + e + '</li>'; }).join('') + '</ul>';
+    if (j.errores && j.errores.length) h += '<ul class="psx-leg" style="margin:.4rem 0 0 1rem">' + j.errores.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';
+    if (j.avisos && j.avisos.length) h += '<div class="psx-note" style="margin-top:.5rem">' + c('Avisos', 'warn') + '<ul class="psx-leg" style="margin:.3rem 0 0 1rem">' + j.avisos.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
+    if (j.invitados) h += '<p class="psx-leg">' + c(j.invitados + ' recibieron un correo para crear su contraseña', 'ok') + '</p>';
     if (j.credenciales && j.credenciales.length) h += '<p class="psx-leg">Las cuentas nuevas tienen una clave provisoria que deben cambiar al entrar. <b>Descárgala ahora: no se vuelve a mostrar.</b></p><button class="psx-btn p" id="bCred">Descargar claves provisorias (CSV)</button>';
     $(cont).innerHTML = h;
     if ($('bCred')) $('bCred').onclick = function () {

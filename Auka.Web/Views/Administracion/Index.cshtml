@@ -6,6 +6,7 @@
     var org = ViewData["Org"] as Auka.Web.Services.DatosOrganizacion
               ?? new Auka.Web.Services.DatosOrganizacion(Auka.Web.Services.Vocabulario.Colegio, Auka.Web.Services.Organizacion.Planillas.Keys.ToArray());
     var V = org.V;
+    var permitePremium = Auka.Web.Services.Organizacion.PermitePremium(V.Tipo);
 
     var hayEquipo = Model.ListaEquipo.Any(m => m.Activo);
     var hayAlumnos = Model.Alumnos > 0;
@@ -81,7 +82,7 @@
                     <h5 class="mb-0">Primeros pasos</h5><span class="ad-chip">@hechos de 3</span>
                 </div>
                 <div class="ad-step"><span class="ad-dot @(hayEquipo ? "ok" : "")">@(hayEquipo ? "✓" : "1")</span>
-                    <div><b>Agrega a tu equipo</b><div class="small text-secondary">Psicólogo/a, trabajador/a social, orientador/a y profesores/as jefe. <a asp-controller="Personal" asp-action="Index">Ir a Equipo</a></div></div></div>
+                    <div><b>Agrega a tu equipo</b><div class="small text-secondary">@(V.EsColegio ? "Psicólogo/a, trabajador/a social, orientador/a y profesores/as jefe." : "Psicólogo/a, trabajador/a social y orientador/a.") <a asp-controller="Personal" asp-action="Index">Ir a Equipo</a></div></div></div>
                 <div class="ad-step"><span class="ad-dot @(hayAlumnos ? "ok" : "")">@(hayAlumnos ? "✓" : "2")</span>
                     <div><b>Carga a los @V.personas</b><div class="small text-secondary">@(V.EsColegio ? "Importa tu planilla: cada alumno/a queda en su curso automáticamente." : "Importa tu planilla de pacientes o agrégalos a mano.") <a asp-controller="Administracion" asp-action="Alumnos">Ir a @V.Personas</a></div></div></div>
                 <div class="ad-step"><span class="ad-dot @(todosConClave ? "ok" : "")">@(todosConClave ? "✓" : "3")</span>
@@ -91,7 +92,7 @@
 
         <section class="ad-card ad-sec">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="mb-0">Equipo del colegio</h5>
+                <h5 class="mb-0">@(V.EsColegio ? "Equipo del colegio" : "Equipo de la organización")</h5>
                 <a class="btn btn-sm btn-outline-primary rounded-pill px-3" asp-controller="Personal" asp-action="Index">Administrar equipo</a>
             </div>
             @if (!Model.ListaEquipo.Any())
@@ -150,11 +151,15 @@
             <p class="small text-secondary mb-0">Como administrador/a gestionas al equipo y a los @V.personas. El contenido de las fichas y bitácoras es solo del equipo psicosocial, protegido con su segunda clave. Aquí ves únicamente cantidades.</p>
         </section>
 
-        <section class="ad-card ad-sec">
-            <h5>Incluido en el Plan Premium</h5>
-            <div class="ad-prem">
-                <span>Clubes y talleres</span><span>Evaluaciones</span><span>Libro de notas</span><span>Horarios</span><span>Inspectoría</span><span>Directivos y UTP</span>
-            </div>
-        </section>
+        @if (permitePremium)
+        {
+            @* Solo colegios e institutos pueden pasar a Premium; a una empresa o particular no se le ofrece *@
+            <section class="ad-card ad-sec">
+                <h5>Incluido en el Plan Premium</h5>
+                <div class="ad-prem">
+                    <span>Clubes y talleres</span><span>Evaluaciones</span><span>Libro de notas</span><span>Horarios</span><span>Inspectoría</span><span>Directivos y UTP</span>
+                </div>
+            </section>
+        }
     </div>
 </div>

@@ -70,8 +70,8 @@
         <!-- FORMULARIO DE ACCESO CON CORREO INSTITUCIONAL DE AUKA -->
         <form method="post" asp-action="Login" asp-controller="Account">
             <div class="form-floating mb-3 text-start">
-                <input type="email" class="form-control" id="email" name="email" placeholder="nombre@colegio.cl" required />
-                <label for="email">Correo Electrónico</label>
+                <input type="text" class="form-control" id="email" name="email" placeholder="correo o RUT" autocomplete="username" required />
+                <label for="email">Correo o RUT</label>
             </div>
 
             <div class="form-floating mb-2 text-start">

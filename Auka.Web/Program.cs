@@ -22,6 +22,7 @@ builder.Services.AddScoped<ITenantProvider, HttpTenantProvider>();
 builder.Services.Configure<CorreoOptions>(builder.Configuration.GetSection("Correo"));
 builder.Services.AddScoped<ICorreoService, SmtpCorreoService>();
 builder.Services.AddScoped<INotificacionService, NotificacionService>();
+builder.Services.AddScoped<IAccesoService, AccesoService>();   // correo con enlace para que la persona cree su contraseña
 builder.Services.AddHostedService<ReintentoCorreosService>();
 builder.Services.AddHostedService<AvisoVencimientosService>();
 

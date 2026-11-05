@@ -132,6 +132,13 @@
   var L = [], estado = '', ficha = null;
   var marcar = function (cls, keys) { document.querySelectorAll('.' + cls).forEach(function (x) { x.checked = keys.indexOf(x.value) > -1; }); };
   var marcadas = function (cls) { return Array.prototype.filter.call(document.querySelectorAll('.' + cls), function (x) { return x.checked; }).map(function (x) { return x.value; }).join(','); };
+  // Empresa, fundación o particular: solo Plan Psicosocial (se bloquean Premium e Institucional)
+  var SOLO_PSICO = ['Empresa', 'Fundación', 'Particular'];
+  var limitarPlan = function (tipoId, planId) {
+    var solo = SOLO_PSICO.indexOf($(tipoId).value) > -1, sel = $(planId);
+    Array.prototype.forEach.call(sel.options, function (o) { if (o.value !== 'psicosocial') { o.disabled = solo; o.hidden = solo; } });
+    if (solo) sel.value = 'psicosocial';
+  };
   var PORDEF_ORG = '@Auka.Web.Services.Organizacion.PlanillasPorDefectoOrganizacion'.split(',');
   var mFicha, mNuevo;
   var chip = function (m, k) { var x = m[k] || [k, 'ins']; return '<span class="pl-chip ' + x[1] + '">' + x[0] + '</span>'; };
@@ -163,7 +170,7 @@
       $('fTit').textContent = c.nombre; $('fSub').textContent = 'N° ' + c.id + (c.rut ? ' · RBD/RUT ' + c.rut : '') + (c.registro ? ' · cliente desde ' + fecha(c.registro) : '');
       $('fCon').value = c.contacto || ''; $('fCor').value = c.correo || ''; $('fTel').value = c.telefonoContacto || '';
       $('fTipo').value = c.tipo || 'Colegio'; marcar('fPla', c.planillas || []);
-      $('fPl').value = c.plan; $('fVen').value = c.vence ? c.vence.slice(0, 10) : ''; $('fPre').value = c.precio != null ? c.precio : ''; $('fNot').value = c.notas || '';
+      $('fPl').value = c.plan; limitarPlan('fTipo', 'fPl'); $('fVen').value = c.vence ? c.vence.slice(0, 10) : ''; $('fPre').value = c.precio != null ? c.precio : ''; $('fNot').value = c.notas || '';
       $('fEst').innerHTML = chip(EST, c.estado) + (c.baja ? ' <span class="small text-secondary">desde ' + fecha(c.baja) + (c.motivoBaja ? ' · ' + esc(c.motivoBaja) : '') + '</span>' : '');
       var acc = c.estado === 'suspendido' || c.estado === 'baja'
         ? '<button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3" data-st="reactivar">Reactivar</button>'
@@ -191,7 +198,8 @@
   });
 
   // Al elegir el tipo se sugieren las planillas (se pueden cambiar)
-  $('nTipo').onchange = function () { marcar('nPla', $('nTipo').value === 'Colegio' ? Array.prototype.map.call(document.querySelectorAll('.nPla'), function (x) { return x.value; }) : PORDEF_ORG); };
+  $('fTipo').onchange = function () { limitarPlan('fTipo', 'fPl'); };
+  $('nTipo').onchange = function () { limitarPlan('nTipo', 'nPlan'); marcar('nPla', $('nTipo').value === 'Colegio' ? Array.prototype.map.call(document.querySelectorAll('.nPla'), function (x) { return x.value; }) : PORDEF_ORG); };
   $('bNuevo').onclick = function () { msg('nRes', ''); $('nForm').style.display = ''; $('nOk').style.display = ''; $('nTipo').value = 'Colegio'; $('nTipo').onchange(); mNuevo.show(); };
   $('nOk').onclick = function () {
     $('nOk').disabled = true;

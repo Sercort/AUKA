@@ -30,13 +30,17 @@ public static class Organizacion
     public static readonly Dictionary<string, string> Planillas = new()
     {
         ["seg"] = "Seguimiento",
-        ["jud"] = "Judicial",
+        ["jud"] = "Judicial / Ley Karin",
         ["der"] = "Derivaciones",
         ["vd"] = "Terreno",
         ["ben"] = "Beneficios",
         ["vac"] = "Vacunación",
         ["egr"] = "Egresos y plan"
     };
+
+    // Solo colegios e institutos pueden tener Plan Premium / Institucional (clubes, notas, horarios...).
+    // Empresas, fundaciones y particulares contratan solo el área psicosocial.
+    public static bool PermitePremium(string? tipo) => string.IsNullOrWhiteSpace(tipo) || tipo is "Colegio" or "Instituto";
 
     // Planillas que se activan por defecto al crear una organización que no es colegio
     public const string PlanillasPorDefectoOrganizacion = "seg,der,vd,egr";
@@ -45,7 +49,8 @@ public static class Organizacion
     public static readonly Dictionary<string, string> PlanillaDeFicha = new()
     {
         ["seg"] = "seg", ["jud"] = "jud", ["inf"] = "jud", ["vd"] = "vd", ["conv"] = "der", ["tut"] = "der",
-        ["plan"] = "egr", ["egr"] = "egr", ["pro"] = "ben", ["ropa"] = "ben"
+        ["plan"] = "egr", ["egr"] = "egr", ["pro"] = "ben", ["ropa"] = "ben", ["rein"] = "seg",
+        ["mal"] = "der", ["vul"] = "jud", ["dec"] = "seg", ["vit"] = "seg"
     };
 
     /// <summary>null o vacío = todas las planillas.</summary>

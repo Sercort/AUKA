@@ -23,7 +23,8 @@ public interface INotificacionService
 
 public class NotificacionService : INotificacionService
 {
-    private const string DominioInterno = "@alumnos.auka.cl";   // correos de alumnos/as que no existen de verdad
+    // Correos que AUKA inventa cuando la persona no dio uno propio (no existen de verdad: no se les envía nada)
+    private static readonly string[] DominiosInternos = { "@alumnos.auka.cl", "@pacientes.auka.cl" };
 
     private readonly ApplicationDbContext _context;
     private readonly ICorreoService _correo;
@@ -45,7 +46,7 @@ public class NotificacionService : INotificacionService
         void Agregar(string? c)
         {
             c = c?.Trim().ToLowerInvariant();
-            if (!string.IsNullOrEmpty(c) && c.Contains('@') && !c.EndsWith(DominioInterno) && !l.Contains(c)) l.Add(c);
+            if (!string.IsNullOrEmpty(c) && c.Contains('@') && !DominiosInternos.Any(d => c.EndsWith(d)) && !l.Contains(c)) l.Add(c);
         }
         Agregar(u.Email);
         Agregar(u.EmailPersonal);
