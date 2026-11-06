@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using Auka.Application.Interfaces;
 using Auka.Web.Services;
 
 namespace Auka.Web.Controllers;
@@ -22,10 +24,14 @@ public class PlataformaController : Controller
 {
     private readonly ApplicationDbContext _context;
     private readonly IMemoryCache _cache;
-    public PlataformaController(ApplicationDbContext context, IMemoryCache cache)
+    private readonly ICorreoService _correo;
+    private readonly CorreoOptions _correoOpt;
+    public PlataformaController(ApplicationDbContext context, IMemoryCache cache, ICorreoService correo, IOptions<CorreoOptions> correoOpt)
     {
         _context = context;
         _cache = cache;
+        _correo = correo;
+        _correoOpt = correoOpt.Value;
     }
 
     private static string TipoValido(string? tipo) => Organizacion.Tipos.Contains(tipo ?? "") ? tipo! : "Colegio";
@@ -85,6 +91,94 @@ public class PlataformaController : Controller
     [HttpGet] public IActionResult Index() => View();
     [HttpGet] public IActionResult Colegios() => View();
     [HttpGet] public IActionResult Mensajes() => View();
+    [HttpGet] public IActionResult Correos() => View();
+
+    // ---------------- Correos: ¿están saliendo? ----------------
+    // Solo estado técnico del envío (organización, destino abreviado, estado y error). Nunca el contenido del aviso.
+    private static string Abreviar(string? correo)
+    {
+        var c = (correo ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+        var i = c.IndexOf('@');
+        return i <= 0 ? c : (c[..Math.Min(3, i)] + "***" + c[i..]);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EstadoCorreos()
+    {
+        var desde = DateTime.UtcNow.AddDays(-7);
+        var ult = await _context.Notificaciones.IgnoreQueryFilters().AsNoTracking()
+            .OrderByDescending(n => n.Id).Take(40)
+            .Select(n => new { n.Id, n.ColegioId, n.CreadaEnUtc, n.CorreoDestino, n.EstadoCorreo, n.UltimoErrorCorreo, n.IntentosCorreo })
+            .ToListAsync();
+        var conteo = await _context.Notificaciones.IgnoreQueryFilters().AsNoTracking()
+            .Where(n => n.CreadaEnUtc >= desde).GroupBy(n => n.EstadoCorreo)
+            .Select(g => new { e = g.Key, n = g.Count() }).ToListAsync();
+        var ids = ult.Select(x => x.ColegioId).Distinct().ToList();
+        var orgs = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Nombre);
+        var (url, origen) = UrlPublica.Diagnostico(HttpContext, _correoOpt.UrlBase);
+        int Cant(EstadoEnvioCorreo e) => conteo.Where(x => x.e == e).Sum(x => x.n);
+        return Json(new
+        {
+            cfg = new
+            {
+                habilitado = _correoOpt.Habilitado,
+                servidor = $"{_correoOpt.Servidor}:{_correoOpt.Puerto}",
+                usuario = _correoOpt.Usuario,
+                clave = !string.IsNullOrWhiteSpace(_correoOpt.Clave),
+                url,
+                origen
+            },
+            semana = new { enviados = Cant(EstadoEnvioCorreo.Enviado), fallidos = Cant(EstadoEnvioCorreo.Fallido), simulados = Cant(EstadoEnvioCorreo.Simulado), sinCorreo = Cant(EstadoEnvioCorreo.SinCorreo) },
+            ultimos = ult.Select(x => new
+            {
+                f = x.CreadaEnUtc.ToLocalTime().ToString("dd-MM HH:mm", Cl),
+                org = orgs.GetValueOrDefault(x.ColegioId, "—"),
+                d = Abreviar(x.CorreoDestino),
+                e = (int)x.EstadoCorreo,
+                err = x.UltimoErrorCorreo ?? "",
+                i = x.IntentosCorreo
+            })
+        });
+    }
+
+    // POST: manda un correo de prueba y devuelve el resultado tal cual (para saber al tiro si Gmail acepta la clave)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ProbarCorreo(string destino)
+    {
+        destino = (destino ?? "").Trim();
+        if (!Regex.IsMatch(destino, @"^[^@\s]+@[^@\s]+\.[^@\s]+$")) return BadRequest(new { error = "Escribe un correo válido." });
+        var url = UrlPublica.Obtener(HttpContext, _correoOpt.UrlBase);
+        var html = CorreoPlantilla.Construir("Correo de prueba de AUKA",
+            "Si lees esto, el envío de correos de AUKA funciona.\n\nEl botón de abajo debe abrir AUKA desde cualquier lugar (no solo desde tu PC).",
+            url + "/", "AUKA");
+        var r = await _correo.EnviarAsync(new[] { destino }, "AUKA · Correo de prueba", html);
+        return Json(new { ok = r.Ok, simulado = r.Simulado, error = r.Error, url });
+    }
+
+    // POST: vuelve a intentar ahora los correos que fallaron (por ejemplo, después de arreglar la clave de Gmail)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReintentarCorreos()
+    {
+        var fallidos = await _context.Notificaciones.IgnoreQueryFilters()
+            .Where(n => n.EstadoCorreo == EstadoEnvioCorreo.Fallido && n.CreadaEnUtc >= DateTime.UtcNow.AddDays(-3))
+            .OrderBy(n => n.Id).Take(50).ToListAsync();
+        var raiz = UrlPublica.Obtener(HttpContext, _correoOpt.UrlBase);
+        int ok = 0, mal = 0; string? ultimo = null;
+        foreach (var n in fallidos)
+        {
+            var destinos = (n.CorreoDestino ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
+            var url = string.IsNullOrEmpty(n.Enlace) ? null : raiz + n.Enlace;
+            var r = await _correo.EnviarAsync(destinos, n.Titulo, CorreoPlantilla.Construir(n.Titulo, n.Mensaje, url, ""));
+            n.IntentosCorreo++;
+            if (r.Ok) { n.EstadoCorreo = r.Simulado ? EstadoEnvioCorreo.Simulado : EstadoEnvioCorreo.Enviado; n.UltimoErrorCorreo = null; ok++; }
+            else { n.UltimoErrorCorreo = r.Error != null && r.Error.Length > 300 ? r.Error[..300] : r.Error; ultimo = n.UltimoErrorCorreo; mal++; }
+        }
+        await _context.SaveChangesAsync();
+        return Json(new { ok, mal, error = ultimo, total = fallidos.Count });
+    }
 
     // ---------------- Datos del panel (se consulta cada 30 s) ----------------
     [HttpGet]
@@ -210,6 +304,9 @@ public class PlataformaController : Controller
             c.Telefono,
             tipo = c.TipoOrganizacion,
             planillas = Organizacion.Activas(c.PlanillasActivas),
+            calCompartido = c.CalendarioCompartido,
+            bitCompartida = c.BitacoraCompartida,
+            porArea = Organizacion.PorArea(c.FichasPorArea),
             plan = PlanDe(c),
             estado = EstadoDe(c, hoy),
             contacto = c.ContactoNombre,
@@ -229,7 +326,8 @@ public class PlataformaController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> GuardarColegio(int id, string plan, string? contacto, string? correo, string? telefono,
-        string? vence, int? precio, string? notas, string? tipo, string? planillas)
+        string? vence, int? precio, string? notas, string? tipo, string? planillas,
+        bool calCompartido = true, bool bitCompartida = true, string? porArea = null)
     {
         var c = await _context.Colegios.FirstOrDefaultAsync(x => x.Id == id);
         if (c == null) return NotFound(new { error = "Colegio no encontrado." });
@@ -263,6 +361,15 @@ public class PlataformaController : Controller
         if (nuevasPlanillas != c.PlanillasActivas)
             Log(c.Id, "Datos", "Planillas: " + string.Join(", ", Organizacion.Activas(nuevasPlanillas).Select(k => Organizacion.Planillas[k])));
         c.PlanillasActivas = nuevasPlanillas;
+
+        // Cómo trabaja el equipo psicosocial: compartido o separado
+        var nuevoPorArea = Organizacion.NormalizarPorArea(porArea);
+        if (c.CalendarioCompartido != calCompartido || c.BitacoraCompartida != bitCompartida || c.FichasPorArea != nuevoPorArea)
+            Log(c.Id, "Datos", $"Equipo: calendario {(calCompartido ? "compartido" : "separado")}, bitácora {(bitCompartida ? "compartida" : "separada")}, " +
+                $"fichas por área: {(nuevoPorArea == null ? "ninguna" : string.Join(", ", Organizacion.PorArea(nuevoPorArea).Select(k => Organizacion.NombreFichaSeparable[k])))}");
+        c.CalendarioCompartido = calCompartido;
+        c.BitacoraCompartida = bitCompartida;
+        c.FichasPorArea = nuevoPorArea;
 
         await _context.SaveChangesAsync();
         _cache.Remove(Organizacion.LlaveCache(c.Id));   // la organización ve el cambio al tiro

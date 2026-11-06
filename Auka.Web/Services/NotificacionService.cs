@@ -13,6 +13,7 @@ public class ResultadoNotificacion
     public int Simulados { get; set; }
     public int Fallidos { get; set; }
     public int SinCorreo { get; set; }
+    public string? UltimoError { get; set; }   // motivo del último correo que falló (para mostrarlo en pantalla)
 }
 
 public interface INotificacionService
@@ -63,8 +64,7 @@ public class NotificacionService : INotificacionService
         var usuarios = await _context.Usuarios.Where(u => ids.Contains(u.Id) && u.Activo).ToListAsync();
         var ctx = _http.HttpContext;
         var colegio = ctx?.User.FindFirst("ColegioNombre")?.Value ?? "";
-        var baseUrl = !string.IsNullOrWhiteSpace(_opt.UrlBase) ? _opt.UrlBase.TrimEnd('/')
-                    : ctx != null ? $"{ctx.Request.Scheme}://{ctx.Request.Host}" : "";
+        var baseUrl = UrlPublica.Obtener(ctx, _opt.UrlBase);
 
         var pares = new List<(Notificacion n, List<string> destinos)>();
         foreach (var u in usuarios)
@@ -99,6 +99,7 @@ public class NotificacionService : INotificacionService
             {
                 n.EstadoCorreo = EstadoEnvioCorreo.Fallido;
                 n.UltimoErrorCorreo = r.Error != null && r.Error.Length > 300 ? r.Error[..300] : r.Error;
+                res.UltimoError = n.UltimoErrorCorreo;
                 res.Fallidos++;
             }
         }
@@ -142,7 +143,8 @@ public class ReintentoCorreosService : BackgroundService
                 foreach (var n in fallidos)
                 {
                     var destinos = (n.CorreoDestino ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
-                    var url = string.IsNullOrEmpty(n.Enlace) || string.IsNullOrWhiteSpace(opt.UrlBase) ? null : opt.UrlBase.TrimEnd('/') + n.Enlace;
+                    var raiz = UrlPublica.Obtener(null, opt.UrlBase);
+                    var url = string.IsNullOrEmpty(n.Enlace) || string.IsNullOrWhiteSpace(raiz) ? null : raiz + n.Enlace;
                     var r = await correo.EnviarAsync(destinos, n.Titulo, CorreoPlantilla.Construir(n.Titulo, n.Mensaje, url, ""), stoppingToken);
                     n.IntentosCorreo++;
                     if (r.Ok) n.EstadoCorreo = r.Simulado ? EstadoEnvioCorreo.Simulado : EstadoEnvioCorreo.Enviado;

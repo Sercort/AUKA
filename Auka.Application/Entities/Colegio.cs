@@ -27,6 +27,13 @@ public class Colegio
     // Las elige el dueño de la plataforma para cada organización.
     public string? PlanillasActivas { get; set; }
 
+    // ---- Cómo trabaja el equipo psicosocial (lo configura el dueño de la plataforma) ----
+    // true = todo el equipo ve y edita la misma agenda / las mismas notas; false = cada profesional lo suyo
+    public bool CalendarioCompartido { get; set; } = true;
+    public bool BitacoraCompartida { get; set; } = true;
+    // Fichas que solo ve su área (psicología o trabajo social), separadas por coma. null = todas compartidas.
+    public string? FichasPorArea { get; set; }
+
     // ---- Datos comerciales (los ve solo el dueño de la plataforma) ----
     public string? ContactoNombre { get; set; }       // sostenedor/a o director/a que contrató
     public string? ContactoCorreo { get; set; }

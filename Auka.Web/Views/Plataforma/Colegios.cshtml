@@ -56,6 +56,20 @@
                     <div class="col-md-8"><label class="small fw-bold">PLANILLAS ACTIVAS</label><div class="d-flex flex-wrap gap-3">@foreach (var kv in Auka.Web.Services.Organizacion.Planillas) {<label class="small"><input type="checkbox" class="form-check-input me-1 fPla" value="@kv.Key"> @kv.Value</label>}</div>
                         <div class="small text-secondary mt-1">Colegio: alumnos/as y cursos. Otro tipo: pacientes, sin curso.</div></div>
                 </div>
+                <div class="pl-h">CÓMO TRABAJA EL EQUIPO PSICOSOCIAL</div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="small d-block mb-1"><input type="checkbox" class="form-check-input me-1" id="fCal"> <b>Calendario compartido</b> <span class="text-secondary">(si no, cada profesional ve solo su agenda)</span></label>
+                        <label class="small d-block"><input type="checkbox" class="form-check-input me-1" id="fBit"> <b>Bitácora compartida</b> <span class="text-secondary">(si no, cada profesional ve solo sus notas)</span></label>
+                    </div>
+                    <div class="col-md-6"><label class="small fw-bold">FICHAS SOLO PARA SU ÁREA</label>
+                        <div class="small text-secondary mb-1">Marca las que no se comparten. Las demás las ve todo el equipo.</div>
+                        <div class="small fw-semibold mt-1">Psicología</div>
+                        <div class="d-flex flex-wrap gap-3">@foreach (var kv in Auka.Web.Services.Organizacion.NombreFichaSeparable.Where(x => Auka.Web.Services.Organizacion.AreaFicha[x.Key] == "psi")) {<label class="small"><input type="checkbox" class="form-check-input me-1 fArea" value="@kv.Key"> @kv.Value</label>}</div>
+                        <div class="small fw-semibold mt-1">Trabajo social</div>
+                        <div class="d-flex flex-wrap gap-3">@foreach (var kv in Auka.Web.Services.Organizacion.NombreFichaSeparable.Where(x => Auka.Web.Services.Organizacion.AreaFicha[x.Key] == "ts")) {<label class="small"><input type="checkbox" class="form-check-input me-1 fArea" value="@kv.Key"> @kv.Value</label>}</div>
+                    </div>
+                </div>
                 <div class="pl-h">PLAN Y VIGENCIA</div>
                 <div class="row g-2 mb-2">
                     <div class="col-md-4"><label class="small fw-bold">PLAN</label><select id="fPl" class="form-select"><option value="psicosocial">Psicosocial</option><option value="premium">Premium</option><option value="institucional">Institucional</option></select></div>
@@ -170,6 +184,7 @@
       $('fTit').textContent = c.nombre; $('fSub').textContent = 'N° ' + c.id + (c.rut ? ' · RBD/RUT ' + c.rut : '') + (c.registro ? ' · cliente desde ' + fecha(c.registro) : '');
       $('fCon').value = c.contacto || ''; $('fCor').value = c.correo || ''; $('fTel').value = c.telefonoContacto || '';
       $('fTipo').value = c.tipo || 'Colegio'; marcar('fPla', c.planillas || []);
+      $('fCal').checked = c.calCompartido !== false; $('fBit').checked = c.bitCompartida !== false; marcar('fArea', c.porArea || []);
       $('fPl').value = c.plan; limitarPlan('fTipo', 'fPl'); $('fVen').value = c.vence ? c.vence.slice(0, 10) : ''; $('fPre').value = c.precio != null ? c.precio : ''; $('fNot').value = c.notas || '';
       $('fEst').innerHTML = chip(EST, c.estado) + (c.baja ? ' <span class="small text-secondary">desde ' + fecha(c.baja) + (c.motivoBaja ? ' · ' + esc(c.motivoBaja) : '') + '</span>' : '');
       var acc = c.estado === 'suspendido' || c.estado === 'baja'
@@ -182,7 +197,8 @@
     });
   };
   $('bGuardar').onclick = function () {
-    post('/Plataforma/GuardarColegio', { id: ficha.id, plan: $('fPl').value, contacto: $('fCon').value, correo: $('fCor').value, telefono: $('fTel').value, vence: $('fVen').value, precio: $('fPre').value, notas: $('fNot').value, tipo: $('fTipo').value, planillas: marcadas('fPla') })
+    post('/Plataforma/GuardarColegio', { id: ficha.id, plan: $('fPl').value, contacto: $('fCon').value, correo: $('fCor').value, telefono: $('fTel').value, vence: $('fVen').value, precio: $('fPre').value, notas: $('fNot').value, tipo: $('fTipo').value, planillas: marcadas('fPla'),
+        calCompartido: $('fCal').checked, bitCompartida: $('fBit').checked, porArea: marcadas('fArea') })
       .then(function () { msg('fMsg', 'Cambios guardados.', true); cargar(); abrir(ficha.id); }).catch(function (e) { msg('fMsg', e.message, false); });
   };
   $('mFicha').addEventListener('click', function (e) {

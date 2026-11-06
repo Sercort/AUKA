@@ -62,7 +62,10 @@ public class AccesoService : IAccesoService
         });
         await _context.SaveChangesAsync();
 
-        var raiz = !string.IsNullOrWhiteSpace(_opt.UrlBase) ? _opt.UrlBase.TrimEnd('/') : baseUrl.TrimEnd('/');
+        var raiz = UrlPublica.Obtener(null, _opt.UrlBase);
+        if ((string.IsNullOrEmpty(raiz) || raiz.Contains("localhost")) && !string.IsNullOrWhiteSpace(baseUrl) && !baseUrl.Contains("localhost"))
+            raiz = baseUrl.Replace("http://", baseUrl.Contains("ngrok") ? "https://" : "http://").TrimEnd('/');
+        if (string.IsNullOrEmpty(raiz)) raiz = baseUrl.TrimEnd('/');
         var url = $"{raiz}/Account/RestablecerPassword?token={token}";
         var html = CorreoPlantilla.Construir(
             "Tu acceso a AUKA",

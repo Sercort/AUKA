@@ -1,0 +1,134 @@
+﻿@* Auka.Web/Views/Plataforma/Correos.cshtml — ¿están saliendo los correos? (sin pgAdmin) *@
+@{
+    ViewData["Title"] = "Correos";
+    Layout = "_LayoutPlataforma";
+}
+<style>
+    .co-h{font-size:.72rem;font-weight:800;letter-spacing:.07em;color:var(--a-mut);margin-bottom:.6rem}
+    .co-kpi .v{font-size:1.7rem;font-weight:800;line-height:1.1}
+    .co-kpi .l{font-size:.72rem;color:var(--a-mut);font-weight:700}
+    .co-chip{display:inline-block;font-size:.72rem;font-weight:800;padding:.2rem .6rem;border-radius:999px;white-space:nowrap}
+    .co-ok{background:#dcf5e6;color:#177a43}.co-bad{background:#fde2e2;color:#a82b2b}.co-warn{background:#fff1d1;color:#a56a00}.co-nil{background:#eef1f5;color:#5d6f86}
+    .co-t{width:100%;border-collapse:collapse}
+    .co-t th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--a-mut);text-align:left;padding:.5rem .55rem;border-bottom:1px solid var(--a-line)}
+    .co-t td{padding:.55rem;border-bottom:1px solid var(--a-line);font-size:.85rem;vertical-align:top}
+    .co-err{color:#a82b2b;font-size:.78rem;max-width:420px;word-break:break-word}
+    .co-row{display:flex;justify-content:space-between;gap:1rem;padding:.4rem 0;border-bottom:1px solid var(--a-line);font-size:.88rem}
+    .co-row:last-child{border-bottom:0}
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div><h3 class="fw-bold mb-0" style="color:var(--a-navy)">Correos</h3>
+        <div class="text-secondary small">Revisa si los avisos de AUKA están saliendo por correo y por qué falla alguno. No se muestra el contenido de los avisos.</div></div>
+    <button type="button" class="btn btn-outline-primary rounded-pill px-3" id="bAct">↻ Actualizar</button>
+</div>
+
+<div id="coAlerta"></div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-5">
+        <div class="ad-card p-3 h-100">
+            <div class="co-h">CONFIGURACIÓN</div>
+            <div id="coCfg"><div class="text-secondary small">Cargando…</div></div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="ad-card p-3 h-100">
+            <div class="co-h">ENVIAR UN CORREO DE PRUEBA</div>
+            <div class="d-flex gap-2 flex-wrap">
+                <input type="email" class="form-control" id="coDest" placeholder="Tu correo personal (ej. Gmail)" style="max-width:320px" />
+                <button type="button" class="au-btn px-4" id="coProbar">Enviar prueba</button>
+            </div>
+            <div class="small mt-2" id="coRes"></div>
+            <hr />
+            <div class="co-h">ÚLTIMOS 7 DÍAS</div>
+            <div class="row g-2 text-center" id="coSem"></div>
+            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill mt-3" id="coReint" style="display:none">Reintentar ahora los que fallaron</button>
+            <div class="small mt-2" id="coReintR"></div>
+        </div>
+    </div>
+</div>
+
+<div class="ad-card p-3">
+    <div class="co-h">ÚLTIMOS AVISOS</div>
+    <div class="table-responsive"><table class="co-t"><thead><tr><th>Fecha</th><th>Organización</th><th>Para</th><th>Estado</th><th>Detalle</th></tr></thead><tbody id="coL"><tr><td colspan="5" class="text-secondary">Cargando…</td></tr></tbody></table></div>
+</div>
+
+@Html.AntiForgeryToken()
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var EST = { 0: ['Pendiente', 'co-nil'], 1: ['Enviado', 'co-ok'], 2: ['Falló', 'co-bad'], 3: ['Sin correo', 'co-nil'], 4: ['Simulado', 'co-warn'] };
+
+  // Explica en simple los errores más comunes de Gmail
+  var explicar = function (e) {
+    if (!e) return '';
+    if (/5\.7\.8|Username and Password|Authentication|autentic/i.test(e)) return 'Gmail no aceptó la clave: genera una nueva contraseña de aplicación y guárdala con user-secrets (Correo:Clave).';
+    if (/5\.7\.0|STARTTLS|secure connection/i.test(e)) return 'Problema de conexión segura: revisa Puerto 587 y UsarSsl = true.';
+    if (/timed out|tiempo de espera|No such host|unable to connect|conectar/i.test(e)) return 'No se pudo conectar a Gmail: revisa internet o el antivirus/firewall.';
+    if (/5\.4\.5|limit|quota|Daily/i.test(e)) return 'Gmail llegó a su límite diario de envíos: espera hasta mañana.';
+    if (/5\.1\.1|does not exist|no existe/i.test(e)) return 'El correo de destino no existe.';
+    return '';
+  };
+
+  var post = function (url, datos) {
+    var b = new URLSearchParams(datos || {}); b.append('__RequestVerificationToken', tok());
+    return fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+  };
+
+  var cargar = function () {
+    fetch('/Plataforma/EstadoCorreos', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        var c = d.cfg, al = [];
+        if (!c.habilitado) al.push('El envío está <b>apagado</b> (Correo:Habilitado = false): ningún correo sale de verdad.');
+        if (!c.clave) al.push('Falta la <b>contraseña de aplicación</b> de Gmail (Correo:Clave en user-secrets).');
+        if (/localhost/.test(c.url)) al.push('Los enlaces de los correos apuntan a <b>localhost</b>: solo funcionan en tu PC. Entra una vez a AUKA por la dirección de ngrok y se corrige solo.');
+        if (d.semana.fallidos > 0) al.push('<b>' + d.semana.fallidos + '</b> correo(s) fallaron esta semana. Mira el detalle abajo.');
+        $('coAlerta').innerHTML = al.length ? '<div class="alert alert-warning rounded-4">' + al.join('<br>') + '</div>' : '<div class="alert alert-success rounded-4">Todo en orden: el correo está encendido y configurado.</div>';
+        var fila = function (k, v) { return '<div class="co-row"><span class="text-secondary">' + k + '</span><span class="text-end">' + v + '</span></div>'; };
+        $('coCfg').innerHTML =
+          fila('Envío', c.habilitado ? '<span class="co-chip co-ok">Encendido</span>' : '<span class="co-chip co-warn">Apagado (modo prueba)</span>') +
+          fila('Servidor', esc(c.servidor)) +
+          fila('Cuenta que envía', esc(c.usuario || '—')) +
+          fila('Contraseña de aplicación', c.clave ? '<span class="co-chip co-ok">Configurada</span>' : '<span class="co-chip co-bad">Falta</span>') +
+          fila('Enlaces de los correos', '<span style="word-break:break-all">' + esc(c.url) + '</span><div class="small text-secondary">' + esc(c.origen) + '</div>');
+        var k = function (n, l, col) { return '<div class="col-3 co-kpi"><div class="v" style="color:' + col + '">' + n + '</div><div class="l">' + l + '</div></div>'; };
+        $('coSem').innerHTML = k(d.semana.enviados, 'Enviados', '#177a43') + k(d.semana.fallidos, 'Fallaron', '#a82b2b') + k(d.semana.simulados, 'Simulados', '#a56a00') + k(d.semana.sinCorreo, 'Sin correo', '#5d6f86');
+        $('coReint').style.display = d.semana.fallidos > 0 ? '' : 'none';
+        $('coL').innerHTML = d.ultimos.length ? d.ultimos.map(function (x) {
+          var e = EST[x.e] || ['—', 'co-nil'], ex = explicar(x.err);
+          return '<tr><td style="white-space:nowrap">' + esc(x.f) + '</td><td>' + esc(x.org) + '</td><td>' + esc(x.d || '—') + '</td><td><span class="co-chip ' + e[1] + '">' + e[0] + '</span>' + (x.i > 1 ? ' <span class="small text-secondary">' + x.i + ' intentos</span>' : '') + '</td>' +
+            '<td>' + (x.err ? '<div class="co-err">' + esc(x.err) + '</div>' + (ex ? '<div class="small mt-1"><b>Qué hacer:</b> ' + esc(ex) + '</div>' : '') : (x.e === 3 ? '<span class="small text-secondary">La persona no tiene un correo real: solo le llega en AUKA.</span>' : '')) + '</td></tr>';
+        }).join('') : '<tr><td colspan="5" class="text-secondary">Aún no hay avisos.</td></tr>';
+      })
+      .catch(function (e) { $('coCfg').innerHTML = '<div class="text-danger small">No se pudo cargar (' + esc(e.message) + ').</div>'; });
+  };
+
+  $('coProbar').onclick = function () {
+    var r = $('coRes'); $('coProbar').disabled = true; r.className = 'small mt-2 text-secondary'; r.textContent = 'Enviando…';
+    post('/Plataforma/ProbarCorreo', { destino: $('coDest').value })
+      .then(function (j) {
+        if (j.ok && !j.simulado) { r.className = 'small mt-2 text-success'; r.innerHTML = '✅ Gmail aceptó el correo. Revisa la bandeja de entrada (y Spam). El botón del correo abrirá: <b>' + esc(j.url) + '</b>'; }
+        else if (j.simulado) { r.className = 'small mt-2 text-warning'; r.textContent = 'No salió: el envío está apagado (Correo:Habilitado = false).'; }
+        else { var ex = explicar(j.error); r.className = 'small mt-2 text-danger'; r.innerHTML = '❌ No se pudo enviar: ' + esc(j.error) + (ex ? '<br><b>Qué hacer:</b> ' + esc(ex) : ''); }
+      })
+      .catch(function (e) { r.className = 'small mt-2 text-danger'; r.textContent = e.message; })
+      .then(function () { $('coProbar').disabled = false; cargar(); });
+  };
+
+  $('coReint').onclick = function () {
+    $('coReint').disabled = true;
+    post('/Plataforma/ReintentarCorreos')
+      .then(function (j) { $('coReintR').innerHTML = 'Reintentados: ' + j.total + ' · salieron ' + j.ok + ' · fallaron ' + j.mal + (j.error ? '<div class="co-err">' + esc(j.error) + '</div>' : ''); })
+      .catch(function (e) { $('coReintR').textContent = e.message; })
+      .then(function () { $('coReint').disabled = false; cargar(); });
+  };
+
+  $('bAct').onclick = cargar;
+  cargar();
+})();
+</script>

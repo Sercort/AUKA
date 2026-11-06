@@ -1,4 +1,9 @@
-﻿@* Auka.Web/Views/Portafolio/Index.cshtml *@
+﻿﻿@* Auka.Web/Views/Portafolio/Index.cshtml
+   Portafolio psicosocial: alumno/a, apoderado/a o profesor/a jefe.
+   - Próximas citaciones: confirmar, proponer otra fecha o rechazar (con motivo). Responde solo quien fue citado/a.
+   - Pedir una cita con la psicóloga, el trabajador social, la orientadora o el profesor/a jefe.
+   - Compromisos y acuerdos que el equipo decidió compartir.
+   - Historial (asistió / no asistió) y anotaciones de conducta (solo colegios). *@
 @model Auka.Web.Controllers.PortafolioVm
 @using Auka.Application.Entities
 @{
@@ -6,19 +11,51 @@
     Layout = "~/Views/Shared/_LayoutPortafolio.cshtml";
     // Paciente de una empresa u otra organización: sin curso ni anotaciones de conducta (eso es de colegios)
     var esColegio = (ViewData["Org"] as Auka.Web.Services.DatosOrganizacion)?.V.EsColegio ?? true;
+    var hoy = DateTime.Today.ToString("yyyy-MM-dd");
+    string Chip(EstadoCitacion e) => e switch
+    {
+        EstadoCitacion.Confirmada or EstadoCitacion.Realizada => "ok",
+        EstadoCitacion.Pendiente or EstadoCitacion.OtraFecha or EstadoCitacion.Solicitada => "warn",
+        EstadoCitacion.Rechazada or EstadoCitacion.NoAsistio => "bad",
+        _ => "nil"
+    };
 }
 
 <style>
     .pf-card { background:#fff; border:1px solid var(--a-line); border-radius:16px; box-shadow:0 1px 3px rgba(20,35,58,.05); }
     .pf-label { font-size:.7rem; letter-spacing:.06em; font-weight:700; color:#5b6b7c; }
     .pf-kpi { font-size:1.8rem; font-weight:800; color:var(--a-navy); line-height:1; }
+    .pf-chip { display:inline-block; font-size:.72rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; }
+    .pf-chip.ok { background:#e5f6ec; color:#1d7a46; } .pf-chip.warn { background:#fff4dc; color:#9a6a00; }
+    .pf-chip.bad { background:#fde8e8; color:#b42323; } .pf-chip.nil { background:#eef1f5; color:#5b6b7c; }
+    .pf-cita { border:1px solid var(--a-line); border-left:4px solid var(--a-blue, #2459B0); border-radius:12px; padding:.85rem 1rem; margin-bottom:.6rem; }
+    .pf-cita.pasada { border-left-color:#c8d1dc; background:#fafbfc; }
+    .pf-fecha { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:58px; height:58px; border-radius:12px; background:#eef4ff; color:var(--a-navy); }
+    .pf-fecha b { font-size:1.35rem; line-height:1; } .pf-fecha small { font-size:.65rem; font-weight:700; text-transform:uppercase; }
+    .pf-acc summary { list-style:none; cursor:pointer; } .pf-acc summary::-webkit-details-marker { display:none; }
+    .pf-comp { border-radius:12px; background:#f6f9ff; border:1px dashed #c9d8f5; padding:.75rem .9rem; margin-bottom:.5rem; }
+    .pf-empty { text-align:center; color:#6b7a8c; font-size:.9rem; padding:1.2rem .5rem; }
 </style>
 
 <div class="container">
-    <div class="au-hero p-4 mb-4">
-        <h3 class="fw-bold mb-1">@(Model.EsDocente ? "Mi curso · profesor/a jefe" : Model.EsApoderado ? "Portafolio de mi pupilo/a" : "Mi portafolio")</h3>
-        <p class="mb-0" style="color:#dbeafe;">@(Model.EsDocente ? "Aquí ves las citaciones del equipo psicosocial dirigidas a ti y las anotaciones de conducta de tus alumnos/as." : esColegio ? "Aquí ves las citaciones del equipo psicosocial y las anotaciones de conducta." : "Aquí ves tus citaciones con el equipo psicosocial. Confirma tu asistencia cuando te llegue una nueva.")</p>
+    <div class="au-hero p-4 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h3 class="fw-bold mb-1">@(Model.EsDocente ? "Mi curso · profesor/a jefe" : Model.EsApoderado ? "Portafolio de mi pupilo/a" : "Mi portafolio")</h3>
+            <p class="mb-0" style="color:#dbeafe;">
+                @(Model.EsDocente ? "Citaciones dirigidas a ti, citas que te pidieron y los acuerdos que el equipo psicosocial comparte contigo."
+                  : "Tus citaciones con el equipo psicosocial: confírmalas, propón otra fecha o pide una cita cuando la necesites.")
+            </p>
+        </div>
+        @if (!Model.EsDocente && Model.Actual != null)
+        {
+            <a href="#pedir" class="btn btn-light fw-bold rounded-pill px-4">Pedir una cita</a>
+        }
     </div>
+
+    @if (!string.IsNullOrEmpty(Model.Mensaje))
+    {
+        <div class="alert alert-info rounded-4 border-0 shadow-sm">@Model.Mensaje</div>
+    }
 
     @if (Model.Actual == null)
     {
@@ -28,13 +65,14 @@
     }
     else
     {
+        @* ---- Selector de pupilo/a o alumno/a ---- *@
         @if (Model.Alumnos.Count > 1 && Model.Alumnos.Count <= 6)
         {
             <div class="d-flex flex-wrap gap-2 mb-3">
                 @foreach (var a in Model.Alumnos)
                 {
                     <a class="btn btn-sm rounded-pill @(a.Id == Model.Actual.Id ? "au-btn" : "btn-outline-primary")"
-                       asp-action="Index" asp-route-estudianteId="@a.Id">@a.Nombre · @a.Curso</a>
+                       asp-action="Index" asp-route-estudianteId="@a.Id">@(a.Nombre + (string.IsNullOrEmpty(a.Curso) ? "" : " · " + a.Curso))</a>
                 }
             </div>
         }
@@ -44,75 +82,206 @@
                 <select class="form-select" style="max-width:420px;border-radius:999px" onchange="location.href='?estudianteId=' + this.value">
                     @foreach (var a in Model.Alumnos)
                     {
-                        <option value="@a.Id" selected="@(a.Id == Model.Actual.Id)">@a.Nombre · @a.Curso</option>
+                        <option value="@a.Id" selected="@(a.Id == Model.Actual.Id)">@(a.Nombre + (string.IsNullOrEmpty(a.Curso) ? "" : " · " + a.Curso))</option>
                     }
                 </select>
             </div>
         }
-        <div class="pf-card p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+
+        @* ---- Resumen ---- *@
+        <div class="pf-card p-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
             <div>
                 <div class="pf-label">@(esColegio ? "ALUMNO/A" : "PACIENTE")</div>
                 <div class="fw-bold fs-5">@Model.Actual.Nombre</div>
-                @if (esColegio) { <div class="text-secondary small">@Model.Actual.Curso</div> }
+                @if (!string.IsNullOrEmpty(Model.Actual.Curso)) { <div class="text-secondary small">@Model.Actual.Curso</div> }
+                @if (Model.EsApoderado && !Model.AccesoPropio)
+                {
+                    <div class="small mt-1" style="color:#5b4bc4;"><i class="bi bi-person-check me-1"></i>Tú recibes y confirmas sus citaciones</div>
+                }
             </div>
-            <div class="d-flex gap-4" style="@(esColegio ? "" : "display:none !important")">
-                <div><div class="pf-label">POSITIVAS</div><div class="pf-kpi" style="color:#22a35a;">@Model.Positivas</div></div>
-                <div><div class="pf-label">NEGATIVAS</div><div class="pf-kpi" style="color:#d64545;">@Model.Negativas</div></div>
+            <div class="d-flex gap-4">
+                <div><div class="pf-label">PRÓXIMAS CITAS</div><div class="pf-kpi">@Model.Proximas.Count</div></div>
+                <div><div class="pf-label">ASISTIÓ</div><div class="pf-kpi" style="color:#22a35a;">@Model.Historial.Count(c => c.Estado == EstadoCitacion.Realizada)</div></div>
+                @if (esColegio)
+                {
+                    <div><div class="pf-label">POSITIVAS</div><div class="pf-kpi" style="color:#22a35a;">@Model.Positivas</div></div>
+                    <div><div class="pf-label">NEGATIVAS</div><div class="pf-kpi" style="color:#d64545;">@Model.Negativas</div></div>
+                }
             </div>
         </div>
 
         <div class="row g-3">
-            <div class="@(esColegio ? "col-lg-6" : "col-12")">
-                <div class="pf-card p-3 h-100">
-                    <div class="pf-label mb-2">CITACIONES</div>
-                    @if (!Model.Citaciones.Any())
+            <div class="col-lg-7">
+                @* ---- Próximas citaciones ---- *@
+                <div class="pf-card p-3 mb-3">
+                    <div class="pf-label mb-2">PRÓXIMAS CITACIONES</div>
+                    @if (!Model.Proximas.Any())
                     {
-                        <div class="text-secondary small">No tienes citaciones por ahora.</div>
+                        <div class="pf-empty">No hay citaciones próximas.</div>
                     }
-                    @foreach (var c in Model.Citaciones)
+                    @foreach (var c in Model.Proximas)
                     {
-                        <div class="border rounded-3 p-3 mb-2">
-                            <div class="d-flex justify-content-between align-items-start gap-2">
-                                <div>
-                                    <div class="fw-semibold">@c.Fecha @(string.IsNullOrEmpty(c.Hora) ? "" : "· " + c.Hora)</div>
-                                    <div class="small text-secondary">Se cita a: @c.CitadoA</div>
+                        var partes = c.Fecha.Split('-');
+                        <div class="pf-cita">
+                            <div class="d-flex gap-3 align-items-start">
+                                <div class="pf-fecha"><b>@partes[0]</b><small>@(new[] { "ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic" }[int.Parse(partes[1]) - 1])</small></div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between flex-wrap gap-2">
+                                        <div class="fw-semibold">@(string.IsNullOrEmpty(c.Hora) ? "Hora por confirmar" : c.Hora + " hrs")</div>
+                                        <span class="pf-chip @Chip(c.Estado)">@c.EstadoTexto</span>
+                                    </div>
+                                    <div class="small text-secondary">
+                                        @(c.EsSolicitud ? "Cita pedida con: " + c.Destinatario : "Se cita a: " + c.CitadoA)
+                                    </div>
+                                    <div class="small mt-1">@c.Motivo</div>
+                                    @if (c.Estado == EstadoCitacion.OtraFecha && !string.IsNullOrEmpty(c.FechaPropuesta))
+                                    {
+                                        <div class="small mt-1 text-secondary">Propusiste: <b>@c.FechaPropuesta</b>@(string.IsNullOrEmpty(c.Respuesta) ? "" : " · " + c.Respuesta)</div>
+                                    }
+                                    @if (c.Estado == EstadoCitacion.Rechazada && !string.IsNullOrEmpty(c.Respuesta))
+                                    {
+                                        <div class="small mt-1 text-secondary">Motivo: @c.Respuesta</div>
+                                    }
+
+                                    @if (c.PuedeResponder)
+                                    {
+                                        <div class="d-flex flex-wrap gap-2 mt-2">
+                                            <form method="post" asp-action="Responder" class="m-0">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@c.Id" /><input type="hidden" name="accion" value="confirmar" />
+                                                <button class="btn btn-sm btn-success rounded-pill px-3">✓ Confirmar</button>
+                                            </form>
+                                            <details class="pf-acc">
+                                                <summary class="btn btn-sm btn-outline-primary rounded-pill px-3">Proponer otra fecha</summary>
+                                                <form method="post" asp-action="Responder" class="mt-2 p-2 border rounded-3" style="max-width:420px">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@c.Id" /><input type="hidden" name="accion" value="otra" />
+                                                    <div class="row g-2">
+                                                        <div class="col-7"><input type="date" name="fecha" min="@hoy" class="form-control form-control-sm" required /></div>
+                                                        <div class="col-5"><input type="time" name="hora" class="form-control form-control-sm" /></div>
+                                                    </div>
+                                                    <input name="comentario" maxlength="300" class="form-control form-control-sm mt-2" placeholder="Comentario (opcional): por ejemplo, solo puedo en la tarde" />
+                                                    <button class="btn btn-sm btn-primary rounded-pill px-3 mt-2">Enviar propuesta</button>
+                                                </form>
+                                            </details>
+                                            <details class="pf-acc">
+                                                <summary class="btn btn-sm btn-outline-danger rounded-pill px-3">No puedo asistir</summary>
+                                                <form method="post" asp-action="Responder" class="mt-2 p-2 border rounded-3" style="max-width:420px">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@c.Id" /><input type="hidden" name="accion" value="rechazar" />
+                                                    <input name="comentario" maxlength="300" minlength="3" required class="form-control form-control-sm" placeholder="¿Por qué no puedes asistir?" />
+                                                    <button class="btn btn-sm btn-danger rounded-pill px-3 mt-2">Avisar que no puedo</button>
+                                                </form>
+                                            </details>
+                                        </div>
+                                    }
+                                    else if (c.Estado == EstadoCitacion.Pendiente && Model.EsApoderado && Model.AccesoPropio && c.CitadoA == "Alumno")
+                                    {
+                                        <div class="small text-secondary mt-2">La confirma tu pupilo/a desde su cuenta.</div>
+                                    }
+
+                                    @if (c.PuedeAtender)
+                                    {
+                                        <div class="d-flex flex-wrap gap-2 mt-2">
+                                            <form method="post" asp-action="AtenderSolicitud" class="m-0">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@c.Id" /><input type="hidden" name="aceptar" value="true" />
+                                                <button class="btn btn-sm btn-success rounded-pill px-3">✓ Aceptar cita</button>
+                                            </form>
+                                            <details class="pf-acc">
+                                                <summary class="btn btn-sm btn-outline-danger rounded-pill px-3">No puedo</summary>
+                                                <form method="post" asp-action="AtenderSolicitud" class="mt-2 p-2 border rounded-3" style="max-width:420px">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@c.Id" /><input type="hidden" name="aceptar" value="false" />
+                                                    <input name="comentario" maxlength="300" class="form-control form-control-sm" placeholder="Comentario: por ejemplo, propón otro día" />
+                                                    <button class="btn btn-sm btn-danger rounded-pill px-3 mt-2">Responder</button>
+                                                </form>
+                                            </details>
+                                        </div>
+                                    }
                                 </div>
-                                @if (c.Estado == EstadoCitacion.Confirmada) { <span class="badge bg-success">Confirmada</span> }
-                                else if (c.Estado == EstadoCitacion.Realizada) { <span class="badge bg-secondary">Asistió</span> }
-                                else if (c.Estado == EstadoCitacion.NoAsistio) { <span class="badge bg-danger">No asistió</span> }
-                                else { <span class="badge bg-warning text-dark">Por confirmar</span> }
                             </div>
-                            <div class="mt-2">@c.Motivo</div>
-                            @if (c.PuedeConfirmar)
-                            {
-                                <form asp-action="Confirmar" method="post" class="mt-2">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="id" value="@c.Id" />
-                                    <button type="submit" class="btn btn-sm au-btn px-3">Confirmar asistencia</button>
-                                </form>
-                            }
+                        </div>
+                    }
+                </div>
+
+                @* ---- Historial ---- *@
+                <div class="pf-card p-3 mb-3">
+                    <div class="pf-label mb-2">HISTORIAL DE CITAS</div>
+                    @if (!Model.Historial.Any())
+                    {
+                        <div class="pf-empty">Aún no hay citas anteriores.</div>
+                    }
+                    @foreach (var c in Model.Historial.Take(15))
+                    {
+                        <div class="pf-cita pasada d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div><b>@c.Fecha</b>@(string.IsNullOrEmpty(c.Hora) ? "" : " · " + c.Hora) <span class="small text-secondary">· @(c.EsSolicitud ? "con " + c.Destinatario : "se citó a " + c.CitadoA)</span></div>
+                            <span class="pf-chip @Chip(c.Estado)">@c.EstadoTexto</span>
                         </div>
                     }
                 </div>
             </div>
-            <div class="col-lg-6" style="@(esColegio ? "" : "display:none")">
-                <div class="pf-card p-3 h-100">
-                    <div class="pf-label mb-2">ANOTACIONES DE CONDUCTA</div>
-                    @if (!Model.Anotaciones.Any())
-                    {
-                        <div class="text-secondary small">Sin anotaciones registradas.</div>
-                    }
-                    @foreach (var a in Model.Anotaciones)
-                    {
-                        <div class="d-flex gap-2 border-bottom py-2">
-                            <span class="badge align-self-start @(a.Positiva ? "bg-success" : "bg-danger")">@(a.Positiva ? "Positiva" : "Negativa")</span>
-                            <div>
-                                <div class="small text-muted">@a.Fecha</div>
-                                <div>@a.Detalle</div>
+
+            <div class="col-lg-5">
+                @* ---- Pedir una cita ---- *@
+                @if (!Model.EsDocente)
+                {
+                    <div class="pf-card p-3 mb-3" id="pedir">
+                        <div class="pf-label mb-2">PEDIR UNA CITA</div>
+                        <form method="post" asp-action="PedirCita">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="estudianteId" value="@Model.Actual.Id" />
+                            <label class="small fw-semibold mb-1">¿Con quién?</label>
+                            <select name="destinatario" class="form-select mb-2" required>
+                                @foreach (var d in Model.Destinatarios) { <option>@d</option> }
+                            </select>
+                            <div class="row g-2 mb-2">
+                                <div class="col-7"><label class="small fw-semibold mb-1">Día que prefieres</label><input type="date" name="fecha" min="@hoy" class="form-control" required /></div>
+                                <div class="col-5"><label class="small fw-semibold mb-1">Hora</label><input type="time" name="hora" class="form-control" /></div>
                             </div>
+                            <label class="small fw-semibold mb-1">Motivo (opcional)</label>
+                            <textarea name="motivo" maxlength="300" rows="2" class="form-control mb-1" placeholder="Por ejemplo: quiero conversar sobre mi asistencia"></textarea>
+                            <div class="small text-secondary mb-2">No es necesario contar detalles personales aquí; los conversas en la cita.</div>
+                            <button class="btn au-btn rounded-pill px-4 w-100">Enviar solicitud</button>
+                        </form>
+                    </div>
+                }
+
+                @* ---- Compromisos y acuerdos ---- *@
+                <div class="pf-card p-3 mb-3">
+                    <div class="pf-label mb-2">COMPROMISOS Y ACUERDOS</div>
+                    @if (!Model.Compromisos.Any())
+                    {
+                        <div class="pf-empty">No hay compromisos compartidos.</div>
+                    }
+                    @foreach (var k in Model.Compromisos)
+                    {
+                        <div class="pf-comp">
+                            <div class="d-flex justify-content-between flex-wrap gap-2"><span class="pf-chip nil">@k.Tipo</span><span class="small text-secondary">@k.Fecha</span></div>
+                            <div class="mt-1" style="white-space:pre-wrap">@k.Texto</div>
+                            @if (!string.IsNullOrEmpty(k.Revision)) { <div class="small text-secondary mt-1">Se revisa el @k.Revision</div> }
                         </div>
                     }
                 </div>
+
+                @* ---- Anotaciones (solo colegios) ---- *@
+                @if (esColegio)
+                {
+                    <div class="pf-card p-3 mb-3">
+                        <div class="pf-label mb-2">ANOTACIONES DE CONDUCTA</div>
+                        @if (!Model.Anotaciones.Any())
+                        {
+                            <div class="pf-empty">Sin anotaciones.</div>
+                        }
+                        @foreach (var a in Model.Anotaciones)
+                        {
+                            <div class="d-flex gap-2 align-items-start mb-2">
+                                <span class="pf-chip @(a.Positiva ? "ok" : "bad")">@(a.Positiva ? "+" : "−")</span>
+                                <div><div class="small text-secondary">@a.Fecha</div><div class="small">@a.Detalle</div></div>
+                            </div>
+                        }
+                    </div>
+                }
             </div>
         </div>
     }

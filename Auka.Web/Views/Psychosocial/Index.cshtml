@@ -5,6 +5,7 @@
     var org = ViewData["Org"] as Auka.Web.Services.DatosOrganizacion
               ?? new Auka.Web.Services.DatosOrganizacion(Auka.Web.Services.Vocabulario.Colegio, Auka.Web.Services.Organizacion.Planillas.Keys.ToArray());
     var V = org.V;
+    var soloVer = User.IsInRole("Orientadora");   // la orientadora: ve todo el calendario, edita solo lo suyo
 }
 
 <style>
@@ -62,7 +63,10 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <button type="button" class="btn btn-light fw-bold rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#modalCitacion">Solicitar citación</button>
-            <button type="button" class="btn btn-outline-light rounded-pill px-4" onclick="document.getElementById('bImp').click()">Importar planilla</button>
+            @if (!soloVer)
+            {
+                <button type="button" class="btn btn-outline-light rounded-pill px-4" onclick="document.getElementById('bImp').click()">Importar planilla</button>
+            }
         </div>
     </div>
 
@@ -87,7 +91,7 @@
                 </div>
                 <div class="cal-leg mb-2" id="cLeg"></div>
                 <div id="cBody"></div>
-                <div class="small text-secondary mt-2">Marca la casilla cuando una tarea esté realizada. Los cambios se guardan y los ve todo el equipo psicosocial del colegio (se actualiza cada 30 segundos).</div>
+                <div class="small text-secondary mt-2">@(soloVer ? "Toca un día para anotar lo tuyo. Lo del resto del equipo solo lo puedes ver." : "Toca un día para agregar una nota. Marca ✓ cuando esté lista.")</div>
             </div>
         </div>
 
@@ -101,6 +105,7 @@
                 <div class="al-sec"><span>RIESGO VITAL ABIERTO</span></div><div id="alVit"></div>
                 <div class="al-sec"><span>@(V.EsColegio ? "ASISTENCIA BAJO 85%" : "RIESGO ALTO")</span></div><div id="alAs"></div>
                 <div class="al-sec"><span>DERIVACIONES SIN GESTIONAR</span></div><div id="alDer"></div>
+                <div class="al-sec"><span>SOLICITUDES Y RESPUESTAS</span></div><div id="alSol"><div class="small text-secondary px-2">Cargando…</div></div>
                 <div class="al-sec"><span>CITAS SIN CONFIRMAR</span></div><div id="alCit"></div>
                 <div class="al-sec"><span>SIN VENIR HACE MÁS DE 60 DÍAS</span></div><div id="alIn"></div>
             </div>
@@ -161,6 +166,11 @@
                     <div class="col-6"><label class="ps-label mb-1">RESPONSABLE</label>
                         <select class="form-select" id="nR"><option>Psicóloga</option><option>Trabajador social</option><option>Orientadora</option><option>Equipo psicosocial</option></select></div>
                 </div>
+                <div id="nVisB">
+                    <label class="ps-label mb-1">¿QUIÉN LA VE?</label>
+                    <select class="form-select mb-2" id="nVis"><option value="todos">Todo el equipo</option><option value="yo">Solo yo</option><option value="elegir">Elegir personas</option></select>
+                    <div id="nVisL" class="d-flex flex-wrap gap-3 mb-3" style="display:none !important"></div>
+                </div>
                 <div class="form-check"><input class="form-check-input" type="checkbox" id="nOk"><label class="form-check-label" for="nOk">Realizada</label></div>
             </div>
             <div class="modal-footer border-0 justify-content-between">
@@ -194,6 +204,16 @@
                 <label class="ps-label mb-1">MOTIVO</label>
                 <textarea class="form-control" rows="3" id="ciM" maxlength="300" placeholder="Seguimiento de asistencia..."></textarea>
                 <div class="small text-secondary mt-1">Esto lo leerá @(V.EsColegio ? "el @V.persona y su apoderado/a" : "el paciente"): no escribas detalles sensibles ni clínicos.</div>
+                @if (V.EsColegio)
+                {
+                    <label class="d-flex gap-2 align-items-start small mt-3" id="ciInfL"><input type="checkbox" class="form-check-input mt-1" id="ciInf" />
+                        <span id="ciInfT">Que también la vea su apoderado/a</span></label>
+                    <div class="small text-secondary">De kínder a 6° básico siempre le llega al apoderado/a, que es quien confirma.</div>
+                }
+                <label class="ps-label mb-1 mt-3">PARTICIPAN TAMBIÉN <span class="text-secondary fw-normal">(les llega el aviso)</span></label>
+                <div id="ciP" class="d-flex flex-wrap gap-3 mb-2"><span class="small text-secondary">Cargando equipo…</span></div>
+                <label class="ps-label mb-1">¿QUIÉN LA VE EN EL CALENDARIO?</label>
+                <select class="form-select" id="ciVis"><option value="todos">Todo el equipo</option><option value="solo">Solo yo y quienes participan</option></select>
                 <div class="small mt-2" id="ciR" style="display:none;"></div>
             </div>
             <div class="modal-footer border-0">
@@ -218,7 +238,8 @@
       '</div><div class="ps-kpi mt-1"' + (k[3] ? ' style="color:' + k[3] + '"' : '') + '>' + k[1] + '</div><div class="small text-secondary">' + k[2] + '</div></div></div>';
   };
   // ORG: tipo de organización y planillas activas (las mismas que usa la planilla)
-  var ORG = { col: @(V.EsColegio ? "true" : "false"), pl: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(org.Planillas)) };
+  var ORG = { col: @(V.EsColegio ? "true" : "false"), pl: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(org.Planillas)),
+              ori: @(User.IsInRole("Orientadora") ? "true" : "false") };
   var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var ULT = null, RG = [];   // último resumen del servidor y registros de la planilla
   var pintarKpis = function (d) {
@@ -236,6 +257,23 @@
     var derPend = de('conv').concat(de('tut')).filter(function (r) { return /pendiente|monitoreo/i.test((r.d['Estado'] || '') + (r.d['Situación actual'] || '')); });
     var enSeg = {}; de('seg').forEach(function (r) { enSeg[r.eid] = 1; });
     var nSeg = Object.keys(enSeg).length;
+    if (ORG.ori) {
+      // Orientadora: su trabajo y el panorama general (sin datos confidenciales)
+      var anio = String(new Date().getFullYear());
+      var delAnio = function (k) { return de(k).filter(function (r) { return (r.d['Fecha'] || r.f || '').indexOf(anio) === 0; }).length; };
+      var derivadas = de('ento').filter(function (r) { return r.d['Derivación al equipo'] && r.d['Derivación al equipo'] !== 'No'; }).length;
+      var KO = [['@V.Personas', d.alumnos, ORG.col ? d.cursos + (d.cursos === 1 ? ' curso' : ' cursos') : 'registrados', '', '@V.Personas'],
+                ['Entrevistas de orientación', delAnio('ento'), derivadas ? derivadas + ' derivadas al equipo' : 'este año', '', 'Orientación'],
+                ['Talleres grupales', delAnio('tal'), 'este año', '', 'Orientación'],
+                ['Citas esta semana', d.citasSemana, d.citasSinConfirmar + ' sin confirmar', '', 'cal']];
+      $('kpis').innerHTML = KO.map(kpiCard).join('').replace(/col-lg-2/g, 'col-lg-3');
+      ['alVit', 'alAs', 'alDer', 'alIn'].forEach(function (id) { var el = $(id); if (el) { el.style.display = 'none'; if (el.previousElementSibling) el.previousElementSibling.style.display = 'none'; } });
+      $('alTot').textContent = '';
+      $('alCit').innerHTML = d.proximasCitas.length
+        ? d.proximasCitas.map(function (c) { return '<div class="al-row"><b>' + esc(c.f) + (c.h ? ' · ' + esc(c.h) : '') + '</b><span>' + esc(c.x) + '</span></div>'; }).join('')
+        : '<div class="small text-secondary px-2">Sin citas por confirmar.</div>';
+      return;
+    }
     var K = [['@V.Personas en seguimiento', nSeg, 'de ' + d.alumnos + (ORG.col ? ' · ' + d.cursos + (d.cursos === 1 ? ' curso' : ' cursos') : ' registrados'), '', '@V.Personas'],
              ['@V.Personas en alerta', bajas.length, bajas.length ? (ORG.col ? 'asistencia bajo 85%' : 'riesgo alto') : 'sin alertas', bajas.length ? '#B4402F' : '', 'alert'],
              ['Derivaciones sin gestionar', derPend.length, derPend.length ? 'pendientes o en monitoreo' : 'sin pendientes', derPend.length ? '#d98a00' : '', 'Derivaciones', 'der'],
@@ -299,9 +337,19 @@
   $('nT').innerHTML = Object.keys(TIPOS).map(function (t) { return '<option>' + t + '</option>'; }).join('');
   $('cLeg').innerHTML = Object.keys(TIPOS).map(function (t) { return '<span><i style="background:' + TIPOS[t] + '"></i>' + t + '</span>'; }).join('');
 
+  var ES_ORI = @(soloVer ? "true" : "false");   // orientadora: ve todo, edita solo lo que ella anotó
+  var editable = function (e) { return !ES_ORI || !e || e.mio; };
+  var escH = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  // Equipo (para "¿quién la ve?")
+  var EQ = [];
+  fetch('/Psychosocial/Equipo', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : []; }).then(function (l) {
+    EQ = l || [];
+    $('nVisL').innerHTML = EQ.length ? EQ.map(function (u) { return '<label class="small"><input type="checkbox" class="form-check-input me-1 nVisC" value="' + u.id + '"> ' + escH(u.n) + ' <span class="text-secondary">(' + escH(u.rol) + ')</span></label>'; }).join('') : '<span class="small text-secondary">No hay más personas en el equipo.</span>';
+  }).catch(function () { });
+  $('nVis').onchange = function () { $('nVisL').style.setProperty('display', $('nVis').value === 'elegir' ? 'flex' : 'none', 'important'); };
   var chip = function (e) {
-    return '<div class="cal-ev' + (e.ok ? ' done' : '') + '" data-id="' + e.id + '" style="--c:' + TIPOS[e.t] + '"><input type="checkbox" ' + (e.ok ? 'checked' : '') +
-      '><div class="t">' + (e.h ? '<b>' + e.h + '</b> ' : '') + e.x + '</div></div>';
+    return '<div class="cal-ev' + (e.ok ? ' done' : '') + '" data-id="' + e.id + '" style="--c:' + TIPOS[e.t] + '"' + (e.vis ? ' title="Visible solo para algunas personas"' : '') + '><input type="checkbox" ' + (e.ok ? 'checked' : '') + (editable(e) ? '' : ' disabled') +
+      '><div class="t">' + (e.vis ? '🔒 ' : '') + (e.h ? '<b>' + e.h + '</b> ' : '') + escH(e.x) + '</div></div>';
   };
   var draw = function () {
     $('vMes').classList.toggle('on', vista === 'mes'); $('vHoy').classList.toggle('on', vista === 'hoy');
@@ -329,7 +377,19 @@
     cur = e || null; $('nTit').textContent = e ? 'Editar nota' : 'Nueva nota';
     $('nX').value = e ? e.x : ''; $('nF').value = e ? e.f : (f || iso(new Date())); $('nH').value = e ? e.h : '';
     $('nT').value = e ? e.t : 'Citación'; $('nR').value = e ? e.r : 'Psicóloga'; $('nOk').checked = e ? e.ok : false;
-    $('nDel').style.display = e ? '' : 'none'; notaM.show();
+    var ro = !editable(e);   // orientadora mirando algo de otra persona
+    $('nDel').style.display = e && !ro ? '' : 'none';
+    $('nSave').style.display = ro ? 'none' : '';
+    ['nX', 'nF', 'nH', 'nT', 'nR', 'nOk'].forEach(function (id) { $(id).disabled = ro; });
+    if (ro) $('nTit').textContent = 'Detalle';
+    // ¿Quién la ve? (solo quien la crea lo decide)
+    var propia = !e || e.mio;
+    $('nVisB').style.display = propia ? '' : 'none';
+    var ids = e && e.vis ? e.vis.split(',') : [];
+    $('nVis').value = !e || !e.vis ? 'todos' : ids.length <= 1 ? 'yo' : 'elegir';
+    document.querySelectorAll('.nVisC').forEach(function (c) { c.checked = ids.indexOf(c.value) > -1; });
+    $('nVis').onchange();
+    notaM.show();
   };
   var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
   var post = function (url, datos) {
@@ -352,7 +412,7 @@
     var c = ev.target.closest('.cal-ev');
     if (c) {
       var e = EV.filter(function (x) { return x.id === +c.getAttribute('data-id'); })[0];
-      if (ev.target.tagName === 'INPUT') {
+      if (ev.target.tagName === 'INPUT' && editable(e)) {
         e.ok = ev.target.checked; draw();
         post('/Psychosocial/MarcarEvento', { id: e.id, realizada: e.ok }).catch(error);
       } else abrir(e);
@@ -363,7 +423,10 @@
   $('nSave').onclick = function () {
     if (!$('nX').value.trim()) return;
     post('/Psychosocial/GuardarEvento', { id: cur ? cur.id : 0, fecha: $('nF').value, hora: $('nH').value, tipo: $('nT').value,
-      titulo: $('nX').value.trim(), responsable: $('nR').value, realizada: $('nOk').checked })
+      titulo: $('nX').value.trim(), responsable: $('nR').value, realizada: $('nOk').checked,
+      // "" = todo el equipo · "0" = solo yo · ids = personas elegidas (quien crea siempre la ve)
+      visiblePara: $('nVis').value === 'todos' ? '' : $('nVis').value === 'yo' ? '0'
+        : (Array.prototype.filter.call(document.querySelectorAll('.nVisC'), function (c) { return c.checked; }).map(function (c) { return c.value; }).join(',') || '0') })
       .then(function () { notaM.hide(); cargar(); }).catch(error);
   };
   $('nDel').onclick = function () {
@@ -392,19 +455,37 @@
         $('ciEi').textContent = l.length ? l.length + ' @V.personas disponibles' : 'Aún no hay @V.personas cargados/as.';
       }).catch(function () { $('ciEi').textContent = 'No se pudo cargar la lista de @V.personas.'; });
   };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var cargarEquipo = function () {
+    fetch('/Psychosocial/Equipo', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : []; }).then(function (l) {
+      $('ciP').innerHTML = l.length ? l.map(function (u) { return '<label class="small"><input type="checkbox" class="form-check-input me-1 ciPc" value="' + u.id + '"> ' + esc(u.n) + ' <span class="text-secondary">(' + esc(u.rol) + ')</span></label>'; }).join('')
+        : '<span class="small text-secondary">No hay más personas en el equipo.</span>';
+    }).catch(function () { $('ciP').innerHTML = ''; });
+  };
   var modal = $('modalCitacion');
   modal.addEventListener('show.bs.modal', function () {
     $('ciR').style.display = 'none'; $('ciOk').disabled = false;
+    cargarEquipo();
     var hoy = new Date(); $('ciF').min = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
     cargarAlumnos();
   });
   var msg = function (t, ok) { var r = $('ciR'); r.style.display = ''; r.className = 'small mt-2 ' + (ok ? 'text-success' : 'text-danger'); r.textContent = t; };
+  // "Que también la vea": al apoderado/a si se cita al alumno/a, y al alumno/a si se cita al apoderado/a
+  var infOtro = function () {
+    if (!$('ciInf')) return;
+    var a = $('ciA').value;
+    $('ciInfL').style.display = (a === 'Alumno' || a === 'Apoderado') ? '' : 'none';
+    $('ciInfT').textContent = a === 'Apoderado' ? 'Que también la vea el alumno/a' : 'Que también la vea su apoderado/a';
+  };
+  $('ciA').addEventListener('change', infOtro); infOtro();
   $('ciOk').onclick = function () {
     var al = lista.filter(function (a) { return etiqueta(a) === $('ciE').value.trim(); })[0];
     if (!al) return msg('Elige un @V.persona de la lista.', false);
     if (!$('ciF').value) return msg('Elige la fecha.', false);
     if ($('ciM').value.trim().length < 3) return msg('Escribe el motivo.', false);
-    var body = new URLSearchParams({ estudianteId: al.id, citadoA: $('ciA').value, fecha: $('ciF').value, hora: $('ciH').value, motivo: $('ciM').value.trim() });
+    var part = Array.prototype.filter.call(document.querySelectorAll('.ciPc'), function (c) { return c.checked; }).map(function (c) { return c.value; }).join(',');
+    var body = new URLSearchParams({ estudianteId: al.id, citadoA: $('ciA').value, fecha: $('ciF').value, hora: $('ciH').value, motivo: $('ciM').value.trim(),
+      participantes: part, soloParticipantes: $('ciVis').value === 'solo', informarOtro: !!($('ciInf') && $('ciInf').checked && $('ciInfL').style.display !== 'none') });
     body.append('__RequestVerificationToken', tok());
     $('ciOk').disabled = true;
     fetch('/Psychosocial/CrearCitacion', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
@@ -415,11 +496,11 @@
         else {
           t += 'Se avisó en AUKA a ' + j.avisados + (j.avisados === 1 ? ' persona' : ' personas');
           if (j.porCorreo) t += ' y por correo a ' + j.porCorreo;
-          if (j.simulados) t += ' (correo en modo prueba: ' + j.simulados + ')';
-          if (j.fallidos) t += '. ' + j.fallidos + ' correo(s) fallaron y se reintentarán solos';
+          if (j.simulados) t += '. OJO: el correo esta apagado (modo prueba), no salio ningun correo real';
+          if (j.fallidos) t += '. ' + j.fallidos + ' correo(s) fallaron y se reintentarán solos' + (j.errorCorreo ? ' (motivo: ' + j.errorCorreo + ')' : '');
           t += '.';
         }
-        msg(t, true);
+        msg(t, !j.fallidos && !j.simulados);
         $('ciM').value = ''; $('ciE').value = '';
         document.dispatchEvent(new CustomEvent('psx-calendario'));
         $('ciOk').disabled = false;
@@ -427,6 +508,51 @@
       })
       .catch(function (e) { msg(e.message || 'No se pudo guardar. Inténtalo de nuevo.', false); $('ciOk').disabled = false; });
   };
+})();
+
+// ---- Solicitudes de cita (las pide el alumno/a o el apoderado/a) y respuestas a citaciones ----
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var fCL = function (v) { return v ? v.split('-').reverse().join('-') : ''; };
+  var tok = function () { return document.querySelector('input[name="__RequestVerificationToken"]').value; };
+  var L = [];
+  var dibujar = function () {
+    if (!L.length) { $('alSol').innerHTML = '<div class="small text-secondary px-2">Nada pendiente.</div>'; return; }
+    $('alSol').innerHTML = L.map(function (c) {
+      var quien = '<b>' + esc(c.n) + '</b>' + (c.cu ? ' <span class="text-secondary">· ' + esc(c.cu) + '</span>' : '');
+      var det, acc;
+      if (c.e === 7) {
+        det = 'Pide cita (' + esc(c.a.toLowerCase()) + ') para el ' + fCL(c.f) + (c.h ? ' ' + c.h : '') + (c.m ? '<br><span class="text-secondary">' + esc(c.m) + '</span>' : '');
+        acc = '<div class="d-flex flex-wrap gap-1 mt-1"><input type="date" class="form-control form-control-sm" style="max-width:150px" id="sf' + c.id + '" value="' + c.f + '"><input type="time" class="form-control form-control-sm" style="max-width:110px" id="sh' + c.id + '" value="' + c.h + '">' +
+          '<button class="btn btn-sm btn-primary rounded-pill" data-a="agendar" data-id="' + c.id + '">Agendar</button><button class="btn btn-sm btn-outline-secondary rounded-pill" data-a="cerrar" data-id="' + c.id + '">No procede</button></div>';
+      } else if (c.e === 6) {
+        det = 'No puede el ' + fCL(c.f) + '. Propone <b>' + fCL(c.fp) + (c.hp ? ' ' + c.hp : '') + '</b>' + (c.r ? '<br><span class="text-secondary">' + esc(c.r) + '</span>' : '');
+        acc = '<div class="d-flex flex-wrap gap-1 mt-1"><button class="btn btn-sm btn-success rounded-pill" data-a="aceptar" data-id="' + c.id + '">Aceptar nueva fecha</button><button class="btn btn-sm btn-outline-secondary rounded-pill" data-a="mantener" data-id="' + c.id + '">Mantener la original</button></div>';
+      } else {
+        det = 'No asistirá el ' + fCL(c.f) + (c.r ? '<br><span class="text-secondary">Motivo: ' + esc(c.r) + '</span>' : '');
+        acc = '<div class="d-flex flex-wrap gap-1 mt-1"><button class="btn btn-sm btn-outline-secondary rounded-pill" data-a="cerrar" data-id="' + c.id + '">Entendido, cancelar citación</button></div>';
+      }
+      return '<div class="al-row" style="display:block"><div>' + quien + ' <span class="badge rounded-pill text-bg-' + (c.e === 5 ? 'danger' : 'warning') + '">' + esc(c.est) + '</span></div><div class="small">' + det + '</div>' + acc + '</div>';
+    }).join('');
+  };
+  var cargar = function () {
+    return fetch('/Psychosocial/Solicitudes', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (l) { L = l || []; dibujar(); }).catch(function () { });
+  };
+  $('alSol').onclick = function (ev) {
+    var b = ev.target.closest('button[data-a]'); if (!b) return;
+    var id = b.getAttribute('data-id'), a = b.getAttribute('data-a');
+    var body = new URLSearchParams({ id: id, accion: a, fecha: ($('sf' + id) || {}).value || '', hora: ($('sh' + id) || {}).value || '' });
+    body.append('__RequestVerificationToken', tok());
+    b.disabled = true;
+    fetch('/Psychosocial/AtenderCitacion', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
+      .then(function () { cargar(); var c = document.getElementById('vHoy'); if (c) c.click(); document.dispatchEvent(new CustomEvent('psx-alumnos')); })
+      .catch(function (e) { b.disabled = false; alert(e.message || 'No se pudo guardar.'); });
+  };
+  cargar();
+  setInterval(function () { if (!document.hidden && !document.querySelector('.modal.show')) cargar(); }, 60000);
 })();
 </script>
 }

@@ -4,10 +4,26 @@ using Auka.Application.Services;
 using Auka.Infrastructure.Data;
 using Auka.Infrastructure.Repositories;
 using Auka.Web.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;   // TryGetValue / Set de IMemoryCache (aceptación de términos)
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Producción (copia publicada en C:\Auka\prod) también lee los secretos de usuario de este PC:
+// así la clave del correo nunca queda escrita en un archivo. La conexión a la base AukaProd
+// sale de C:\Auka\prod\appsettings.Production.json (no está en el repositorio).
+if (!builder.Environment.IsDevelopment())
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
+
+// Detrás de ngrok: la petición llega como http a este PC, pero afuera es https.
+// Con esto AUKA sabe la dirección y el protocolo reales (enlaces, cookies seguras, inicio con Google).
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
 
 // 1. Conexión nativa a PostgreSQL con Npgsql
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -41,7 +57,8 @@ builder.Services.AddScoped<IAnotacionService, AnotacionService>();
 builder.Services.AddAuthentication("AukaAuthCookie")
     .AddCookie("AukaAuthCookie", options =>
     {
-        options.Cookie.Name = "Auka.Session";
+        // Nombre distinto en producción: así la sesión del colegio y la de tus pruebas no se pisan en el mismo PC
+        options.Cookie.Name = builder.Environment.IsProduction() ? "Auka.Session.Prod" : "Auka.Session";
         options.LoginPath = "/Account/Login";
         options.LogoutPath = "/Account/Logout";
         options.AccessDeniedPath = "/Account/AccesoDenegado";
@@ -95,6 +112,16 @@ builder.Services.AddControllersWithViews(o => o.Filters.AddService<Auka.Web.Serv
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
+// Producción: aplica sola las migraciones nuevas al iniciar (el script de publicar hace un respaldo antes).
+// En tu PC de desarrollo sigues usando Update-Database como siempre.
+if (app.Environment.IsProduction())
+{
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.Migrate();
+}
+
 // 4. Canalización Middleware de Producción
 if (!app.Environment.IsDevelopment())
 {
@@ -106,6 +133,9 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
+
+// Recuerda la dirección pública (ngrok) para que los enlaces de los correos no lleven a localhost
+app.Use(async (context, next) => { UrlPublica.Recordar(context); await next(); });
 
 app.UseAuthentication();
 app.UseAuthorization();

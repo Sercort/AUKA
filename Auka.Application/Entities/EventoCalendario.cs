@@ -14,6 +14,9 @@ public class EventoCalendario
     public string Responsable { get; set; } = "Equipo psicosocial";
     public bool Realizada { get; set; }
 
+    // Quién la ve en el calendario: null = todo el equipo; si no, ids separados por coma (quien la creó siempre la ve)
+    public string? VisiblePara { get; set; }
+
     // Auditoría: quién la creó y quién la modificó por última vez
     public int CreadoPorId { get; set; }
     public DateTime CreadoEnUtc { get; set; } = DateTime.UtcNow;

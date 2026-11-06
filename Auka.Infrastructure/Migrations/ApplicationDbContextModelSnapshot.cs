@@ -397,6 +397,27 @@ namespace Auka.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Destinatario")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("FechaPropuesta")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("InformarOtro")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeOnly?>("HoraPropuesta")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Participantes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Respuesta")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("SolicitadaPorId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EstudianteId");
@@ -477,6 +498,15 @@ namespace Auka.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("BitacoraCompartida")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("CalendarioCompartido")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("FichasPorArea")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.ToTable("Colegios", (string)null);
@@ -526,6 +556,9 @@ namespace Auka.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AccesoPropio")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("ColegioId")
                         .HasColumnType("integer");
@@ -688,6 +721,9 @@ namespace Auka.Infrastructure.Migrations
 
                     b.Property<string>("Titulo")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("VisiblePara")
                         .HasColumnType("text");
 
                     b.HasKey("Id");

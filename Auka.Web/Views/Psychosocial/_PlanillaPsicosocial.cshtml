@@ -118,6 +118,7 @@
     <div class="psx-card"><h6>Protocolo de riesgo vital</h6><p class="psx-leg" style="margin:0 0 .4rem">El detalle queda en la ficha (con segunda clave). Riesgo inminente: urgencia o SAMU 131 · Línea de prevención del suicidio *4141 (gratuita, 24 horas).</p><div id="tVit"></div></div>
     @if (V.EsColegio) {<div class="psx-card"><h6>Desregulaciones emocionales (DEC · Ley TEA 21.545)</h6><div id="tDec"></div></div>}
     <div class="psx-card"><h6>@(V.EsColegio ? "Reintegros escolares" : "Reintegros laborales")</h6><div id="tRein"></div></div>
+    <div class="psx-card"><h6>Compromisos y notas compartidas</h6><p class="psx-leg" style="margin:0 0 .4rem">Los ven en su portal las personas elegidas en cada registro.</p><div id="tComp"></div></div>
   </div>
 
   <div class="psx-pane" data-p="@(V.EsColegio ? "Judicial" : "Ley Karin")" data-k="jud">
@@ -132,11 +133,14 @@
 
   <div class="psx-pane" data-p="Derivaciones" data-k="der">
     <div class="psx-card"><h6>@(V.EsColegio ? "Derivación a convivencia escolar" : "Derivaciones externas (mutualidad, salud mental, red de apoyo)")</h6><div id="tCon"></div></div>
+    <div class="psx-card"><h6>Coordinación con la red</h6><div id="tRed"></div></div>
     @if (V.EsColegio) {<div class="psx-card"><h6>Protocolo de maltrato escolar (Ley 20.536)</h6><div id="tMal"></div></div>}
     <div class="psx-card"><h6>@(V.EsColegio ? "Derivación a profesores tutores" : "Acuerdos con jefatura")</h6>@if (!V.EsColegio) {<p class="psx-leg" style="margin:0 0 .4rem">Solo los ajustes laborales acordados. La jefatura no ve la ficha ni la información clínica.</p>}<div id="tTut"></div></div>
   </div>
 
-  <div class="psx-pane" data-p="Terreno" data-k="vd">
+  <div class="psx-pane" data-p="Social y terreno" data-k="vd">
+    <div class="psx-card"><h6>Fichas sociales familiares</h6><p class="psx-leg" style="margin:0 0 .4rem">El detalle (composición familiar, programas y redes) queda en la ficha.</p><div id="tFs"></div></div>
+    <div class="psx-card"><h6>Entrevistas familiares</h6><div id="tEntf"></div></div>
     <div class="psx-card"><h6>@(V.EsColegio ? "Visitas domiciliarias (V.D.)" : "Visitas en terreno")</h6><div id="tVD"></div></div>
   </div>
 
@@ -144,6 +148,7 @@
     <div class="psx-card"><div class="psx-head"><h6>Pro-retención: sets</h6>
       <div><button class="psx-btn" id="bSetE">Editar sets</button> <button class="psx-btn" id="bStock">Registrar ingreso</button> <button class="psx-btn" id="bGI">Guía de ingreso</button> <button class="psx-btn p" id="bGD">Guía de despacho</button></div></div>
       <div class="psx-fg" id="bSets"></div></div>
+    <div class="psx-card"><h6>@(V.EsColegio ? "Becas y beneficios estatales (JUNAEB y otros)" : "Beneficios sociales")</h6><div id="tBeca"></div></div>
     <div class="psx-grid">
       <div class="psx-card"><h6>Entrega por @V.persona</h6><div id="tEnt"></div></div>
       <div class="psx-card"><h6>Inventario de ropa</h6><div id="tInv"></div>
@@ -163,6 +168,13 @@
     <div class="psx-card"><h6>@(V.EsColegio ? "Egresos psicosociales" : "Altas y cierres de caso")</h6><div id="tEgr"></div></div>
     <div class="psx-card"><h6>@(V.EsColegio ? "Plan de acción: estudiantes críticos" : "Plan de intervención")</h6><div class="psx-kan" id="kan"></div></div>
   </div>
+
+  <div class="psx-pane" data-p="Orientación" data-k="ori">
+    <div class="psx-card"><h6>Entrevistas de orientación</h6><div id="tEnto"></div></div>
+    <div class="psx-card"><h6>@(V.EsColegio ? "Orientación vocacional" : "Orientación laboral")</h6><div id="tOri"></div></div>
+    <div class="psx-card"><h6>Talleres grupales</h6><div id="tTal"></div></div>
+    <div class="psx-card"><h6>Compromisos y notas compartidas</h6><div id="tComp2"></div></div>
+  </div>
 <div class="psx-ov" id="psxOv"><div class="psx-mod">
     <div class="psx-mh"><b>Nuevo registro</b><button class="psx-x" id="mX">&times;</button></div>
     <div class="psx-steps" id="mS"></div>
@@ -179,7 +191,9 @@
 <script>
 (function () {
   // col = es colegio (alumnos/as y cursos); pl = planillas activas para esta organización
-  var ORG = { col: @(V.EsColegio ? "true" : "false"), pl: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(org.Planillas)) };
+  var ORG = { col: @(V.EsColegio ? "true" : "false"), pl: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(org.Planillas)),
+              ori: @(User.IsInRole("Orientadora") ? "true" : "false"),   // ori = la orientadora (sin fichas confidenciales)
+              ocultas: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Auka.Web.Services.Organizacion.FichasOcultas(org, User))) };   // fichas de la otra área
   var $ = function (id) { return document.getElementById(id); };
   var c = function (t, k) { return '<span class="psx-c ' + k + '">' + t + '</span>'; };
   var T = function (h, r) {
@@ -285,13 +299,39 @@
     ['Estado','s',['Abierto','En seguimiento','Cerrado']],
     ['Observaciones','a']] };
   F.splice(1, 0, FVIT);
+
+  // Trabajador/a social: diagnóstico familiar, becas y beneficios, red de apoyo y entrevistas familiares
+  var FTS = [
+    { k: 'fs', n: 'Ficha social familiar', d: 'Hogar, vivienda, Registro Social de Hogares, salud y redes', al: 1, f: [['Fecha','d'],['Adulto/a responsable','t'],['Parentesco','s', ORG.col ? ['Madre','Padre','Abuelo/a','Tío/a','Otro familiar','Tutor/a legal'] : ['Pareja','Madre','Padre','Hijo/a','Otro familiar','Vive solo/a']],['Integrantes del hogar','n'],['Composición familiar','a'],['Vivienda','s',['Propia','Arrendada','Allegada','Cedida','Campamento o situación de calle','Otra']],['Tramo Registro Social de Hogares','s',['40%','50%','60%','70%','80%','90%','100%','Sin RSH']],['Previsión de salud','s',['Fonasa A','Fonasa B','Fonasa C','Fonasa D','Isapre','Otra']],['Programas sociales vigentes','a'],['Redes de apoyo','a'],['Observaciones','a']] },
+    { k: 'beca', n: ORG.col ? 'Beca o beneficio estatal' : 'Beneficio social', d: ORG.col ? 'JUNAEB y otros: postulación, estado y renovación' : 'Subsidios y programas sociales', al: 1, f: [['Beneficio','s', ORG.col ? ['PAE (alimentación JUNAEB)','Beca Indígena','Beca Presidente de la República','Beca de Apoyo a la Retención Escolar (BARE)','Me Conecto para Aprender','Útiles escolares JUNAEB','Programa de Salud Escolar JUNAEB','Otro'] : ['Subsidio Único Familiar','Aporte o bono municipal','Programa social (DIDECO)','Subsidio habitacional','Pensión Garantizada Universal','Otro']],['Año','n'],['Estado','s',['Por postular','Postulado','Asignado','Rechazado','Renovación']],['Fecha','d'],['Observaciones','a']] },
+    { k: 'red', n: 'Coordinación con la red', d: 'Contactos con instituciones y acuerdos', al: 1, f: [['Fecha','d'],['Institución','s', ORG.col ? ['Oficina Local de la Niñez','CESFAM / COSAM','Municipalidad (DIDECO)','Tribunal de Familia','Programa de la red Mejor Niñez','SENDA','Carabineros / PDI','Otra'] : ['CESFAM / COSAM','Municipalidad (DIDECO)','Mutualidad','Tribunal de Familia','SENDA','Otra']],['Tipo de contacto','s',['Llamado','Correo u oficio','Reunión','Visita']],['Motivo','a'],['Acuerdos','a'],['Próximo contacto','d']] },
+    { k: 'entf', n: 'Entrevista familiar', d: 'Con el apoderado/a o la familia: motivo y acuerdos', al: 1, f: [['Fecha','d'],['Con quién','s', ORG.col ? ['Apoderado/a','Madre','Padre','Abuelo/a','Otro familiar','Adulto/a responsable'] : ['Familiar','Pareja','Contacto de emergencia','Otro']],['Motivo','a'],['Acuerdos','a'],['Próxima entrevista','d']] }
+  ];
+  // Orientación (la registra la orientadora; la ve todo el equipo)
+  var FORI = [
+    { k: 'ento', n: 'Entrevista de orientación', d: 'Motivo, acuerdos y si se deriva al equipo', al: 1, f: [['Fecha','d'],['Con quién','s', ORG.col ? ['Alumno/a','Apoderado/a','Ambos'] : ['Paciente','Familiar','Ambos']],['Motivo','s',['Rendimiento','Convivencia','Asistencia','Vocacional','Socioemocional','Otro']],['Acuerdos','a'],['Derivación al equipo','s',['No','Psicólogo/a','Trabajador/a social']]] },
+    { k: 'ori', n: ORG.col ? 'Orientación vocacional' : 'Orientación laboral', d: ORG.col ? 'Intereses, electivos y proyección después del colegio' : 'Intereses y proyección laboral', al: 1, f: ORG.col
+      ? [['Fecha','d'],['Área de interés','s',['Científico-humanista','Técnico-profesional','Artes','Deportes','Aún no define']],['Electivos (3° y 4° medio)','a'],['Proyección','s',['Universidad','Instituto profesional','CFT','Mundo laboral','Fuerzas Armadas u Orden','Aún no define']],['Postulación','s',['No aplica todavía','Inscrito/a en la PAES','Postuló al FUAS','Postuló a la educación superior']],['Acuerdos','a']]
+      : [['Fecha','d'],['Área de interés','t'],['Proyección','a'],['Acuerdos','a']] },
+    { k: 'tal', n: 'Taller grupal', d: 'Taller para un curso o grupo (no es de una sola persona)', al: 0, f: [['Fecha','d'],[ORG.col ? 'Curso' : 'Grupo / área','t'],['Tema','s',['Habilidades socioemocionales','Convivencia y buen trato','Orientación vocacional','Autocuidado y prevención','Hábitos de estudio','Otro']],['Participantes','n'],['Observaciones','a']] }
+  ];
+  // Compromiso o nota compartida: lo que el equipo quiere que vea el profesor/a jefe y/o la familia
+  var FCOMP = { k: 'comp', n: 'Compromiso o nota compartida', d: 'La ven y les llega a quienes elijas (profesor/a jefe, apoderado/a, alumno/a). Sin datos clínicos.', al: 1, f: [
+    ['Fecha','d'],
+    ['Tipo','s',['Compromiso','Acuerdo de seguimiento','Nota informativa']],
+    ['Compromiso o acuerdo','a'],
+    ['Visible para','s', ORG.col ? ['Profesor/a jefe','Profesor/a jefe y apoderado/a','Profesor/a jefe, apoderado/a y alumno/a','Apoderado/a y alumno/a','Solo apoderado/a'] : ['Paciente']],
+    ['Fecha de revisión','d']] };
+  FORI.push(FCOMP);
+  if (ORG.ori) F = FORI.slice();                          // la orientadora solo ve sus fichas
+  else F = F.slice(0, F.length - 1).concat(FTS, FORI, F.slice(F.length - 1));   // FORI ya incluye el compromiso compartido
   if (!ORG.col) {
     F = F.map(function (f) { return FORG[f.k] ? { k: f.k, n: FORG[f.k].n, d: FORG[f.k].d, al: f.al, f: FORG[f.k].f } : f; });
-    F.splice(1, 0, { k: 'rein', n: 'Reintegro laboral', d: 'Vuelta al trabajo después de una licencia médica', al: 1, f: [['Fecha de inicio de licencia','d'],['Fecha de retorno','d'],['Tipo de licencia','s',['Común','Laboral (mutualidad)']],['Ajustes acordados','a'],['Estado','s',['Planificado','En curso','Completado']]] });
+    if (!ORG.ori) F.splice(1, 0, { k: 'rein', n: 'Reintegro laboral', d: 'Vuelta al trabajo después de una licencia médica', al: 1, f: [['Fecha de inicio de licencia','d'],['Fecha de retorno','d'],['Tipo de licencia','s',['Común','Laboral (mutualidad)']],['Ajustes acordados','a'],['Estado','s',['Planificado','En curso','Completado']]] });
   }
-  var PLA = { seg: 'seg', rein: 'seg', dec: 'seg', vit: 'seg', jud: 'jud', inf: 'jud', vul: 'jud', vd: 'vd', conv: 'der', tut: 'der', mal: 'der', plan: 'egr', egr: 'egr', pro: 'ben', ropa: 'ben' };
+  var PLA = { comp: 'seg', fs: 'vd', beca: 'ben', red: 'der', entf: 'seg', ori: 'ori', ento: 'ori', tal: 'ori', seg: 'seg', rein: 'seg', dec: 'seg', vit: 'seg', jud: 'jud', inf: 'jud', vul: 'jud', vd: 'vd', conv: 'der', tut: 'der', mal: 'der', plan: 'egr', egr: 'egr', pro: 'ben', ropa: 'ben' };
   var FALL = F.slice();
-  F = F.filter(function (f) { return f.k === 'ano' ? ORG.col : ORG.pl.indexOf(PLA[f.k]) > -1; });
+  F = F.filter(function (f) { return (f.k === 'ano' ? ORG.col : ORG.pl.indexOf(PLA[f.k]) > -1) && ORG.ocultas.indexOf(f.k) < 0; });
   var fld = function (f) {
     var t = f[1], h = '<label class="psx-f"><span>' + f[0] + '</span>';
     if (t === 's') h += '<select class="psx-in">' + f[2].map(function (o) { return '<option>' + o + '</option>'; }).join('') + '</select>';
@@ -631,11 +671,13 @@
       .catch(function () { /* sin conexión: se mantiene lo que se ve */ });
   };
   var errBen = function () { alert('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.'); cargarBen(); };
-  cargarBen();
-  setInterval(function () {
-    var ed = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('iv');
-    if (!document.hidden && !$('dgOv').classList.contains('on') && !ed) cargarBen();
-  }, 30000);
+  if (!ORG.ori) {
+    cargarBen();
+    setInterval(function () {
+      var ed = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('iv');
+      if (!document.hidden && !$('dgOv').classList.contains('on') && !ed) cargarBen();
+    }, 30000);
+  }
 
   // ---- Listado real de @V.personas matriculados ----
   var ROS = null, ROSerr = '';
@@ -664,7 +706,140 @@
   // ---- Ficha confidencial del @V.persona (pide la segunda clave) ----
   var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var fichaId = 0;
+
+  // ---- Corregir el curso (equipo y orientadora). Siempre pide la clave: la segunda clave, o la de ingreso si no tiene ----
+  var cambiarCurso = function (caja, id, actual, listo) {
+    caja.innerHTML = '<p class="psx-leg">Cargando cursos…</p>';
+    fetch('/Psychosocial/ListaCursos', { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (j) {
+        caja.innerHTML = '<div class="psx-note"><b>Cambiar curso</b>' +
+          '<select class="psx-in" id="ccSel" style="margin:.4rem 0">' + j.cursos.map(function (x) { return '<option value="' + x.id + '"' + (x.n === actual ? ' selected' : '') + '>' + esc(x.n) + '</option>'; }).join('') + '</select>' +
+          '<input class="psx-in" id="ccClave" type="password" autocomplete="current-password" placeholder="' + (j.segunda ? 'Tu segunda clave' : 'Tu clave de ingreso') + '">' +
+          '<p class="psx-leg" style="margin:.3rem 0">Para confirmar el cambio escribe ' + (j.segunda ? 'tu segunda clave' : 'tu clave de ingreso') + '. Queda anotado en la bitácora. De kínder a 6° básico la cuenta la maneja su apoderado/a.</p>' +
+          '<div style="display:flex;gap:.4rem"><button class="psx-btn p" id="ccOk">Guardar curso</button><button class="psx-btn" id="ccNo">Cancelar</button></div><div id="ccR" class="psx-leg"></div></div>';
+        $('ccNo').onclick = function () { caja.innerHTML = ''; };
+        $('ccOk').onclick = function () {
+          if (!$('ccClave').value) { $('ccR').textContent = 'Escribe la clave.'; return; }
+          $('ccOk').disabled = true;
+          post('/Psychosocial/CambiarCurso', { estudianteId: id, cursoId: $('ccSel').value, clave: $('ccClave').value })
+            .then(function (r) { caja.innerHTML = ''; msg('Curso actualizado: ' + r.c, 1); cargarAlu(); document.dispatchEvent(new CustomEvent('psx-alumnos')); if (listo) listo(r); })
+            .catch(function (e) { $('ccOk').disabled = false; $('ccClave').value = ''; $('ccR').style.color = '#b42323'; $('ccR').textContent = e.message; });
+        };
+      })
+      .catch(function (e) { caja.innerHTML = '<p class="psx-leg" style="color:#b42323">No se pudieron cargar los cursos (' + esc(e.message) + ').</p>'; });
+  };
+
+  // ---- Contacto y familia (solo datos de contacto: lo ve también la orientadora) ----
+  // Un alumno/a puede tener varios apoderados/as (mamá, papá, abuela...) y un apoderado/a varios pupilos.
+  var apoderadosHtml = function (aps) {
+    if (!aps || !aps.length) return '<p class="psx-leg" style="margin:0">Sin apoderado/a registrado. Agrégalo con «+ Agregar apoderado/a».</p>';
+    return aps.map(function (x) {
+      return '<div style="padding:.45rem 0;border-top:1px solid #eef0f4;font-size:.85rem">' +
+        '<div style="display:flex;flex-wrap:wrap;gap:.3rem .8rem;align-items:center">' +
+        '<b>' + esc(x.n) + '</b>' + c(esc(x.p), x.tit ? 'ok' : 'nil') + (x.tit ? '<span class="psx-leg" style="margin:0">Apoderado/a titular</span>' : '') +
+        (x.mail ? '<a href="mailto:' + esc(x.mail.split(',')[0]) + '" style="text-decoration:none">✉️ ' + esc(x.mail) + '</a>' : '<span class="psx-leg" style="margin:0">Sin correo</span>') +
+        (x.tel ? '<a href="tel:' + esc(x.tel) + '" style="text-decoration:none">📞 ' + esc(x.tel) + '</a>' : '') + '</div>' +
+        (x.otros && x.otros.length ? '<div class="psx-leg" style="margin:.15rem 0 0">También apoderado/a de: ' + x.otros.map(esc).join(', ') + '</div>' : '') +
+        (x.id ? '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.3rem">' +
+          '<button class="psx-btn" data-apac="correo" data-apid="' + x.id + '" style="padding:.1rem .5rem;font-size:.75rem">Enviar acceso por correo</button>' +
+          '<button class="psx-btn" data-apac="clave" data-apid="' + x.id + '" style="padding:.1rem .5rem;font-size:.75rem">Clave provisoria</button>' +
+          '<button class="psx-btn" data-apac="quitar" data-apid="' + x.id + '" style="padding:.1rem .5rem;font-size:.75rem;color:#b42323">Quitar</button></div>' : '') +
+        '<div id="apR' + x.id + '"></div></div>';
+    }).join('');
+  };
+  var contactoHtml = function (k) {
+    var cont = [k.d ? '📍 ' + esc(k.d) : '', k.t ? '📞 ' + esc(k.t) : '', k.m ? '✉️ ' + esc(k.m) : ''].filter(Boolean).join(' · ');
+    return (cont ? '<p class="psx-leg" style="margin:0 0 .3rem">' + cont + '</p>' : '') +
+      (k.acc === false ? '<p class="psx-leg" style="margin:0 0 .3rem">' + c('Lo maneja su apoderado/a', 'warn') + ' Sus citaciones le llegan al apoderado/a.</p>' : '') + apoderadosHtml(k.aps);
+  };
+  // Pide la clave de quien hace la acción y llama a fn(clave)
+  var conClave = function (caja, texto, fn) {
+    caja.innerHTML = '<div class="psx-note" style="margin-top:.3rem"><div class="psx-leg" style="margin:0 0 .3rem">' + texto + '</div>' +
+      '<div class="psx-find-row"><input class="psx-in" type="password" id="ckI" placeholder="Tu clave (segunda clave o la de ingreso)" autocomplete="current-password"><button class="psx-btn p" id="ckOk">Confirmar</button><button class="psx-btn" id="ckNo">Cancelar</button></div>' +
+      '<div class="psx-leg" id="ckE" style="color:#b42323;margin:.2rem 0 0"></div></div>';
+    $('ckI').focus();
+    $('ckNo').onclick = function () { caja.innerHTML = ''; };
+    $('ckOk').onclick = function () {
+      if (!$('ckI').value) { $('ckE').textContent = 'Escribe tu clave.'; return; }
+      $('ckOk').disabled = true;
+      fn($('ckI').value).catch(function (e) { if ($('ckOk')) { $('ckOk').disabled = false; $('ckI').value = ''; $('ckE').textContent = e.message; } });
+    };
+  };
+  var familia = function (caja, estId) {
+    caja.innerHTML = '<h6 style="margin:.8rem 0 .3rem">Contacto y familia</h6><div id="faL"><p class="psx-leg">Cargando contacto…</p></div>' +
+      '<button class="psx-btn" id="faAdd" style="margin-top:.4rem">+ Agregar apoderado/a</button><div id="faF"></div>';
+    var cargar = function () {
+      fetch('/Psychosocial/Contacto/' + estId, { credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (k) { $('faL').innerHTML = contactoHtml(k); })
+        .catch(function (e) { $('faL').innerHTML = '<p class="psx-leg" style="color:#b42323">No se pudo cargar el contacto (' + esc(e.message) + ').</p>'; });
+    };
+    cargar();
+    $('faAdd').onclick = function () {
+      $('faF').innerHTML = '<div class="psx-note" style="margin-top:.4rem"><b>Agregar apoderado/a</b>' +
+        '<p class="psx-leg" style="margin:.2rem 0 .4rem">Si ya es apoderado/a de otro alumno/a (mismo correo o RUT), solo se vincula: queda con todos sus pupilos.</p>' +
+        '<div class="psx-find-row"><input class="psx-in" id="faN" placeholder="Nombre completo"><input class="psx-in" id="faR" placeholder="RUT (opcional)" style="max-width:150px"></div>' +
+        '<div class="psx-find-row" style="margin-top:.4rem"><input class="psx-in" id="faM" type="email" placeholder="Correo (ahí le llegan los avisos)"><input class="psx-in" id="faT" placeholder="Teléfono" style="max-width:150px"></div>' +
+        '<div class="psx-find-row" style="margin-top:.4rem"><select class="psx-in" id="faP" style="max-width:170px"><option>Madre</option><option>Padre</option><option>Abuela</option><option>Abuelo</option><option>Tía</option><option>Tío</option><option>Hermana</option><option>Hermano</option><option>Tutor/a legal</option><option>Otro</option></select>' +
+        '<label style="display:flex;gap:.35rem;align-items:center;font-size:.85rem"><input type="checkbox" id="faTit"> Apoderado/a titular</label></div>' +
+        '<div style="display:flex;gap:.4rem;margin-top:.5rem"><button class="psx-btn p" id="faOk">Guardar</button><button class="psx-btn" id="faNo">Cancelar</button></div><div class="psx-leg" id="faE" style="color:#b42323;margin:.3rem 0 0"></div></div>';
+      $('faN').focus();
+      $('faNo').onclick = function () { $('faF').innerHTML = ''; };
+      $('faOk').onclick = function () {
+        if ($('faN').value.trim().length < 3) { $('faE').textContent = 'Escribe el nombre.'; return; }
+        if (!/^\S+@@\S+\.\S+$/.test($('faM').value.trim())) { $('faE').textContent = 'Escribe un correo válido.'; return; }
+        $('faOk').disabled = true;
+        post('/Psychosocial/AgregarApoderado', { estudianteId: estId, nombre: $('faN').value.trim(), rut: $('faR').value.trim(), correo: $('faM').value.trim(), telefono: $('faT').value.trim(), parentesco: $('faP').value, titular: $('faTit').checked })
+          .then(function (j) {
+            $('faF').innerHTML = '';
+            msg(j.creado ? 'Apoderado/a creado/a y vinculado/a' : 'Apoderado/a vinculado/a', 1);
+            if (j.acceso) $('faF').innerHTML = '<div class="psx-note" style="margin-top:.4rem">' + c(j.acceso.simulado ? 'Correo simulado' : j.acceso.enviado ? 'Correo enviado' : 'Correo no enviado', j.acceso.enviado && !j.acceso.simulado ? 'ok' : 'warn') +
+              ' Le enviamos a <b>' + esc(j.email) + '</b> un enlace para crear su contraseña (dura 72 horas).' + (j.acceso.enviado || j.acceso.simulado ? '' : ' No se pudo enviar' + (j.acceso.motivo ? ' (' + esc(j.acceso.motivo) + ')' : '') + '. Usa «Clave provisoria» para darle una ahora.') +
+              (j.acceso.simulado ? '<p class="psx-leg" style="margin:.3rem 0 0">El envío de correos está apagado (Correo:Habilitado = false): no sale ningún correo real.</p>' : '') + '</div>';
+            cargar();
+          })
+          .catch(function (e) { $('faOk').disabled = false; $('faE').textContent = e.message; });
+      };
+    };
+    $('faL').onclick = function (e) {
+      var b = e.target.closest('button[data-apac]'); if (!b) return;
+      var id = b.getAttribute('data-apid'), ac = b.getAttribute('data-apac'), caja = $('apR' + id);
+      if (ac === 'correo') {
+        b.disabled = true;
+        post('/Psychosocial/AccesoApoderado', { apoderadoId: id, modo: 'correo' })
+          .then(function (j) { caja.innerHTML = '<div class="psx-note" style="margin-top:.3rem">' + c(j.simulado ? 'Correo simulado' : 'Correo enviado', j.simulado ? 'warn' : 'ok') + ' a <b>' + esc(j.email) + '</b>: un enlace para crear una nueva contraseña. Que revise también spam.</div>'; })
+          .catch(function (er) { caja.innerHTML = '<p class="psx-leg" style="color:#b42323">' + esc(er.message) + '</p>'; })
+          .then(function () { b.disabled = false; });
+      } else if (ac === 'clave') {
+        conClave(caja, 'Se crea una clave provisoria para el apoderado/a (la anterior deja de servir). Confirma con tu clave.', function (k) {
+          return post('/Psychosocial/AccesoApoderado', { apoderadoId: id, modo: 'clave', clave: k }).then(function (j) {
+            caja.innerHTML = '<div class="psx-note" style="margin-top:.3rem">Usuario: <b>' + esc(j.email) + '</b><br>Clave provisoria: <b style="font-size:1.1rem">' + esc(j.clave) + '</b><p class="psx-leg" style="margin:.3rem 0 0">Anótala ahora: no se vuelve a mostrar. Deberá cambiarla al ingresar.</p></div>';
+          });
+        });
+      } else if (ac === 'quitar') {
+        conClave(caja, 'Se quita el vínculo con este alumno/a (la cuenta del apoderado/a no se borra). Confirma con tu clave.', function (k) {
+          return post('/Psychosocial/QuitarApoderado', { estudianteId: estId, apoderadoId: id, clave: k }).then(function () { msg('Vínculo quitado', 1); cargar(); });
+        });
+      }
+    };
+  };
+
   var abrirFicha = function (id) {
+    if (ORG.ori) {
+      var a = alu.filter(function (x) { return x[4] === id; })[0] || ['', '', '', null, id];
+      var mios = REG.filter(function (r) { return r.eid === id; });
+      dlg(a[0] || '@V.Persona', '<p class="psx-leg" style="margin:0 0 .5rem"><span id="oriCurT">' + (a[1] ? esc(a[1]) + ' · ' : '') + '</span>RUT ' + esc(a[2]) +
+        (ORG.col ? ' <button class="psx-btn" id="oriCur" style="margin-left:.4rem;padding:.1rem .5rem;font-size:.75rem">Cambiar curso</button>' : '') + '</p><div id="oriCurB"></div>' +
+        (ORG.col ? '<div id="oriCon"><p class="psx-leg">Cargando contacto…</p></div>' : '') +
+        '<div class="psx-note">' + c('Confidencial', 'nil') + ' Las fichas, bitácoras y protocolos los ve solo el equipo psicosocial. Si necesitas que intervengan, regístralo en una entrevista con «Derivación al equipo».</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin:.8rem 0 .4rem"><h6 style="margin:0">Registros de orientación</h6><button class="psx-btn p" id="oriNew">+ Nuevo registro</button></div>' +
+        fichaRegistros(mios), function () {}, 'Cerrar');
+      $('oriNew').onclick = function () { dgClose(); openM(a); };
+      if ($('oriCon')) familia($('oriCon'), id);
+      if ($('oriCur')) $('oriCur').onclick = function () { cambiarCurso($('oriCurB'), id, a[1], function (r) { a[1] = r.c; $('oriCurT').textContent = r.c + ' · '; }); };
+      return;
+    }
     fichaId = id;
     dlg('Ficha del @V.persona', '<div id="fiB"><p class="psx-leg">Cargando…</p></div>', function () {}, 'Cerrar');
     cargarFicha();
@@ -682,13 +857,35 @@
       $('fiB').innerHTML = '<div class="psx-note"><b>' + (nueva ? 'Crea tu segunda clave' : 'Ingresa tu segunda clave') + '</b>' +
         '<p class="psx-leg" style="margin:.3rem 0">' + (nueva ? 'Protege las fichas confidenciales. Debe tener al menos 6 caracteres y ser distinta de tu clave de ingreso.' : 'Las fichas son confidenciales. Se vuelve a pedir cada 15 minutos.') + '</p>' +
         '<input class="psx-in" type="password" id="fiK" placeholder="Segunda clave">' + (nueva ? '<input class="psx-in" type="password" id="fiK2" placeholder="Repite la segunda clave" style="margin-top:.4rem">' : '') +
-        '<button class="psx-btn p" id="fiGo" style="margin-top:.5rem">' + (nueva ? 'Crear y abrir' : 'Desbloquear') + '</button><p class="psx-leg" id="fiE" style="color:#b42323;margin:.3rem 0 0"></p></div>';
+        '<button class="psx-btn p" id="fiGo" style="margin-top:.5rem">' + (nueva ? 'Crear y abrir' : 'Desbloquear') + '</button>' +
+        (nueva ? '' : ' <a href="#" id="fiOlv" style="font-size:.8rem;margin-left:.5rem">¿Olvidaste tu segunda clave?</a>') +
+        '<p class="psx-leg" id="fiE" style="color:#b42323;margin:.3rem 0 0"></p></div>';
       $('fiK').focus();
+      $('fiK').onkeydown = function (e) { if (e.key === 'Enter') $('fiGo').click(); };
+      if ($('fiOlv')) $('fiOlv').onclick = function (e) { e.preventDefault(); recuperarClave(); };
       $('fiGo').onclick = function () {
         post(nueva ? '/Psychosocial/CrearClaveFicha' : '/Psychosocial/DesbloquearFichas', nueva ? { clave: $('fiK').value, confirmar: $('fiK2').value } : { clave: $('fiK').value })
           .then(cargarFicha).catch(function (e) { $('fiE').textContent = e.message; });
       };
     });
+  };
+  // ¿Olvidaste tu segunda clave? Se crea una nueva confirmando con la clave de ingreso
+  var recuperarClave = function () {
+    $('fiB').innerHTML = '<div class="psx-note"><b>Crea una nueva segunda clave</b>' +
+      '<p class="psx-leg" style="margin:.3rem 0">Para confirmar que eres tú, escribe la clave con la que entras a AUKA. La segunda clave anterior deja de servir.</p>' +
+      '<input class="psx-in" type="password" id="rcI" autocomplete="current-password" placeholder="Tu clave de ingreso">' +
+      '<input class="psx-in" type="password" id="rcN" autocomplete="new-password" placeholder="Nueva segunda clave (mínimo 6)" style="margin-top:.4rem">' +
+      '<input class="psx-in" type="password" id="rcN2" autocomplete="new-password" placeholder="Repite la nueva segunda clave" style="margin-top:.4rem">' +
+      '<div style="display:flex;gap:.4rem;margin-top:.5rem"><button class="psx-btn p" id="rcOk">Guardar y abrir</button><button class="psx-btn" id="rcNo">Volver</button></div>' +
+      '<p class="psx-leg" id="rcE" style="color:#b42323;margin:.3rem 0 0"></p></div>';
+    $('rcI').focus();
+    $('rcNo').onclick = pedirClave;
+    $('rcOk').onclick = function () {
+      $('rcOk').disabled = true;
+      post('/Psychosocial/RecuperarClaveFicha', { claveIngreso: $('rcI').value, clave: $('rcN').value, confirmar: $('rcN2').value })
+        .then(function () { msg('Segunda clave actualizada', 1); cargarFicha(); })
+        .catch(function (e) { $('rcOk').disabled = false; $('rcE').textContent = e.message; });
+    };
   };
   var cargarAnot = function (id) {
     fetch('/Psychosocial/Anotaciones?estudianteId=' + id, { credentials: 'same-origin' })
@@ -709,7 +906,10 @@
     var interno = /@@(alumnos|pacientes)\.auka\.cl$/i.test(f.email || '');
     var cont = [f.d ? '📍 ' + esc(f.d) : '', f.t ? '📞 ' + esc(f.t) : '', f.m ? '✉️ ' + esc(f.m) : ''].filter(Boolean).join(' · ');
     $('fiB').innerHTML = '<div><b style="font-size:1.05rem">' + esc(f.n) + '</b><div class="psx-leg">' + (f.c ? esc(f.c) + ' · ' : '') + 'RUT ' + esc(f.r) +
-      (f.f ? ' · Nacimiento ' + f.f.split('-').reverse().join('-') + ' (' + edad(f.f) + ' años)' : '') + '</div>' + (cont ? '<div class="psx-leg" style="margin-top:.15rem">' + cont + '</div>' : '') + '</div>' +
+      (f.f ? ' · Nacimiento ' + f.f.split('-').reverse().join('-') + ' (' + edad(f.f) + ' años)' : '') +
+      (ORG.col ? ' <button class="psx-btn" id="fiCur" style="margin-left:.4rem;padding:.1rem .5rem;font-size:.75rem">Cambiar curso</button>' : '') + '</div>' +
+      (cont ? '<div class="psx-leg" style="margin-top:.15rem">' + cont + '</div>' : '') + '<div id="fiCurB"></div></div>' +
+      (ORG.col ? '<div id="fiFam"></div>' : '') +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:.9rem 0 .4rem"><h6 style="margin:0">Registros de la planilla</h6><button class="psx-btn p" id="fiNew">+ Nuevo registro</button></div>' +
       '<div id="fiReg">' + fichaRegistros(f.reg || []) + '</div>' +
       '<h6 style="margin:.9rem 0 .4rem">Citaciones y asistencia</h6><div id="fiCit">' + fichaCitaciones(f.cit || [], f.hoy || new Date().toISOString().slice(0, 10)) + '</div>' +
@@ -719,10 +919,13 @@
       '<div class="psx-find-row"><select class="psx-in" id="anT" style="max-width:150px"><option value="1">Positiva</option><option value="2">Negativa</option></select><input class="psx-in" id="anD" placeholder="Detalle de la anotación" maxlength="500"></div>' +
       '<button class="psx-btn p" id="anAdd" style="margin:.4rem 0">Registrar anotación</button><div id="anL"></div>' + (ORG.col ? '' : '</div>') +
       '<h6 style="margin:.9rem 0 .4rem">Cuenta del @V.persona</h6>' +
+      (ORG.col ? '<label style="display:flex;gap:.45rem;align-items:center;font-size:.85rem;margin:0 0 .3rem"><input type="checkbox" id="fiAcc"' + (f.acc !== false ? ' checked' : '') + '> Usa la plataforma con su propia cuenta</label>' +
+        '<p class="psx-leg" style="margin:0 0 .5rem">' + (f.acc !== false ? 'Recibe y confirma sus citaciones. Su apoderado/a solo ve lo que ustedes marquen.' : c('Lo maneja su apoderado/a', 'warn') + ' Sus citaciones y compromisos le llegan al apoderado/a, que los confirma. (De kínder a 6° básico queda así automáticamente.)') + '</p>' : '') +
+      '<div' + (f.acc === false ? ' style="display:none"' : '') + '>' +
       '<p class="psx-leg" style="margin:0 0 .4rem">Entra con su correo <b>' + esc(f.email) + '</b> o con su RUT <b>' + esc(f.r) + '</b>.' + (interno && !ORG.col ? ' ' + c('Sin correo propio: no recibe avisos', 'warn') : '') + ' La clave se guarda cifrada y no se puede ver.</p>' +
       '<div class="psx-find-row"><input class="psx-in" id="fiMail" type="email" placeholder="Correo personal o de trabajo" value="' + (interno ? '' : esc(f.email)) + '"><button class="psx-btn" id="fiMailOk">Cambiar correo de acceso</button></div>' +
       '<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem"><button class="psx-btn p" id="fiInv"' + (interno ? ' disabled title="Primero agrega su correo"' : '') + '>Enviar acceso por correo</button><button class="psx-btn" id="fiRes">Generar clave provisoria</button></div>' +
-      '<p class="psx-leg" style="margin:.3rem 0 0">«Enviar acceso por correo» le manda un enlace para que cree su propia contraseña (no se envía ninguna clave). Dura ' + 72 + ' horas.</p><div id="fiC"></div>';
+      '<p class="psx-leg" style="margin:.3rem 0 0">«Enviar acceso por correo» le manda un enlace para que cree su propia contraseña (no se envía ninguna clave). Dura ' + 72 + ' horas.</p><div id="fiC"></div></div>';
     cargarAnot(f.id);
     $('fiNew').onclick = function () { dgClose(); openM(byRut(f.r) || [f.n, f.c, f.r, null, f.id]); };
     $('fiReg').onclick = function (e) {
@@ -758,6 +961,14 @@
       } else if (sv) {
         post('/Psychosocial/EditarBitacora', { id: sv, observaciones: $('be' + sv).value }).then(cargarFicha).catch(falloFicha);
       }
+    };
+    if ($('fiFam')) familia($('fiFam'), f.id);
+    if ($('fiCur')) $('fiCur').onclick = function () { cambiarCurso($('fiCurB'), f.id, f.c, function () { cargarFicha(); }); };
+    if ($('fiAcc')) $('fiAcc').onchange = function () {
+      var v = $('fiAcc').checked;
+      post('/Psychosocial/CambiarAccesoPropio', { estudianteId: f.id, acceso: v })
+        .then(function () { msg(v ? 'Ahora usa su propia cuenta' : 'Ahora lo maneja su apoderado/a', 1); cargarFicha(); })
+        .catch(function (e) { $('fiAcc').checked = !v; falloFicha(e); });
     };
     $('fiMailOk').onclick = function () {
       post('/Psychosocial/CambiarCorreoAcceso', { estudianteId: f.id, correo: $('fiMail').value })
@@ -826,7 +1037,7 @@
   };
 
   // ---- Citaciones dentro de la ficha: marcar si asistió ----
-  var ESTCIT = { 0: ['Por confirmar', 'warn'], 1: ['Confirmada', 'info'], 2: ['Asistió', 'ok'], 3: ['Cancelada', 'nil'], 4: ['No asistió', 'bad'] };
+  var ESTCIT = { 0: ['Por confirmar', 'warn'], 1: ['Confirmada', 'info'], 2: ['Asistió', 'ok'], 3: ['Cancelada', 'nil'], 4: ['No asistió', 'bad'], 5: ['Rechazada', 'bad'], 6: ['Propone otra fecha', 'warn'], 7: ['Solicitada', 'warn'] };
   var fichaCitaciones = function (l, hoy) {
     if (!l.length) return '<p class="psx-leg">Sin citaciones. Usa «Solicitar citación» en el panel para agendar una.</p>';
     var ult = l.filter(function (x) { return x.e === 2; })[0];
@@ -875,9 +1086,22 @@
     // Tabla genérica con los campos de una ficha (sirve para empresas y para los protocolos del colegio)
     var tablaOrg = function (k, id, cols) {
         $(id).innerHTML = T(['@V.Persona'].concat(cols), de(k).map(function (r) {
-          return [esc(r.n)].concat(cols.map(function (k2) { var v = g(r, k2); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? fechaCL(v) : /^(Alto|Inminente)$/.test(v) ? c(v, 'bad') : v === 'Medio' ? c(v, 'warn') : /^(Abierto)$/.test(v) ? c(v, 'warn') : /^(Pendiente|En monitoreo|En curso|En investigación|Resuelto|Cumplido|Concluida|Completado|Cerrado|Planificado|Seguimiento|Investigación)$/.test(v) ? estadoChip(v) : esc(v || '—'); }));
+          return [esc(r.n)].concat(cols.map(function (k2) { var v = g(r, k2); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? fechaCL(v) : /^(Alto|Inminente)$/.test(v) ? c(v, 'bad') : v === 'Medio' ? c(v, 'warn') : /^(Abierto)$/.test(v) ? c(v, 'warn') : /^(Pendiente|En monitoreo|En curso|En investigación|Resuelto|Cumplido|Concluida|Completado|Cerrado|Planificado|Seguimiento|Investigación|Asignado|Postulado|Por postular|Renovación|Rechazado)$/.test(v) ? estadoChip(v) : esc(v || '—'); }));
         }));
       };
+    tablaOrg('fs', 'tFs', ['Fecha', 'Adulto/a responsable', 'Integrantes del hogar', 'Vivienda', 'Tramo Registro Social de Hogares', 'Previsión de salud']);
+    tablaOrg('entf', 'tEntf', ['Fecha', 'Con quién', 'Motivo', 'Próxima entrevista']);
+    tablaOrg('beca', 'tBeca', ['Beneficio', 'Año', 'Estado', 'Fecha']);
+    tablaOrg('red', 'tRed', ['Fecha', 'Institución', 'Tipo de contacto', 'Motivo', 'Próximo contacto']);
+    tablaOrg('ento', 'tEnto', ['Fecha', 'Con quién', 'Motivo', 'Derivación al equipo']);
+    tablaOrg('ori', 'tOri', ORG.col ? ['Fecha', 'Área de interés', 'Proyección', 'Postulación'] : ['Fecha', 'Área de interés', 'Proyección']);
+    // Talleres: no son de una persona -> columnas propias
+    $('tTal').innerHTML = T(['Fecha', ORG.col ? 'Curso' : 'Grupo / área', 'Tema', 'Participantes'], de('tal').map(function (r) {
+      return [fechaCL(g(r, 'Fecha')), esc(g(r, ORG.col ? 'Curso' : 'Grupo / área') || '—'), esc(g(r, 'Tema')), esc(g(r, 'Participantes') || '—')];
+    }));
+    tablaOrg('comp', 'tComp', ['Fecha', 'Tipo', 'Compromiso o acuerdo', 'Visible para']);
+    tablaOrg('comp', 'tComp2', ['Fecha', 'Tipo', 'Compromiso o acuerdo', 'Visible para']);
+    if (ORG.ori) return;   // la orientadora solo recibe sus registros: el resto de las tablas no aplica
     tablaOrg('vit', 'tVit', ['Fecha de detección', 'Nivel de riesgo (evaluación profesional)', 'Derivación a salud', 'Fecha de próximo control', 'Estado']);
     if (ORG.col) {
       tablaOrg('mal', 'tMal', ['Fecha de la denuncia', 'Tipo de situación', 'Rol del @V.persona', 'Etapa del protocolo', 'Aviso al apoderado/a']);
@@ -996,9 +1220,14 @@
 
   var tabs = $('psxTabs'), panes = document.querySelectorAll('#psx .psx-pane');
   if (!ORG.col) ['bYear', 'rCur', 'fCur'].forEach(function (id) { $(id).style.display = 'none'; });
+  if (ORG.ori) ['bImp', 'bAdd', 'bYear'].forEach(function (id) { $(id).style.display = 'none'; });
+  // Fichas separadas por área: la tarjeta de la otra área no se muestra
+  var TABLA_FICHA = { seg: 'tSeg', dec: 'tDec', plan: 'kan', vd: 'tVD', fs: 'tFs', beca: 'tBeca', red: 'tRed', entf: 'tEntf' };
+  ORG.ocultas.forEach(function (k) { var el = $(TABLA_FICHA[k]); var card = el && el.closest('.psx-card'); if (card) card.style.display = 'none'; });   // eso lo hace el equipo o el administrador
   panes = Array.prototype.filter.call(panes, function (p) {
     var k = p.getAttribute('data-k');
     if (k && ORG.pl.indexOf(k) < 0) return false;   // planilla no activa: queda oculta y sin pestaña
+    if (ORG.ori && k !== 'ori' && p.getAttribute('data-p') !== '@V.Personas') return false;   // orientadora: listado + orientación
     return true;
   });
   panes.forEach(function (p, i) {

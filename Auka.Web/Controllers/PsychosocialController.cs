@@ -23,8 +23,32 @@ public class PsychosocialController : Controller
     private static readonly HashSet<string> AccionesAdministrador = new() { "Alumnos", "ImportarAlumnos", "AgregarAlumnos", "RegenerarClavesAlumnos" };
     private bool EsAdministrador => User.FindFirst(ClaimTypes.Role)?.Value == "SuperAdmin";
 
+    // La orientadora NO ve fichas confidenciales, bitácoras ni datos de las cuentas. Ve el panel, el listado de
+    // alumnos/as y el calendario del equipo: lo de los demás solo lo mira; puede anotar y citar lo suyo.
+    private static readonly HashSet<string> AccionesOrientadora = new()
+    {
+        "Index", "Resumen", "Alumnos", "Anotaciones", "CrearAnotacion",
+        "EventosCalendario", "GuardarEvento", "MarcarEvento", "EliminarEvento",
+        "CrearCitacion", "Equipo", "Solicitudes", "AtenderCitacion",
+        "Registros", "GuardarRegistro", "EditarRegistro", "EliminarRegistro",
+        "ListaCursos", "CambiarCurso", "Contacto",
+        "AgregarApoderado", "QuitarApoderado", "AccesoApoderado"
+    };
+    // Fichas que registra la orientadora (las ve todo el equipo; no son confidenciales)
+    private static readonly HashSet<string> TiposOrientacion = new() { "ori", "ento", "tal", "comp" };
+    private bool EsOrientadora => User.IsInRole("Orientadora");
+
     public override void OnActionExecuting(ActionExecutingContext context)
     {
+        if (EsOrientadora)
+        {
+            var accion = context.ActionDescriptor.RouteValues["action"] ?? "";
+            if (!AccionesOrientadora.Contains(accion))
+            {
+                context.Result = StatusCode(403, new { error = "La orientadora no tiene acceso a fichas confidenciales." });
+                return;
+            }
+        }
         if (EsAdministrador)
         {
             var accion = context.ActionDescriptor.RouteValues["action"] ?? "";
@@ -58,6 +82,13 @@ public class PsychosocialController : Controller
 
     // Tipo de organización de la sesión: colegio (alumnos/as, cursos) u otra (pacientes, sin curso)
     private Task<DatosOrganizacion> OrgAsync() => OrganizacionFilter.ObtenerAsync(_context, _cache);
+
+    // Fichas que este usuario no puede ver (separadas por área y de la otra área)
+    private async Task<string[]> FichasOcultasAsync() => Organizacion.FichasOcultas(await OrgAsync(), User);
+
+    // Calendario y bitácora: compartidos por todo el equipo o cada profesional lo suyo
+    private async Task<bool> CalendarioPropioAsync() => !(await OrgAsync()).CalendarioCompartido;
+    private async Task<bool> BitacoraPropiaAsync() => !(await OrgAsync()).BitacoraCompartida;
 
     // GET: /Psychosocial
     [HttpGet]
@@ -198,10 +229,180 @@ public class PsychosocialController : Controller
 
     private static readonly string[] CitadosValidos = { "Alumno", "Apoderado", "Alumno + apoderado", "Profesor jefe", "Paciente" };
 
+    // ---------------------------------------------------------------
+    // SOLICITUDES Y RESPUESTAS: citas que pidió el alumno/a o el apoderado/a, y respuestas a citaciones
+    // (rechazadas o con otra fecha propuesta). Cada profesional ve las que le tocan.
+    // ---------------------------------------------------------------
+    [HttpGet]
+    public async Task<IActionResult> Solicitudes()
+    {
+        var yo = UsuarioActualId();
+        var marca = "," + yo + ",";
+        var mia = Citaciones.DestinatarioDe(User);
+        var desde = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
+        var lista = await _context.Citaciones.AsNoTracking()
+            .Include(c => c.Estudiante).ThenInclude(e => e!.Usuario)
+            .Include(c => c.Estudiante).ThenInclude(e => e!.Curso)
+            .Where(c => (c.Estado == EstadoCitacion.Solicitada && c.Destinatario == mia) ||
+                        ((c.Estado == EstadoCitacion.OtraFecha || c.Estado == EstadoCitacion.Rechazada) && c.Fecha >= desde &&
+                         (c.CreadaPorId == yo || (c.Participantes != null && ("," + c.Participantes + ",").Contains(marca)))))
+            .OrderBy(c => c.Fecha).Take(50).ToListAsync();
+        var esColegio = (await OrgAsync()).V.EsColegio;
+        return Json(lista.Select(c => new
+        {
+            id = c.Id,
+            eid = c.EstudianteId,
+            n = c.Estudiante?.Usuario == null ? "" : $"{c.Estudiante.Usuario.Nombre} {c.Estudiante.Usuario.Apellido}".Trim(),
+            cu = esColegio ? NombreCurso(c.Estudiante?.Curso) : "",
+            e = (int)c.Estado,
+            est = Citaciones.Estado(c.Estado),
+            a = c.CitadoA,
+            f = c.Fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            h = c.Hora.HasValue ? c.Hora.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "",
+            fp = c.FechaPropuesta.HasValue ? c.FechaPropuesta.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "",
+            hp = c.HoraPropuesta.HasValue ? c.HoraPropuesta.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "",
+            m = c.Motivo,
+            r = c.Respuesta ?? "",
+            d = c.Destinatario ?? ""
+        }));
+    }
+
+    // POST: el equipo atiende una solicitud o una respuesta
+    //   agendar  -> solicitud: queda agendada (si cambia la fecha pedida, la persona debe confirmar)
+    //   aceptar  -> otra fecha propuesta: se acepta y queda confirmada
+    //   mantener -> otra fecha propuesta: se mantiene la original y se pide confirmar de nuevo
+    //   cerrar   -> rechazada o solicitud que no procede: se cancela (con comentario)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AtenderCitacion(int id, string accion, string? fecha, string? hora, string? comentario)
+    {
+        var c = await _context.Citaciones.Include(x => x.Estudiante).ThenInclude(e => e!.Usuario).FirstOrDefaultAsync(x => x.Id == id);
+        if (c?.Estudiante?.Usuario == null) return NotFound();
+        var yo = UsuarioActualId();
+        var esMia = c.Estado == EstadoCitacion.Solicitada
+            ? c.Destinatario == Citaciones.DestinatarioDe(User)
+            : c.CreadaPorId == yo || Citaciones.Participantes(c.Participantes).Contains(yo);
+        if (!esMia) return StatusCode(403, new { error = "Esta citación la atiende otro profesional." });
+        comentario = (comentario ?? "").Trim();
+        if (comentario.Length > 300) return BadRequest(new { error = "El comentario es muy largo (máximo 300 caracteres)." });
+
+        var nombre = $"{c.Estudiante.Usuario.Nombre} {c.Estudiante.Usuario.Apellido}".Trim();
+        string Cuando(DateOnly fx, TimeOnly? hx) => fx.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) + (hx.HasValue ? " a las " + hx.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "");
+        string titulo, mensaje;
+
+        if (accion == "agendar" && c.Estado == EstadoCitacion.Solicitada)
+        {
+            if (!DateOnly.TryParse(fecha, CultureInfo.InvariantCulture, DateTimeStyles.None, out var f) || f < DateOnly.FromDateTime(DateTime.Today))
+                return BadRequest(new { error = "Elige una fecha desde hoy." });
+            TimeOnly? h = TimeOnly.TryParse(hora, CultureInfo.InvariantCulture, DateTimeStyles.None, out var hh) ? hh : null;
+            var igual = f == c.Fecha && (h == null || h == c.Hora);
+            c.Fecha = f; c.Hora = h ?? c.Hora;
+            c.Estado = igual ? EstadoCitacion.Confirmada : EstadoCitacion.Pendiente;
+            c.CreadaPorId = yo;   // desde ahora la lleva quien la agendó (le llegan las respuestas)
+            var ev = new EventoCalendario { Fecha = c.Fecha, Hora = c.Hora, Tipo = "Citación", Titulo = $"Cita pedida ({c.CitadoA.ToLower()}): {nombre}", Responsable = "Equipo psicosocial", CreadoPorId = yo };
+            _context.EventosCalendario.Add(ev);
+            await _context.SaveChangesAsync();
+            c.EventoCalendarioId = ev.Id;
+            titulo = "Tu solicitud de cita fue agendada";
+            mensaje = $"La cita que pediste quedó para el {Cuando(c.Fecha, c.Hora)}." + (igual ? "" : " Como cambió la fecha que pediste, confírmala en AUKA.") + (comentario.Length > 0 ? $"\nComentario: {comentario}" : "");
+        }
+        else if (accion == "aceptar" && c.Estado == EstadoCitacion.OtraFecha && c.FechaPropuesta.HasValue)
+        {
+            c.Fecha = c.FechaPropuesta.Value; c.Hora = c.HoraPropuesta ?? c.Hora;
+            c.Estado = EstadoCitacion.Confirmada;
+            if (c.EventoCalendarioId != null)
+            {
+                var ev = await _context.EventosCalendario.FirstOrDefaultAsync(e => e.Id == c.EventoCalendarioId);
+                if (ev != null) { ev.Fecha = c.Fecha; ev.Hora = c.Hora; ev.ModificadoPorId = yo; }
+            }
+            titulo = "Se aceptó la nueva fecha";
+            mensaje = $"La citación de {nombre} queda para el {Cuando(c.Fecha, c.Hora)}." + (comentario.Length > 0 ? $"\nComentario: {comentario}" : "");
+        }
+        else if (accion == "mantener" && c.Estado == EstadoCitacion.OtraFecha)
+        {
+            c.Estado = EstadoCitacion.Pendiente;
+            titulo = "Se mantiene la fecha de la citación";
+            mensaje = $"La citación de {nombre} se mantiene el {Cuando(c.Fecha, c.Hora)}. Por favor confírmala en AUKA." + (comentario.Length > 0 ? $"\nComentario: {comentario}" : "");
+        }
+        else if (accion == "cerrar" && c.Estado is EstadoCitacion.Solicitada or EstadoCitacion.Rechazada or EstadoCitacion.OtraFecha)
+        {
+            var eraSolicitud = c.Estado == EstadoCitacion.Solicitada;
+            c.Estado = EstadoCitacion.Cancelada;
+            if (c.EventoCalendarioId != null)
+            {
+                var ev = await _context.EventosCalendario.FirstOrDefaultAsync(e => e.Id == c.EventoCalendarioId);
+                if (ev != null) _context.EventosCalendario.Remove(ev);
+            }
+            titulo = eraSolicitud ? "Tu solicitud de cita" : "Citación cancelada";
+            mensaje = eraSolicitud
+                ? "Por ahora no se pudo agendar la cita que pediste." + (comentario.Length > 0 ? $"\nComentario: {comentario}" : "")
+                : $"La citación de {nombre} del {Cuando(c.Fecha, c.Hora)} quedó cancelada." + (comentario.Length > 0 ? $"\nComentario: {comentario}" : "");
+            if (!eraSolicitud) { await _context.SaveChangesAsync(); return Json(new { ok = true }); }   // ya avisó quien rechazó
+        }
+        else return BadRequest(new { error = "Esa acción no corresponde al estado de la citación." });
+
+        await _context.SaveChangesAsync();
+
+        // Aviso a quien fue citado/a (o a quien pidió la cita)
+        var avisar = new List<int>();
+        if (c.SolicitadaPorId.HasValue) avisar.Add(c.SolicitadaPorId.Value);
+        else
+        {
+            var aps = !c.Estudiante.AccesoPropio || c.CitadoA.Contains("Apoderado");
+            if ((c.CitadoA.Contains("Alumno") || c.CitadoA == "Paciente") && c.Estudiante.AccesoPropio) avisar.Add(c.Estudiante.UsuarioId);
+            if (aps)
+                avisar.AddRange(await _context.EstudiantesApoderados.Where(x => x.EstudianteId == c.EstudianteId && x.Apoderado != null)
+                    .Select(x => x.Apoderado!.UsuarioId).ToListAsync());
+        }
+        try { await _notif.NotificarAsync(avisar.Distinct(), titulo, mensaje, "/Portafolio?estudianteId=" + c.EstudianteId); } catch { }
+        return Json(new { ok = true });
+    }
+
+    // ---------------------------------------------------------------
+    // EQUIPO: para elegir quién participa en una citación y quién ve cada nota del calendario
+    // ---------------------------------------------------------------
+    private static readonly RolUsuario[] RolesEquipo = { RolUsuario.Psicologo, RolUsuario.Psicopedagogo, RolUsuario.TrabajadorSocial, RolUsuario.Orientadora };
+
+    private async Task<List<(int Id, string Nombre, RolUsuario Rol)>> EquipoAsync()
+    {
+        var tenant = _context.CurrentTenantId;
+        var l = await _context.Usuarios.AsNoTracking()
+            .Where(u => u.ColegioId == tenant && u.Activo && RolesEquipo.Contains(u.Rol))
+            .OrderBy(u => u.Nombre).Select(u => new { u.Id, u.Nombre, u.Apellido, u.Rol }).ToListAsync();
+        return l.Select(u => (u.Id, $"{u.Nombre} {u.Apellido}".Trim(), u.Rol)).ToList();
+    }
+
+    private static string NombreRol(RolUsuario r) => r switch
+    {
+        RolUsuario.Psicologo => "Psicólogo/a",
+        RolUsuario.Psicopedagogo => "Psicopedagogo/a",
+        RolUsuario.TrabajadorSocial => "Trabajador/a social",
+        RolUsuario.Orientadora => "Orientadora",
+        _ => ""
+    };
+
+    // GET: /Psychosocial/Equipo -> los demás profesionales del equipo psicosocial
+    [HttpGet]
+    public async Task<IActionResult> Equipo()
+    {
+        var yo = UsuarioActualId();
+        return Json((await EquipoAsync()).Where(u => u.Id != yo).Select(u => new { id = u.Id, n = u.Nombre, rol = NombreRol(u.Rol) }));
+    }
+
+    // Deja solo ids del equipo de este colegio; "" o null = todo el equipo. Quien crea siempre queda incluido.
+    private async Task<string?> VisibleParaValidoAsync(string? csv, int creador)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return null;
+        var validos = (await EquipoAsync()).Select(u => u.Id).ToHashSet();
+        var ids = Citaciones.Participantes(csv).Where(validos.Contains).Append(creador).Distinct().ToList();
+        return string.Join(",", ids);
+    }
+
     // POST: /Psychosocial/CrearCitacion
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CrearCitacion(int estudianteId, string citadoA, string fecha, string? hora, string? motivo)
+    public async Task<IActionResult> CrearCitacion(int estudianteId, string citadoA, string fecha, string? hora, string? motivo,
+        string? participantes = null, bool soloParticipantes = false, bool informarOtro = false)
     {
         citadoA = (citadoA ?? "").Trim();
         motivo = (motivo ?? "").Trim();
@@ -224,6 +425,9 @@ public class PsychosocialController : Controller
             .FirstOrDefaultAsync(e => e.Id == estudianteId);
         if (est?.Usuario == null) return NotFound(new { error = "Alumno/a no encontrado." });
         var nombre = $"{est.Usuario.Nombre} {est.Usuario.Apellido}".Trim();
+        var yoCita = UsuarioActualId();
+        var equipoValido = (await EquipoAsync()).Select(u => u.Id).ToHashSet();
+        var otros = Citaciones.Participantes(participantes).Where(id => equipoValido.Contains(id) && id != yoCita).ToList();
 
         var evento = new EventoCalendario
         {
@@ -233,7 +437,9 @@ public class PsychosocialController : Controller
             Titulo = $"Citación ({citadoA.ToLower()}): {nombre}",
             Responsable = "Equipo psicosocial",
             Realizada = false,
-            CreadoPorId = UsuarioActualId()
+            CreadoPorId = yoCita,
+            // "Solo los que participan": la ven quien cita y los profesionales marcados
+            VisiblePara = soloParticipantes ? string.Join(",", otros.Append(yoCita)) : null
         };
         _context.EventosCalendario.Add(evento);
         await _context.SaveChangesAsync();
@@ -245,24 +451,48 @@ public class PsychosocialController : Controller
             Fecha = f,
             Hora = h,
             Motivo = motivo,
-            CreadaPorId = UsuarioActualId(),
-            EventoCalendarioId = evento.Id
+            CreadaPorId = yoCita,
+            EventoCalendarioId = evento.Id,
+            Participantes = otros.Count > 0 ? string.Join(",", otros) : null,
+            InformarOtro = informarOtro
         };
         _context.Citaciones.Add(cit);
         await _context.SaveChangesAsync();
 
         // A quién se avisa
         var ids = new List<int>();
-        if (citadoA.Contains("Alumno") || citadoA == "Paciente") ids.Add(est.UsuarioId);
-        if (citadoA.Contains("Apoderado"))
-            ids.AddRange(await _context.EstudiantesApoderados.Where(x => x.EstudianteId == est.Id && x.Apoderado != null)
-                .Select(x => x.Apoderado!.UsuarioId).ToListAsync());
+        var apoderados = await _context.EstudiantesApoderados.Where(x => x.EstudianteId == est.Id && x.Apoderado != null)
+            .Select(x => x.Apoderado!.UsuarioId).ToListAsync();
+        if (citadoA.Contains("Alumno") || citadoA == "Paciente")
+        {
+            // Alumno/a sin cuenta propia (kínder a 6° básico): la citación le llega y la confirma su apoderado/a
+            if (est.AccesoPropio) ids.Add(est.UsuarioId); else ids.AddRange(apoderados);
+        }
+        if (citadoA.Contains("Apoderado")) ids.AddRange(apoderados);
+        ids = ids.Distinct().ToList();
         if (citadoA == "Profesor jefe" && est.Curso?.ProfesorJefeId != null) ids.Add(est.Curso.ProfesorJefeId.Value);
 
         var cuando = f.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) + (h.HasValue ? " a las " + h.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : "");
         var lugar = (await OrgAsync()).V.EsColegio ? "en el colegio" : "";
         var mensaje = $"Se solicita su presencia {lugar} el {cuando} para una citación con el equipo psicosocial, por {nombre}.\nMotivo: {motivo}\nPuede confirmar su asistencia desde AUKA.";
         var r = await _notif.NotificarAsync(ids, "Citación del equipo psicosocial", mensaje, "/Portafolio?estudianteId=" + est.Id);
+
+        // Solo se avisa a quien corresponde: los citados (arriba), los profesionales que participan y,
+        // si se cita solo al alumno/a, su apoderado/a queda informado/a (pero confirma el alumno/a).
+        try
+        {
+            if (otros.Count > 0)
+                await _notif.NotificarAsync(otros, "Te sumaron a una citación",
+                    $"Participas en la citación de {nombre} el {cuando} (se cita a: {citadoA.ToLower()}).\nMotivo: {motivo}", "/Psychosocial");
+            // "Informar también": solo si el profesional lo marcó (el otro la ve, pero responde el citado/a)
+            if (informarOtro && citadoA == "Alumno" && est.AccesoPropio && apoderados.Count > 0)
+                await _notif.NotificarAsync(apoderados, "Citación de su pupilo/a",
+                    $"{nombre} fue citado/a por el equipo psicosocial el {cuando}. La confirma el alumno/a; usted puede verla en AUKA.", "/Portafolio?estudianteId=" + est.Id);
+            if (informarOtro && citadoA == "Apoderado" && est.AccesoPropio)
+                await _notif.NotificarAsync(new[] { est.UsuarioId }, "Citación a tu apoderado/a",
+                    $"El equipo psicosocial citó a tu apoderado/a el {cuando}.", "/Portafolio?estudianteId=" + est.Id);
+        }
+        catch { /* los avisos extra no deben impedir la citación */ }
 
         return Json(new
         {
@@ -271,6 +501,7 @@ public class PsychosocialController : Controller
             porCorreo = r.Enviados,
             simulados = r.Simulados,
             fallidos = r.Fallidos,
+            errorCorreo = r.UltimoError,
             soloPlataforma = r.SinCorreo
         });
     }
@@ -290,11 +521,14 @@ public class PsychosocialController : Controller
             return BadRequest("Rango de fechas inválido.");
         }
 
-        var lista = await _context.EventosCalendario
-            .AsNoTracking()
-            .Where(e => e.Fecha >= d && e.Fecha <= h)
-            .OrderBy(e => e.Fecha).ThenBy(e => e.Hora)
-            .ToListAsync();
+        var uid = UsuarioActualId();
+        var marca = "," + uid + ",";
+        var q = _context.EventosCalendario.AsNoTracking().Where(e => e.Fecha >= d && e.Fecha <= h);
+        if (await CalendarioPropioAsync())
+            q = q.Where(e => e.CreadoPorId == uid || (e.VisiblePara != null && ("," + e.VisiblePara + ",").Contains(marca)));   // agenda separada: la suya y a lo que lo sumaron
+        else
+            q = q.Where(e => e.VisiblePara == null || e.CreadoPorId == uid || ("," + e.VisiblePara + ",").Contains(marca));   // VisiblePara no es null en este lado del OR
+        var lista = await q.OrderBy(e => e.Fecha).ThenBy(e => e.Hora).ToListAsync();
 
         return Json(lista.Select(e => new
         {
@@ -304,7 +538,9 @@ public class PsychosocialController : Controller
             t = e.Tipo,
             x = e.Titulo,
             r = e.Responsable,
-            ok = e.Realizada
+            ok = e.Realizada,
+            mio = e.CreadoPorId == uid,              // solo quien la creó la edita (la orientadora no edita lo de otros)
+            vis = e.VisiblePara ?? ""                 // "" = todo el equipo
         }));
     }
 
@@ -312,7 +548,7 @@ public class PsychosocialController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> GuardarEvento(int id, string fecha, string? hora, string tipo,
-        string titulo, string responsable, bool realizada)
+        string titulo, string responsable, bool realizada, string? visiblePara = null)
     {
         if (!DateOnly.TryParse(fecha, CultureInfo.InvariantCulture, DateTimeStyles.None, out var f))
             return BadRequest("Fecha inválida.");
@@ -334,6 +570,7 @@ public class PsychosocialController : Controller
         {
             var existente = await _context.EventosCalendario.FirstOrDefaultAsync(x => x.Id == id);
             if (existente == null) return NotFound();
+            if ((EsOrientadora || await CalendarioPropioAsync()) && existente.CreadoPorId != usuarioId) return StatusCode(403, new { error = "Esto es de otro profesional." });
             evento = existente;
             evento.ModificadoPorId = usuarioId;
         }
@@ -344,6 +581,7 @@ public class PsychosocialController : Controller
         evento.Titulo = titulo.Trim();
         evento.Responsable = string.IsNullOrWhiteSpace(responsable) ? "Equipo psicosocial" : responsable;
         evento.Realizada = realizada;
+        if (evento.CreadoPorId == usuarioId) evento.VisiblePara = await VisibleParaValidoAsync(visiblePara, usuarioId);
 
         await _context.SaveChangesAsync();
         return Json(new { id = evento.Id });
@@ -358,6 +596,7 @@ public class PsychosocialController : Controller
         if (evento == null) return NotFound();
 
         int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var usuarioId);
+        if ((EsOrientadora || await CalendarioPropioAsync()) && evento.CreadoPorId != usuarioId) return StatusCode(403, new { error = "Esto es de otro profesional." });
         evento.Realizada = realizada;
         evento.ModificadoPorId = usuarioId;
 
@@ -372,6 +611,7 @@ public class PsychosocialController : Controller
     {
         var evento = await _context.EventosCalendario.FirstOrDefaultAsync(x => x.Id == id);
         if (evento == null) return NotFound();
+        if ((EsOrientadora || await CalendarioPropioAsync()) && evento.CreadoPorId != UsuarioActualId()) return StatusCode(403, new { error = "Esto es de otro profesional." });
 
         _context.EventosCalendario.Remove(evento);
         await _context.SaveChangesAsync();
@@ -542,7 +782,8 @@ public class PsychosocialController : Controller
                 f = e.FechaNacimiento.HasValue ? e.FechaNacimiento.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "",
                 d = e.Direccion ?? "",
                 t = e.Telefono ?? "",
-                m = e.CorreoContacto ?? ""
+                m = e.CorreoContacto ?? "",
+                acc = e.AccesoPropio
             }));
     }
 
@@ -651,6 +892,38 @@ public class PsychosocialController : Controller
         return Json(new { ok = true });
     }
 
+    // POST: "¿Olvidaste tu segunda clave?" -> se crea una nueva confirmando con la clave de ingreso.
+    // (Más adelante: también con un código enviado al correo.)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RecuperarClaveFicha(string claveIngreso, string clave, string confirmar)
+    {
+        var uid = UsuarioActualId();
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == uid);
+        if (u == null) return NotFound();
+        if (u.ClaveFichaBloqueadaHasta > DateTime.UtcNow) return StatusCode(429, new { error = "Demasiados intentos. Espera unos minutos e inténtalo de nuevo." });
+
+        var okIngreso = !string.IsNullOrWhiteSpace(claveIngreso) &&
+            (CoincideClave(u.Email, u.PasswordHash, claveIngreso) || u.PasswordHash == claveIngreso);   // cuentas de prueba antiguas
+        if (!okIngreso)
+        {
+            u.ClaveFichaIntentos++;
+            if (u.ClaveFichaIntentos >= 5) { u.ClaveFichaBloqueadaHasta = DateTime.UtcNow.AddMinutes(5); u.ClaveFichaIntentos = 0; }
+            await _context.SaveChangesAsync();
+            return BadRequest(new { error = "Tu clave de ingreso no es correcta." });
+        }
+        if (string.IsNullOrWhiteSpace(clave) || clave.Length < 6) return BadRequest(new { error = "La nueva segunda clave debe tener al menos 6 caracteres." });
+        if (clave != confirmar) return BadRequest(new { error = "Las claves nuevas no coinciden." });
+        if (clave == claveIngreso) return BadRequest(new { error = "Debe ser distinta de tu clave de ingreso." });
+
+        u.ClaveFichaHash = new PasswordHasher<string>().HashPassword(u.Email, clave);
+        u.ClaveFichaIntentos = 0;
+        u.ClaveFichaBloqueadaHasta = null;
+        await _context.SaveChangesAsync();
+        _cache.Set(LlaveDesbloqueo(), true, TimeSpan.FromMinutes(15));
+        return Json(new { ok = true });
+    }
+
     // POST: desbloquea las fichas por 15 minutos (5 intentos fallidos bloquean 5 minutos)
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -691,14 +964,18 @@ public class PsychosocialController : Controller
         _context.AccesosExpediente.Add(new AccesoExpediente { EstudianteId = id, UsuarioId = UsuarioActualId() });
         await _context.SaveChangesAsync();
 
+        var uidFicha = UsuarioActualId();
+        var bitacoraPropia = await BitacoraPropiaAsync();
         var bitacora = await _context.BitacorasPsicosociales.AsNoTracking()
-            .Where(b => b.EstudianteId == id).OrderByDescending(b => b.FechaAtencion).ToListAsync();
+            .Where(b => b.EstudianteId == id && (!bitacoraPropia || b.ProfesionalId == uidFicha))   // separada: solo las notas propias
+            .OrderByDescending(b => b.FechaAtencion).ToListAsync();
         var autoresIds = bitacora.Select(b => b.ProfesionalId).Distinct().ToList();
         var autores = await _context.Usuarios.AsNoTracking().Where(u => autoresIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => $"{u.Nombre} {u.Apellido}".Trim());
 
+        var ocultasFicha = await FichasOcultasAsync();
         var registros = await _context.RegistrosPsicosociales.AsNoTracking()
-            .Where(r => r.EstudianteId == id).OrderByDescending(r => r.FechaUtc).ToListAsync();
+            .Where(r => r.EstudianteId == id && !ocultasFicha.Contains(r.Tipo)).OrderByDescending(r => r.FechaUtc).ToListAsync();
         var esColegio = (await OrgAsync()).V.EsColegio;
         var citaciones = await _context.Citaciones.AsNoTracking()
             .Where(c => c.EstudianteId == id).OrderByDescending(c => c.Fecha).ThenByDescending(c => c.Hora).Take(30).ToListAsync();
@@ -713,6 +990,8 @@ public class PsychosocialController : Controller
             d = est.Direccion ?? "",
             t = est.Telefono ?? "",
             m = est.CorreoContacto ?? "",
+            acc = est.AccesoPropio,
+            aps = esColegio ? await ContactosAsync(est.Id) : new List<object>(),
             email = est.Usuario.Email,
             bit = bitacora.Select(b => new
             {
@@ -764,6 +1043,7 @@ public class PsychosocialController : Controller
         if (string.IsNullOrWhiteSpace(observaciones) || observaciones.Length > 4000) return BadRequest(new { error = "Escribe una anotación (máximo 4.000 caracteres)." });
         var b = await _context.BitacorasPsicosociales.FirstOrDefaultAsync(x => x.Id == id);
         if (b == null) return NotFound();
+        if (await BitacoraPropiaAsync() && b.ProfesionalId != UsuarioActualId()) return StatusCode(403, new { error = "Esto es de otro profesional." });
 
         b.Observaciones = observaciones.Trim();
         b.ModificadoPorId = UsuarioActualId();
@@ -785,6 +1065,295 @@ public class PsychosocialController : Controller
         est.Usuario.DebeCambiarPassword = true;
         await _context.SaveChangesAsync();
         return Json(new { email = est.Usuario.Email, clave });
+    }
+
+    // Apoderados/as y familiares vinculados (nombre, parentesco, correo y teléfono). Solo datos de contacto.
+    private async Task<List<object>> ContactosAsync(int estudianteId)
+    {
+        var l = await _context.EstudiantesApoderados.AsNoTracking()
+            .Where(x => x.EstudianteId == estudianteId && x.Apoderado != null && x.Apoderado.Usuario != null)
+            .Select(x => new { x.ApoderadoId, x.Parentesco, x.EsSostenedorPrincipal, x.Apoderado!.TelefonoContacto, x.Apoderado.Usuario!.Nombre, x.Apoderado.Usuario.Apellido, x.Apoderado.Usuario.Email, x.Apoderado.Usuario.EmailPersonal })
+            .ToListAsync();
+        // Otros pupilos de cada apoderado/a (hermanos/as en el colegio)
+        var ids = l.Select(x => x.ApoderadoId).ToList();
+        var otros = (await _context.EstudiantesApoderados.AsNoTracking()
+            .Where(x => ids.Contains(x.ApoderadoId) && x.EstudianteId != estudianteId && x.Estudiante != null && x.Estudiante.Usuario != null)
+            .Select(x => new { x.ApoderadoId, n = x.Estudiante!.Usuario!.Nombre + " " + x.Estudiante.Usuario.Apellido })
+            .ToListAsync()).GroupBy(x => x.ApoderadoId).ToDictionary(g => g.Key, g => g.Select(x => x.n.Trim()).ToArray());
+        return l.OrderByDescending(x => x.EsSostenedorPrincipal).Select(x => (object)new
+        {
+            id = x.ApoderadoId,
+            otros = otros.GetValueOrDefault(x.ApoderadoId, Array.Empty<string>()),
+            n = $"{x.Nombre} {x.Apellido}".Trim(),
+            p = string.IsNullOrWhiteSpace(x.Parentesco) ? "Apoderado/a" : x.Parentesco,
+            tit = x.EsSostenedorPrincipal,
+            mail = string.Join(", ", NotificacionService.Destinos(new Usuario { Email = x.Email, EmailPersonal = x.EmailPersonal })),   // sin correos internos
+            tel = x.TelefonoContacto ?? ""
+        }).ToList();
+    }
+
+    // GET: contacto del alumno/a (sin datos clínicos) para la orientadora y el equipo:
+    // curso, dirección, teléfono y quién es su apoderado/a o familiar, con su correo y teléfono.
+    [HttpGet]
+    public async Task<IActionResult> Contacto(int id)
+    {
+        if (!(await OrgAsync()).V.EsColegio) return NotFound();
+        var est = await _context.Estudiantes.AsNoTracking().Include(e => e.Usuario).Include(e => e.Curso).FirstOrDefaultAsync(e => e.Id == id);
+        if (est?.Usuario == null) return NotFound();
+        return Json(new
+        {
+            c = NombreCurso(est.Curso),
+            d = est.Direccion ?? "",
+            t = est.Telefono ?? "",
+            m = est.CorreoContacto ?? "",
+            acc = est.AccesoPropio,
+            aps = await ContactosAsync(est.Id)
+        });
+    }
+
+    // ---------------------------------------------------------------
+    // APODERADOS/AS: crear, vincular a uno o más alumnos/as, quitar vínculo y dar acceso.
+    // Un alumno/a puede tener varios (mamá, papá, abuela...) y un apoderado/a varios pupilos.
+    // Lo hacen la orientadora y el equipo (por confirmar con el colegio si también UTP).
+    // ---------------------------------------------------------------
+
+    // Confirma una acción delicada con la clave de quien la hace (segunda clave si la tiene; si no, la de ingreso)
+    private async Task<IActionResult?> ValidarClavePropiaAsync(string? clave)
+    {
+        var uid = UsuarioActualId();
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == uid);
+        if (u == null) return NotFound();
+        if (u.ClaveFichaBloqueadaHasta > DateTime.UtcNow) return StatusCode(429, new { error = "Demasiados intentos. Espera unos minutos e inténtalo de nuevo." });
+        var hash = string.IsNullOrEmpty(u.ClaveFichaHash) ? u.PasswordHash : u.ClaveFichaHash;
+        var ok = !string.IsNullOrWhiteSpace(clave) &&
+            (CoincideClave(u.Email, hash, clave) || (string.IsNullOrEmpty(u.ClaveFichaHash) && u.PasswordHash == clave));
+        if (!ok)
+        {
+            u.ClaveFichaIntentos++;
+            if (u.ClaveFichaIntentos >= 5) { u.ClaveFichaBloqueadaHasta = DateTime.UtcNow.AddMinutes(5); u.ClaveFichaIntentos = 0; }
+            await _context.SaveChangesAsync();
+            return BadRequest(new { error = "Clave incorrecta." });
+        }
+        u.ClaveFichaIntentos = 0;
+        u.ClaveFichaBloqueadaHasta = null;
+        return null;
+    }
+
+    // Apoderado/a de un alumno/a de este colegio (el filtro multitenant de Estudiantes lo asegura)
+    private Task<Apoderado?> ApoderadoDelColegioAsync(int apoderadoId) =>
+        _context.Apoderados.Include(a => a.Usuario)
+            .FirstOrDefaultAsync(a => a.Id == apoderadoId && _context.EstudiantesApoderados.Any(x => x.ApoderadoId == a.Id && _context.Estudiantes.Any(e => e.Id == x.EstudianteId)));
+
+    // POST: agrega un apoderado/a al alumno/a. Si ya existe (mismo correo o RUT), solo lo vincula:
+    // así un mismo apoderado/a queda con todos sus pupilos.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AgregarApoderado(int estudianteId, string nombre, string? rut, string correo, string? telefono, string? parentesco, bool titular = false)
+    {
+        if (!(await OrgAsync()).V.EsColegio) return BadRequest(new { error = "Solo aplica a colegios." });
+        var est = await _context.Estudiantes.Include(e => e.Usuario).FirstOrDefaultAsync(e => e.Id == estudianteId);
+        if (est?.Usuario == null) return NotFound();
+
+        correo = (correo ?? "").Trim().ToLowerInvariant();
+        if (!EsCorreo(correo) || correo.EndsWith("@alumnos.auka.cl") || correo.EndsWith("@pacientes.auka.cl"))
+            return BadRequest(new { error = "Escribe el correo real del apoderado/a (ahí le llegan los avisos)." });
+        string rutFmt = "", rutNorm = "";
+        if (!string.IsNullOrWhiteSpace(rut) && !TryNormalizarRut(rut, out rutNorm, out rutFmt)) return BadRequest(new { error = "El RUT no es válido." });
+        parentesco = string.IsNullOrWhiteSpace(parentesco) ? "Apoderado/a" : parentesco.Trim();
+        if (parentesco.Length > 40) parentesco = parentesco[..40];
+        _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var tenantId);
+
+        // ¿Ya existe? (por correo, o por RUT entre los apoderados/as de este colegio)
+        var u = await _context.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Email.ToLower() == correo);
+        if (u == null && rutNorm != "")
+        {
+            var candidatos = await _context.Usuarios.IgnoreQueryFilters().Where(x => x.Rol == RolUsuario.Apoderado && x.ColegioId == tenantId).ToListAsync();
+            u = candidatos.FirstOrDefault(x => NormalizarRut(x.Rut) == rutNorm);
+        }
+        if (u != null && (u.Rol != RolUsuario.Apoderado || (tenantId > 0 && u.ColegioId != tenantId)))
+            return BadRequest(new { error = "Ese correo ya pertenece a otra cuenta de AUKA (no de apoderado/a de este colegio). Usa otro correo." });
+
+        var creado = false;
+        Apoderado? apo = u == null ? null : await _context.Apoderados.FirstOrDefaultAsync(a => a.UsuarioId == u.Id);
+        if (u == null)
+        {
+            var (nom, ape) = SepararNombre(string.IsNullOrWhiteSpace(nombre) ? "Apoderado/a" : nombre.Trim());
+            u = new Usuario
+            {
+                Rut = rutFmt != "" ? rutFmt : "APO-" + NormalizarRut(est.Usuario.Rut),
+                Nombre = nom,
+                Apellido = ape,
+                Email = correo,
+                Rol = RolUsuario.Apoderado,
+                ColegioId = tenantId > 0 ? tenantId : est.ColegioId,
+                Activo = true,
+                DebeCambiarPassword = true,
+                PasswordHash = new PasswordHasher<string>().HashPassword(correo, GenerarClave())   // nadie la conoce: crea la suya con el enlace
+            };
+            creado = true;
+        }
+        if (apo == null) { apo = new Apoderado { Usuario = u, TelefonoContacto = telefono?.Trim() ?? "" }; _context.Apoderados.Add(apo); }
+        else if (!string.IsNullOrWhiteSpace(telefono)) apo.TelefonoContacto = telefono.Trim();
+
+        if (apo.Id > 0 && await _context.EstudiantesApoderados.AnyAsync(x => x.EstudianteId == est.Id && x.ApoderadoId == apo.Id))
+            return BadRequest(new { error = "Ese apoderado/a ya está vinculado a este alumno/a." });
+
+        var vinculos = await _context.EstudiantesApoderados.Where(x => x.EstudianteId == est.Id).ToListAsync();
+        if (titular) vinculos.ForEach(v => v.EsSostenedorPrincipal = false);
+        _context.EstudiantesApoderados.Add(new EstudianteApoderado
+        {
+            Estudiante = est,
+            Apoderado = apo,
+            Parentesco = parentesco,
+            EsSostenedorPrincipal = titular || vinculos.Count == 0
+        });
+        await _context.SaveChangesAsync();
+
+        // Cuenta nueva (o que aún no crea su contraseña): le llega un enlace a su correo (nunca se envía una clave)
+        object? acceso = null;
+        if (creado || u.DebeCambiarPassword)
+        {
+            var r = await _acceso.EnviarInvitacionAsync(u, $"{Request.Scheme}://{Request.Host}", User.FindFirst("ColegioNombre")?.Value ?? "Tu colegio");
+            acceso = new { enviado = r.Enviado, simulado = r.Simulado, motivo = r.Motivo };
+        }
+        return Json(new { ok = true, creado, acceso, email = u.Email });
+    }
+
+    // POST: quita el vínculo apoderado/a - alumno/a (la cuenta del apoderado/a no se borra). Pide la clave.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> QuitarApoderado(int estudianteId, int apoderadoId, string? clave)
+    {
+        var err = await ValidarClavePropiaAsync(clave);
+        if (err != null) return err;
+        if (!await _context.Estudiantes.AnyAsync(e => e.Id == estudianteId)) return NotFound();
+        var v = await _context.EstudiantesApoderados.FirstOrDefaultAsync(x => x.EstudianteId == estudianteId && x.ApoderadoId == apoderadoId);
+        if (v == null) return NotFound();
+        _context.EstudiantesApoderados.Remove(v);
+        if (v.EsSostenedorPrincipal)
+        {
+            var otro = await _context.EstudiantesApoderados.FirstOrDefaultAsync(x => x.EstudianteId == estudianteId && x.ApoderadoId != apoderadoId);
+            if (otro != null) otro.EsSostenedorPrincipal = true;
+        }
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true });
+    }
+
+    // POST: acceso del apoderado/a que olvidó su clave.
+    // modo "correo": le llega un enlace para crear una nueva (recomendado).
+    // modo "clave": clave provisoria que se muestra una sola vez (pide la clave de quien lo hace).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AccesoApoderado(int apoderadoId, string modo, string? clave)
+    {
+        var apo = await ApoderadoDelColegioAsync(apoderadoId);
+        if (apo?.Usuario == null) return NotFound();
+        if (modo == "clave")
+        {
+            var err = await ValidarClavePropiaAsync(clave);
+            if (err != null) return err;
+            var nueva = GenerarClave();
+            apo.Usuario.PasswordHash = new PasswordHasher<string>().HashPassword(apo.Usuario.Email, nueva);
+            apo.Usuario.DebeCambiarPassword = true;
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true, email = apo.Usuario.Email, clave = nueva });
+        }
+        var r = await _acceso.EnviarInvitacionAsync(apo.Usuario, $"{Request.Scheme}://{Request.Host}", User.FindFirst("ColegioNombre")?.Value ?? "Tu colegio");
+        if (!r.Enviado && !r.Simulado) return BadRequest(new { error = r.Motivo ?? "No se pudo enviar el correo." });
+        return Json(new { ok = true, simulado = r.Simulado, email = apo.Usuario.Email });
+    }
+
+    // GET: cursos del año para corregir el curso de un alumno/a; avisa qué clave se pide para confirmarlo
+    [HttpGet]
+    public async Task<IActionResult> ListaCursos()
+    {
+        var anio = DateTime.Now.Year;
+        var cursos = await _context.Cursos.AsNoTracking().Where(c => c.AnioAcademico == anio && c.Nombre != "Pacientes").ToListAsync();
+        var uid = UsuarioActualId();
+        var segunda = await _context.Usuarios.AsNoTracking().Where(u => u.Id == uid).Select(u => u.ClaveFichaHash != null && u.ClaveFichaHash != "").FirstOrDefaultAsync();
+        return Json(new
+        {
+            segunda,
+            cursos = cursos.OrderBy(c => OrdenCurso(c.Nombre)).ThenBy(c => c.Nombre).ThenBy(c => c.Letra)
+                .Select(c => new { id = c.Id, n = NombreCurso(c) })
+        });
+    }
+
+    // Orden natural de los cursos: prekínder, kínder, 1° a 8° básico, I a IV medio
+    private static int OrdenCurso(string n)
+    {
+        var x = (n ?? "").ToLowerInvariant();
+        if (x.Contains("pre")) return 0;
+        if (x.Contains("nder") || x.StartsWith("nt")) return 1;
+        var m = System.Text.RegularExpressions.Regex.Match(x, @"^\s*(\d+)");
+        if (x.Contains("medio"))
+        {
+            var r = System.Text.RegularExpressions.Regex.Match(x, @"^\s*(iv|iii|ii|i|\d)");
+            var v = r.Groups[1].Value switch { "i" or "1" => 1, "ii" or "2" => 2, "iii" or "3" => 3, "iv" or "4" => 4, _ => 5 };
+            return 20 + v;
+        }
+        return m.Success ? 1 + int.Parse(m.Groups[1].Value) : 50;
+    }
+
+    // POST: corrige el curso de un alumno/a. Siempre pide confirmar con la clave:
+    // la segunda clave si la persona la tiene; si no (por ejemplo, la orientadora), su clave de ingreso.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CambiarCurso(int estudianteId, int cursoId, string? clave)
+    {
+        if (!(await OrgAsync()).V.EsColegio) return BadRequest(new { error = "Solo aplica a colegios." });
+        var uid = UsuarioActualId();
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == uid);
+        if (u == null) return NotFound();
+        if (u.ClaveFichaBloqueadaHasta > DateTime.UtcNow) return StatusCode(429, new { error = "Demasiados intentos. Espera unos minutos e inténtalo de nuevo." });
+
+        var hash = string.IsNullOrEmpty(u.ClaveFichaHash) ? u.PasswordHash : u.ClaveFichaHash;
+        var okClave = !string.IsNullOrWhiteSpace(clave) &&
+            (CoincideClave(u.Email, hash, clave) || (string.IsNullOrEmpty(u.ClaveFichaHash) && u.PasswordHash == clave));   // cuentas de prueba antiguas
+        if (!okClave)
+        {
+            u.ClaveFichaIntentos++;
+            if (u.ClaveFichaIntentos >= 5) { u.ClaveFichaBloqueadaHasta = DateTime.UtcNow.AddMinutes(5); u.ClaveFichaIntentos = 0; }
+            await _context.SaveChangesAsync();
+            return BadRequest(new { error = "Clave incorrecta." });
+        }
+        u.ClaveFichaIntentos = 0;
+        u.ClaveFichaBloqueadaHasta = null;
+
+        // El filtro multitenant asegura que el alumno/a y el curso sean de este colegio
+        var est = await _context.Estudiantes.Include(e => e.Curso).FirstOrDefaultAsync(e => e.Id == estudianteId);
+        var curso = await _context.Cursos.FirstOrDefaultAsync(c => c.Id == cursoId && c.Nombre != "Pacientes");
+        if (est == null || curso == null) return BadRequest(new { error = "Elige un curso de la lista." });
+        if (est.CursoId == curso.Id) { await _context.SaveChangesAsync(); return Json(new { ok = true, c = NombreCurso(curso), acc = est.AccesoPropio }); }
+
+        var antes = NombreCurso(est.Curso);
+        est.CursoId = curso.Id;
+        est.Curso = curso;
+        // Kínder a 6° básico: sin cuenta propia; desde 7° básico, con cuenta propia
+        est.AccesoPropio = !Citaciones.EsCursoMenor(curso.Nombre);
+
+        // Queda registrado en la bitácora quién lo cambió y cuándo
+        _context.BitacorasPsicosociales.Add(new BitacoraPsicosocial
+        {
+            EstudianteId = est.Id,
+            ProfesionalId = uid,
+            Observaciones = $"Cambio de curso: {(string.IsNullOrEmpty(antes) ? "sin curso" : antes)} → {NombreCurso(curso)}."
+        });
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true, c = NombreCurso(curso), acc = est.AccesoPropio });
+    }
+
+    // POST: el alumno/a usa o no la plataforma con su propia cuenta (si no, todo lo maneja su apoderado/a)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CambiarAccesoPropio(int estudianteId, bool acceso)
+    {
+        if (!FichasDesbloqueadas()) return Bloqueado();
+        var est = await _context.Estudiantes.FirstOrDefaultAsync(e => e.Id == estudianteId);
+        if (est == null) return NotFound();
+        est.AccesoPropio = acceso;
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true, acc = est.AccesoPropio });
     }
 
     // POST: cambia el correo con que la persona entra a AUKA (y donde le llegan las citaciones)
@@ -936,6 +1505,8 @@ public class PsychosocialController : Controller
             {
                 if (!actualizar) { omitidos++; continue; }
                 existente.Curso = curso;
+                // Al pasar a 7° básico o más, el alumno/a pasa a tener su propia cuenta
+                if (esColegio && !existente.AccesoPropio && !Citaciones.EsCursoMenor(nombreCurso)) existente.AccesoPropio = true;
                 if (nac != null) existente.FechaNacimiento = nac;
                 if (!string.IsNullOrWhiteSpace(f.Direccion)) existente.Direccion = f.Direccion.Trim();
                 if (!string.IsNullOrWhiteSpace(f.Telefono)) existente.Telefono = f.Telefono.Trim();
@@ -984,13 +1555,16 @@ public class PsychosocialController : Controller
                 Telefono = string.IsNullOrWhiteSpace(f.Telefono) ? null : f.Telefono.Trim(),
                 CorreoContacto = string.IsNullOrWhiteSpace(f.Correo) ? null : f.Correo.Trim().ToLowerInvariant(),
                 TipoMatricula = TipoMatricula.Nuevo,
-                FechaMatricula = DateTime.UtcNow
+                FechaMatricula = DateTime.UtcNow,
+                // Kínder a 6° básico: sin cuenta propia (todo lo maneja su apoderado/a)
+                AccesoPropio = !esColegio || !Citaciones.EsCursoMenor(nombreCurso)
             };
             _context.Estudiantes.Add(nuevoEst);
             if (esColegio) Vincular(nuevoEst, f, rutNorm);
             if (conCorreoPropio) invitar.Add(usuario);
             correos.Add(email);
-            credenciales.Add(new { rut = rutFmt, n = f.Nombre, e = email, c = clave });
+            // Sin cuenta propia no se entrega clave (no puede entrar; su apoderado/a ve todo)
+            if (nuevoEst.AccesoPropio) credenciales.Add(new { rut = rutFmt, n = f.Nombre, e = email, c = clave });
             creados++;
         }
 
@@ -1088,7 +1662,7 @@ public class PsychosocialController : Controller
     {
         if (!EsAdministrador && !FichasDesbloqueadas()) return Bloqueado();
         var lista = await _context.Estudiantes.Include(e => e.Usuario).Include(e => e.Curso)
-            .Where(e => e.Usuario != null && e.Usuario.Activo && e.Usuario.DebeCambiarPassword && e.Curso != null)
+            .Where(e => e.Usuario != null && e.Usuario.Activo && e.Usuario.DebeCambiarPassword && e.Curso != null && e.AccesoPropio)
             .ToListAsync();
         if (!string.IsNullOrWhiteSpace(curso))
             lista = lista.Where(e => (string.IsNullOrEmpty(e.Curso!.Letra) ? e.Curso.Nombre : $"{e.Curso.Nombre} {e.Curso.Letra}")
@@ -1148,7 +1722,18 @@ public class PsychosocialController : Controller
         ["mal"] = "Protocolo de maltrato escolar",
         ["vul"] = "Vulneración de derechos",
         ["dec"] = "Desregulación emocional (DEC)",
-        ["vit"] = "Protocolo de riesgo vital"
+        ["vit"] = "Protocolo de riesgo vital",
+        // Trabajador/a social
+        ["fs"] = "Ficha social familiar",
+        ["beca"] = "Beca o beneficio estatal",
+        ["red"] = "Coordinación con la red",
+        ["entf"] = "Entrevista familiar",
+        // Orientación
+        ["ori"] = "Orientación vocacional",
+        ["ento"] = "Entrevista de orientación",
+        ["tal"] = "Taller grupal",
+        // Lo que el equipo quiere que vea el profesor/a jefe y/o la familia (no es confidencial)
+        ["comp"] = "Compromiso o nota compartida"
     };
 
     // Las mismas fichas con el nombre que usa una empresa, fundación o particular
@@ -1168,7 +1753,15 @@ public class PsychosocialController : Controller
         ["mal"] = "Protocolo de maltrato",
         ["vul"] = "Vulneración de derechos",
         ["dec"] = "Desregulación emocional",
-        ["vit"] = "Protocolo de riesgo vital"
+        ["vit"] = "Protocolo de riesgo vital",
+        ["fs"] = "Ficha social familiar",
+        ["beca"] = "Beneficio social",
+        ["red"] = "Coordinación con la red",
+        ["entf"] = "Entrevista familiar",
+        ["ori"] = "Orientación laboral",
+        ["ento"] = "Entrevista de orientación",
+        ["tal"] = "Taller grupal",
+        ["comp"] = "Compromiso o nota compartida"
     };
 
     private static string NombreCurso(Curso? c) =>
@@ -1199,6 +1792,9 @@ public class PsychosocialController : Controller
             .Include(r => r.Estudiante).ThenInclude(e => e!.Curso)
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(tipo)) q = q.Where(r => r.Tipo == tipo);
+        if (EsOrientadora) q = q.Where(r => TiposOrientacion.Contains(r.Tipo));
+        var ocultas = await FichasOcultasAsync();
+        if (ocultas.Length > 0) q = q.Where(r => !ocultas.Contains(r.Tipo));
 
         var lista = await q.OrderByDescending(r => r.FechaUtc).Take(3000).ToListAsync();
         var esColegio = (await OrgAsync()).V.EsColegio;
@@ -1230,8 +1826,13 @@ public class PsychosocialController : Controller
     {
         if (string.IsNullOrWhiteSpace(tipo) || !TiposRegistro.ContainsKey(tipo))
             return BadRequest(new { error = "Tipo de ficha no válido." });
+        if (tipo == "tal" && estudianteId != null) estudianteId = null;
         if (!(await OrgAsync()).Planillas.Contains(Organizacion.PlanillaDeFicha[tipo]))
             return BadRequest(new { error = "Esa planilla no está activa para tu organización." });
+        if (EsOrientadora && !TiposOrientacion.Contains(tipo))
+            return StatusCode(403, new { error = "La orientadora solo registra fichas de orientación." });
+        if ((await FichasOcultasAsync()).Contains(tipo))
+            return StatusCode(403, new { error = "Esa ficha es de otra área del equipo." });
 
         Dictionary<string, string>? datos;
         try { datos = JsonSerializer.Deserialize<Dictionary<string, string>>(datosJson ?? "{}"); }
@@ -1246,13 +1847,13 @@ public class PsychosocialController : Controller
             .ToDictionary(kv => kv.Key.Trim(), kv => kv.Value.Trim());
         if (datos.Count == 0) return BadRequest(new { error = "Completa al menos un campo." });
 
-        if (tipo != "ropa")
+        if (tipo is not ("ropa" or "tal"))   // inventario y talleres grupales no son de una sola persona
         {
             // El filtro multitenant hace que una alumna de otro colegio "no exista" para esta sesión
             if (estudianteId == null || !await _context.Estudiantes.AnyAsync(e => e.Id == estudianteId))
                 return BadRequest(new { error = "Elige un alumno/a de la lista." });
         }
-        else estudianteId = null;
+        else if (tipo == "ropa") estudianteId = null;
 
         // El correlativo lo pone el servidor (evita números repetidos si dos personas guardan a la vez)
         if (tipo == "inf") datos["N° correlativo"] = await SiguienteCorrelativoAsync();
@@ -1267,7 +1868,31 @@ public class PsychosocialController : Controller
         _context.RegistrosPsicosociales.Add(reg);
         await _context.SaveChangesAsync();
 
+        if (tipo == "comp") await AvisarCompromisoAsync(reg.EstudianteId!.Value, datos);
+
         return Json(new { ok = true, id = reg.Id, correlativo = tipo == "inf" ? datos["N° correlativo"] : null });
+    }
+
+    // Un compromiso compartido avisa a quienes deben verlo (profesor/a jefe, apoderado/a, alumno/a)
+    private async Task AvisarCompromisoAsync(int estudianteId, Dictionary<string, string> datos)
+    {
+        try
+        {
+            var est = await _context.Estudiantes.Include(e => e.Usuario).Include(e => e.Curso).FirstOrDefaultAsync(e => e.Id == estudianteId);
+            if (est?.Usuario == null) return;
+            var vis = datos.GetValueOrDefault("Visible para", "");
+            var ids = new List<int>();
+            if (vis.Contains("Profesor") && est.Curso?.ProfesorJefeId != null) ids.Add(est.Curso.ProfesorJefeId.Value);
+            var paraAlumno = vis.Contains("Alumno") || vis.Contains("Paciente");
+            if (vis.Contains("Apoderado") || (paraAlumno && !est.AccesoPropio))   // sin cuenta propia: lo recibe su apoderado/a
+                ids.AddRange(await _context.EstudiantesApoderados.Where(x => x.EstudianteId == est.Id && x.Apoderado != null).Select(x => x.Apoderado!.UsuarioId).ToListAsync());
+            if (paraAlumno && est.AccesoPropio) ids.Add(est.UsuarioId);
+            if (ids.Count == 0) return;
+            var nombre = $"{est.Usuario.Nombre} {est.Usuario.Apellido}".Trim();
+            await _notif.NotificarAsync(ids.Distinct(), "Nuevo compromiso o acuerdo",
+                $"El equipo psicosocial registró un acuerdo sobre {nombre}:\n{datos.GetValueOrDefault("Compromiso o acuerdo", "")}", "/Portafolio?estudianteId=" + est.Id);
+        }
+        catch { /* el aviso no debe impedir guardar */ }
     }
 
     // POST: cambia un campo de un registro (ej.: marcar un beneficio como "Entregado")
@@ -1279,6 +1904,7 @@ public class PsychosocialController : Controller
             return BadRequest(new { error = "Datos inválidos." });
         var r = await _context.RegistrosPsicosociales.FirstOrDefaultAsync(x => x.Id == id);
         if (r == null) return NotFound();
+        if ((await FichasOcultasAsync()).Contains(r.Tipo)) return StatusCode(403, new { error = "Esa ficha es de otra área del equipo." });
 
         Dictionary<string, string> datos;
         try { datos = JsonSerializer.Deserialize<Dictionary<string, string>>(r.DatosJson) ?? new(); }
@@ -1299,6 +1925,8 @@ public class PsychosocialController : Controller
     {
         var r = await _context.RegistrosPsicosociales.FirstOrDefaultAsync(x => x.Id == id);
         if (r == null) return NotFound();
+        if (EsOrientadora && !TiposOrientacion.Contains(r.Tipo)) return StatusCode(403, new { error = "Sin acceso a este registro." });
+        if ((await FichasOcultasAsync()).Contains(r.Tipo)) return StatusCode(403, new { error = "Esa ficha es de otra área del equipo." });
 
         Dictionary<string, string>? datos;
         try { datos = JsonSerializer.Deserialize<Dictionary<string, string>>(datosJson ?? "{}"); }
@@ -1335,7 +1963,8 @@ public class PsychosocialController : Controller
     {
         var c = await _context.Citaciones.FirstOrDefaultAsync(x => x.Id == id);
         if (c == null) return NotFound();
-        if (c.Estado == EstadoCitacion.Cancelada) return BadRequest(new { error = "La citación está cancelada." });
+        if (c.Estado is EstadoCitacion.Cancelada or EstadoCitacion.Rechazada or EstadoCitacion.Solicitada or EstadoCitacion.OtraFecha)
+            return BadRequest(new { error = "La citación no está agendada (cancelada, rechazada o esperando respuesta)." });
         if (c.Fecha > DateOnly.FromDateTime(DateTime.Today)) return BadRequest(new { error = "La citación todavía no ocurre." });
 
         c.Estado = asistio ? EstadoCitacion.Realizada : EstadoCitacion.NoAsistio;
@@ -1355,6 +1984,8 @@ public class PsychosocialController : Controller
     {
         var r = await _context.RegistrosPsicosociales.FirstOrDefaultAsync(x => x.Id == id);
         if (r == null) return NotFound();
+        if (EsOrientadora && !TiposOrientacion.Contains(r.Tipo)) return StatusCode(403, new { error = "Sin acceso a este registro." });
+        if ((await FichasOcultasAsync()).Contains(r.Tipo)) return StatusCode(403, new { error = "Esa ficha es de otra área del equipo." });
         r.ModificadoPorId = UsuarioActualId();
         _context.RegistrosPsicosociales.Remove(r); // el DbContext lo convierte en IsDeleted = true
         await _context.SaveChangesAsync();

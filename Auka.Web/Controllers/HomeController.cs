@@ -11,14 +11,24 @@ namespace Auka.Web.Controllers;
 public class HomeController : Controller
 {
     private readonly ApplicationDbContext _context;
+    private readonly IWebHostEnvironment _env;
 
-    public HomeController(ApplicationDbContext context)
+    public HomeController(ApplicationDbContext context, IWebHostEnvironment env)
     {
         _context = context;
+        _env = env;
     }
 
     public IActionResult Index()
     {
+        // Sin sesión: el portal público de AUKA (con botón "Ingresar" al login)
+        if (User.Identity?.IsAuthenticated != true)
+            return View("Portal");
+
+        // El dueño de la plataforma tiene su propio panel
+        if (User.IsInRole("AdminPlataforma"))
+            return RedirectToAction("Index", "Plataforma");
+
         return View();
     }
 
@@ -33,6 +43,10 @@ public class HomeController : Controller
     [Route("reset-admin")]
     public async Task<IActionResult> ResetAdminPass()
     {
+        // SEGURIDAD: solo existe en tu PC de desarrollo. En producción (internet por ngrok) no existe:
+        // si no, cualquiera podría dejar la clave de un director en 123456.
+        if (!_env.IsDevelopment()) return NotFound();
+
         // 1. Buscar si ya existe algún Administrador o Director
         var admin = await _context.Usuarios
             .FirstOrDefaultAsync(u => u.Rol == RolUsuario.Director || u.Rol == RolUsuario.SuperAdmin || u.Rol == RolUsuario.UTP || u.Email == "admin@auka.cl");

@@ -1,0 +1,854 @@
+﻿@* Auka.Web/Views/Home/Portal.cshtml — portal público de AUKA (lo ve quien no ha iniciado sesión) *@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AUKA · Acompañar sin dejar a nadie atrás</title>
+    <meta name="description" content="AUKA es la plataforma que ayuda a colegios, empresas e instituciones a acompañar a las personas: su bienestar, su seguimiento y la comunicación con sus familias." />
+    <link rel="icon" type="image/png" href="~/img/auka-icono.png" />
+    <script>
+        // Modo liviano: equipos con pocos recursos, celulares o animaciones apagadas en el sistema.
+        // Se ve igual de profesional, pero sin los efectos que redibujan la pantalla todo el tiempo.
+        (function () {
+            var n = navigator, mm = function (q) { return window.matchMedia && matchMedia(q).matches; };
+            var liviano = (n.hardwareConcurrency && n.hardwareConcurrency <= 4) || (n.deviceMemory && n.deviceMemory <= 4)
+                || mm('(pointer: coarse)') || mm('(prefers-reduced-motion: reduce)') || /[?&]liviano=1/.test(location.search);
+            if (/[?&]liviano=0/.test(location.search)) liviano = false;
+            if (liviano) document.documentElement.classList.add('liviano');
+        })();
+    </script>
+    <style>
+        :root {
+            --navy: #1a319b; --blue: #2459b0; --teal: #1fb5c5; --teal-2: #e4f8fa; --violet: #5b4bc4;
+            --ink: #14233a; --mut: #5d6f86; --line: #e3eaf4; --bg: #f6f9fd; --white: #fff;
+            --grad: linear-gradient(120deg, var(--navy), var(--blue) 50%, var(--teal));
+            --grad-mov: linear-gradient(110deg, var(--navy), var(--blue), var(--teal), var(--blue), var(--navy));
+            --r: 20px;
+            --p: 0; /* avance del scroll (0 a 1), lo pone el script */
+        }
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif; color: var(--ink); background: var(--white); line-height: 1.55; overflow-x: hidden; }
+        a { color: inherit; }
+        img { max-width: 100%; }
+        button { font: inherit; }
+        .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; position: relative; }
+        section { padding: 84px 0; position: relative; }
+        .eyebrow { font-size: .78rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--blue); margin-bottom: .6rem; }
+        h1, h2, h3 { line-height: 1.15; margin: 0 0 .6rem; }
+        h2 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); color: var(--navy); }
+        .lead { font-size: 1.1rem; color: var(--mut); max-width: 660px; }
+        .center { text-align: center; } .center .lead { margin: 0 auto; }
+        .titulo-sec { margin-bottom: 40px; }
+
+        /* Fondo que cambia de color al bajar (degradado según el avance del scroll) */
+        .fondo { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: #fff; overflow: hidden; }
+        .fondo i { position: absolute; width: 900px; height: 700px; border-radius: 50%; will-change: transform; }
+        .fondo .m1 { top: -260px; right: -200px; background: radial-gradient(closest-side, rgba(31,181,197,.20), transparent); }
+        .fondo .m2 { bottom: -300px; left: -260px; background: radial-gradient(closest-side, rgba(91,75,196,.12), transparent); }
+        .progreso { position: fixed; top: 0; left: 0; height: 3px; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: var(--grad); z-index: 60; will-change: transform; }
+
+        /* Botones con color en movimiento y brillo */
+        .btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: .45rem; padding: .8rem 1.4rem; border-radius: 999px; font-weight: 700; text-decoration: none; border: 0; cursor: pointer; font-size: 1rem; transition: transform .2s, box-shadow .2s; }
+        .btn:hover { transform: translateY(-2px) scale(1.02); }
+        .btn-p { background: var(--grad-mov); background-size: 300% 100%; color: #fff; box-shadow: 0 10px 24px rgba(36, 89, 176, .28); animation: fluir 6s ease-in-out infinite; }
+        .btn-p::after { content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.45), transparent); transform: skewX(-20deg); animation: brillo 3.8s ease-in-out infinite; }
+        .btn-g { background: #fff; color: var(--navy); border: 1.5px solid var(--line); }
+        .btn-g:hover { border-color: transparent; background: linear-gradient(#fff,#fff) padding-box, var(--grad) border-box; border: 1.5px solid transparent; box-shadow: 0 10px 22px rgba(36,89,176,.14); }
+        .btn-w { background: #fff; color: var(--navy); }
+        .btn-o { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.6); }
+        .btn-o:hover { background: rgba(255,255,255,.12); }
+        @@keyframes fluir { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        @@keyframes brillo { 0% { left: -60%; } 55%,100% { left: 130%; } }
+
+        /* Barra superior */
+        .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.82); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+        .nav .wrap { display: flex; align-items: center; gap: 1.2rem; height: 68px; }
+        .marca { display: flex; align-items: center; gap: .55rem; text-decoration: none; }
+        .marca img { width: 40px; height: auto; transition: transform .4s; }
+        .marca:hover img { transform: rotate(-8deg) scale(1.08); }
+        .marca b { font-size: 1.35rem; letter-spacing: .12em; color: var(--navy); }
+        .links { display: flex; gap: 1.3rem; margin-left: auto; }
+        .links a { text-decoration: none; color: var(--mut); font-weight: 600; font-size: .93rem; position: relative; }
+        .links a::after { content: ""; position: absolute; left: 0; right: 100%; bottom: -6px; height: 2px; background: var(--grad); transition: right .25s; }
+        .links a:hover, .links a.act { color: var(--navy); } .links a:hover::after, .links a.act::after { right: 0; }
+        .links .solo-cel { display: none; }
+        .nav .btn { padding: .55rem 1.15rem; font-size: .93rem; }
+        .menu-btn { display: none; margin-left: auto; background: none; border: 1.5px solid var(--line); border-radius: 12px; padding: .45rem .7rem; font-size: 1.1rem; color: var(--navy); }
+
+        /* Portada */
+        .hero { padding: 70px 0 96px; overflow: hidden; }
+        .hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+        .hero h1 { font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 800; letter-spacing: -.01em; }
+        .hero h1 span { background: var(--grad-mov); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: fluir 8s ease-in-out infinite; }
+        .hero .lead { font-size: 1.18rem; margin: 1rem 0 1.8rem; }
+        .hero .acciones { display: flex; gap: .8rem; flex-wrap: wrap; }
+        .hero .nota { margin-top: 1.4rem; color: var(--mut); font-size: .9rem; display: flex; gap: 1.2rem; flex-wrap: wrap; }
+        .hero .nota span::before { content: "✓"; color: var(--teal); font-weight: 800; margin-right: .35rem; }
+
+        /* Burbujas de fondo que flotan */
+        .burbuja { position: absolute; border-radius: 50%; filter: blur(4px); opacity: .6; pointer-events: none; animation: flotar 9s ease-in-out infinite; }
+        .b1 { width: 170px; height: 170px; top: 40px; right: 6%; background: radial-gradient(circle at 30% 30%, #9cf0f6, #1fb5c5 55%, rgba(31,181,197,.15)); }
+        .b2 { width: 96px; height: 96px; bottom: 60px; left: 46%; background: radial-gradient(circle at 30% 30%, #c3cfff, #2459b0 60%, rgba(26,49,155,.15)); animation-delay: -3s; }
+        .b3 { width: 56px; height: 56px; top: 120px; left: 4%; background: radial-gradient(circle at 30% 30%, #d9cfff, #5b4bc4 60%, rgba(91,75,196,.15)); animation-delay: -6s; }
+        @@keyframes flotar { 0%,100% { transform: translate(0,0); } 33% { transform: translate(12px,-16px); } 66% { transform: translate(-10px,10px); } }
+
+        /* Tarjetas de ejemplo que flotan y siguen el mouse */
+        .demo { position: relative; min-height: 470px; }
+        .demo .card { position: absolute; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 18px 40px rgba(20,35,58,.10); padding: 16px 18px; transition: transform .25s ease-out; }
+        .demo .card .in { animation: flotar-s 6s ease-in-out infinite; }
+        .demo .c1 { top: 0; left: 6%; right: 0; } .demo .c1 .in { animation-delay: 0s; }
+        .demo .c2 { top: 230px; left: 0; width: 60%; } .demo .c2 .in { animation-delay: -2s; }
+        .demo .c3 { top: 300px; right: 0; width: 46%; } .demo .c3 .in { animation-delay: -4s; }
+        @@keyframes flotar-s { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .demo .t { font-size: .72rem; font-weight: 800; letter-spacing: .08em; color: var(--mut); text-transform: uppercase; margin-bottom: .55rem; }
+        .demo .fila { display: flex; align-items: center; gap: .6rem; padding: .45rem 0; border-top: 1px solid var(--line); font-size: .9rem; }
+        .demo .fila:first-of-type { border-top: 0; }
+        .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--teal-2); color: #0c7f8c; display: grid; place-items: center; font-weight: 800; font-size: .8rem; flex: none; }
+        .chip { margin-left: auto; font-size: .72rem; font-weight: 800; padding: .2rem .6rem; border-radius: 999px; white-space: nowrap; transition: background .4s, color .4s; }
+        .ok { background: #dcf5e6; color: #177a43; } .pend { background: #fff1d1; color: #a56a00; } .info { background: #e7ecff; color: var(--navy); }
+        .num { font-size: 2.2rem; font-weight: 800; color: var(--navy); line-height: 1; }
+        .barra { height: 8px; border-radius: 99px; background: var(--line); margin-top: .7rem; overflow: hidden; }
+        .barra i { display: block; height: 100%; width: 0; background: var(--grad); border-radius: 99px; transition: width 1.6s cubic-bezier(.2,.8,.2,1); }
+        .pop { animation: pop .5s ease; }
+        .aparece { animation: aparece .45s ease; }
+        @@keyframes aparece { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+        /* Tarjetas con color */
+        .grid { display: grid; gap: 20px; }
+        .g3 { grid-template-columns: repeat(3, 1fr); } .g5 { grid-template-columns: repeat(5, 1fr); } .g2 { grid-template-columns: repeat(2, 1fr); }
+        .tarjeta { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 26px; transition: transform .25s, box-shadow .25s, border-color .25s; position: relative; overflow: hidden; }
+        .tarjeta:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(20,35,58,.10); }
+        .tarjeta h3 { font-size: 1.12rem; color: var(--navy); }
+        .tarjeta p { color: var(--mut); margin: 0; font-size: .96rem; }
+        .ico { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; font-size: 1.5rem; margin-bottom: 1rem; transition: transform .3s; }
+        .tarjeta:hover .ico { transform: scale(1.1) rotate(-6deg); }
+        /* Tonos: turquesa, azul y violeta */
+        .tono-t { background: linear-gradient(160deg, #e9fafc, #fff 70%); border-top: 4px solid var(--teal); } .tono-t .ico { background: #c9f1f5; }
+        .tono-b { background: linear-gradient(160deg, #eaf0ff, #fff 70%); border-top: 4px solid var(--blue); } .tono-b .ico { background: #d6e2ff; }
+        .tono-v { background: linear-gradient(160deg, #f0edff, #fff 70%); border-top: 4px solid var(--violet); } .tono-v .ico { background: #e0dbff; }
+
+        /* Para quién: tarjetas que se eligen y cambian la vista de abajo */
+        .quien { cursor: pointer; text-align: center; padding: 22px 14px; border: 1.5px solid var(--line); }
+        .quien .ico { margin: 0 auto .8rem; }
+        .quien.sel { border-color: transparent; background: linear-gradient(#fff,#fff) padding-box, var(--grad) border-box; border: 2px solid transparent; box-shadow: 0 16px 34px rgba(36,89,176,.18); transform: translateY(-6px); }
+        .quien.sel h3 { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+        .vitrina { margin-top: 30px; display: grid; grid-template-columns: .85fr 1.15fr; gap: 30px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 26px; padding: 30px; box-shadow: 0 20px 44px rgba(20,35,58,.06); }
+        .vitrina h3 { font-size: 1.4rem; color: var(--navy); }
+        .vitrina ul { padding-left: 1.1rem; color: #33465f; margin: .6rem 0 0; }
+        .pantalla { border-radius: 18px; border: 1px solid var(--line); overflow: hidden; background: #f8fbff; }
+        .pantalla .barra-v { display: flex; gap: 6px; padding: 10px 14px; background: #fff; border-bottom: 1px solid var(--line); align-items: center; }
+        .pantalla .barra-v i { width: 10px; height: 10px; border-radius: 50%; background: #e3eaf4; }
+        .pantalla .barra-v span { margin-left: 8px; font-size: .78rem; color: var(--mut); font-weight: 700; }
+        .pantalla .cuerpo { padding: 14px; display: grid; gap: 10px; min-height: 230px; }
+        .pantalla .item { display: flex; align-items: center; gap: .7rem; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: .9rem; opacity: 0; transform: translateX(18px); animation: entrar .5s ease forwards; }
+        @@keyframes entrar { to { opacity: 1; transform: none; } }
+
+        /* Módulos */
+        .modulo { border-radius: 26px; padding: 34px; border: 1px solid var(--line); transition: transform .25s, box-shadow .25s; }
+        .modulo:hover { transform: translateY(-5px); box-shadow: 0 20px 44px rgba(20,35,58,.10); }
+        .modulo.psi { background: linear-gradient(160deg, #e6f9fb, #fff 60%); }
+        .modulo.ges { background: linear-gradient(160deg, #e9eeff, #fff 60%); }
+        .modulo ul { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: .6rem; }
+        .modulo li { padding-left: 1.7rem; position: relative; color: #33465f; }
+        .modulo li::before { content: ""; position: absolute; left: 0; top: .35rem; width: 16px; height: 16px; border-radius: 50%; background: var(--grad); }
+        .etq { display: inline-block; font-size: .75rem; font-weight: 800; padding: .25rem .75rem; border-radius: 999px; margin-bottom: .8rem; }
+        .etq.psi { background: #c9f1f5; color: #0c7f8c; } .etq.ges { background: #d6e2ff; color: var(--navy); }
+
+        /* Cómo empezar */
+        .pasos { counter-reset: p; }
+        .paso { padding-top: 88px; }
+        .paso::before { counter-increment: p; content: counter(p); position: absolute; top: 24px; left: 26px; width: 46px; height: 46px; border-radius: 50%; background: var(--grad); color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 1.2rem; box-shadow: 0 8px 18px rgba(36,89,176,.3); }
+
+        /* Planes: el que eliges se ilumina */
+        .plan { background: #fff; border: 2px solid var(--line); border-radius: 24px; padding: 30px; display: flex; flex-direction: column; cursor: pointer; transition: transform .25s, box-shadow .25s, background .3s; position: relative; }
+        .plan:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(20,35,58,.10); }
+        .plan.sel { border-color: transparent; background: linear-gradient(170deg, #f0fbfd, #fff 55%) padding-box, var(--grad) border-box; box-shadow: 0 24px 50px rgba(36,89,176,.22); transform: translateY(-8px) scale(1.02); }
+        .plan h3 { font-size: 1.35rem; color: var(--navy); }
+        .plan .para-quien { color: var(--mut); font-size: .92rem; margin-bottom: 1rem; }
+        .plan ul { list-style: none; padding: 0; margin: 0 0 1.5rem; display: grid; gap: .55rem; flex: 1; }
+        .plan li { padding-left: 1.6rem; position: relative; font-size: .95rem; color: #33465f; }
+        .plan li::before { content: "✓"; position: absolute; left: 0; color: var(--teal); font-weight: 800; }
+        .plan .btn { justify-content: center; }
+        .cinta { align-self: flex-start; font-size: .72rem; font-weight: 800; color: #fff; background: var(--grad); padding: .25rem .75rem; border-radius: 999px; margin-bottom: .8rem; }
+        .plan:not(.sel) .btn-p { background: #fff; color: var(--navy); border: 1.5px solid var(--line); box-shadow: none; animation: none; }
+        .plan:not(.sel) .btn-p::after { display: none; }
+
+        /* Tus datos (sección oscura) */
+        .seg { background: linear-gradient(160deg, #101c33, #14233a 55%, #10314a); color: #dfe8f5; }
+        .seg h2 { color: #fff; } .seg .lead { color: #aebfd6; }
+        .seg .tarjeta { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.1); }
+        .seg .tarjeta h3 { color: #fff; } .seg .tarjeta p { color: #aebfd6; }
+        .seg .ico { background: rgba(31,181,197,.18); }
+        .leyes { margin-top: 36px; display: grid; gap: 10px; }
+        .ley { border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: rgba(255,255,255,.04); overflow: hidden; transition: border-color .25s, background .25s; }
+        .ley.abierta { border-color: rgba(31,181,197,.6); background: rgba(31,181,197,.08); }
+        .ley button { width: 100%; text-align: left; background: none; border: 0; color: #fff; padding: 16px 20px; display: flex; align-items: center; gap: .8rem; cursor: pointer; font-weight: 700; font-size: 1rem; }
+        .ley button small { color: #8ee4ee; font-weight: 800; letter-spacing: .04em; min-width: 108px; }
+        .ley button::after { content: "+"; margin-left: auto; font-size: 1.3rem; color: #8ee4ee; transition: transform .25s; }
+        .ley.abierta button::after { transform: rotate(45deg); }
+        .ley .det { max-height: 0; overflow: hidden; transition: max-height .4s ease; }
+        .ley .det p { margin: 0; padding: 0 20px 18px; color: #c3d2e6; }
+        .ley.abierta .det { max-height: 260px; }
+
+        /* Misión y visión: se abre la que eliges */
+        .mv-lista { display: grid; gap: 14px; max-width: 860px; margin: 0 auto; }
+        .mv-item { border-radius: 22px; border: 2px solid var(--line); background: #fff; cursor: pointer; transition: border-color .3s, box-shadow .3s; overflow: hidden; }
+        .mv-item:hover { box-shadow: 0 14px 30px rgba(20,35,58,.08); }
+        .mv-item.abierta { border-color: transparent; background: linear-gradient(170deg, #f0fbfd, #fff 60%) padding-box, var(--grad) border-box; box-shadow: 0 20px 44px rgba(36,89,176,.16); }
+        .mv-cab { display: flex; align-items: center; gap: 1rem; padding: 20px 24px; }
+        .mv-cab .ico { margin: 0; width: 48px; height: 48px; }
+        .mv-cab h3 { margin: 0; font-size: 1.35rem; color: var(--navy); }
+        .mv-cab span { margin-left: auto; color: var(--mut); font-size: .9rem; }
+        .mv-txt { max-height: 0; overflow: hidden; transition: max-height .45s ease; }
+        .mv-txt p { margin: 0; padding: 0 24px 24px 88px; font-size: 1.05rem; color: #33465f; }
+        .mv-item.abierta .mv-txt { max-height: 320px; }
+
+        /* Lo que viene: se pincha y muestra un resumen */
+        .viene { display: flex; flex-wrap: wrap; gap: .7rem; justify-content: center; margin-top: 1.4rem; }
+        .viene button { border: 1.5px solid var(--line); border-radius: 999px; padding: .6rem 1.15rem; font-weight: 700; color: var(--navy); background: #fff; cursor: pointer; transition: transform .2s, box-shadow .2s, background .3s, color .3s; }
+        .viene button:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(36,89,176,.14); }
+        .viene button.sel { background: var(--grad); color: #fff; border-color: transparent; }
+        .viene-det { max-width: 720px; margin: 1.2rem auto 0; background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; text-align: left; box-shadow: 0 16px 36px rgba(20,35,58,.07); }
+        .viene-det h4 { margin: 0 0 .4rem; color: var(--navy); font-size: 1.15rem; display: flex; align-items: center; gap: .6rem; }
+        .viene-det h4 em { font-style: normal; font-size: .72rem; font-weight: 800; background: #fff1d1; color: #a56a00; padding: .2rem .6rem; border-radius: 999px; }
+        .viene-det p { margin: 0; color: #33465f; }
+
+        /* Llamado final */
+        .cta { background: var(--grad-mov); background-size: 300% 100%; animation: fluir 10s ease-in-out infinite; color: #fff; border-radius: 30px; padding: 56px 40px; text-align: center; position: relative; overflow: hidden; }
+        .cta h2 { color: #fff; } .cta p { color: rgba(255,255,255,.9); max-width: 620px; margin: 0 auto 1.6rem; font-size: 1.08rem; }
+        .cta .acciones { display: flex; gap: .8rem; justify-content: center; flex-wrap: wrap; position: relative; }
+        .cta .burbuja { opacity: .25; }
+
+        /* Pie */
+        footer { border-top: 1px solid var(--line); padding: 40px 0; color: var(--mut); font-size: .92rem; background: #fff; }
+        footer .wrap { display: flex; gap: 1.5rem; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        footer nav { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+        footer a { text-decoration: none; } footer a:hover { color: var(--navy); }
+
+        /* Luz azul que sigue al mouse (se queda un poco atrás, como una estela suave) */
+        .luz { position: fixed; left: 0; top: 0; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; z-index: 0;
+               background: radial-gradient(circle, rgba(31,181,197,.16) 0%, rgba(36,89,176,.08) 40%, transparent 68%); opacity: 0; transition: opacity .6s; will-change: transform; display: grid; place-items: center; }
+        .luz.on { opacity: 1; }
+        .luz svg { width: 46px; height: 46px; filter: drop-shadow(0 0 10px rgba(31,181,197,.7)) drop-shadow(0 0 22px rgba(36,89,176,.35)); animation: destello 4s ease-in-out infinite; opacity: .85; }
+        @@keyframes destello { 0%,100% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(45deg) scale(.82); } }
+        /* Estrellas del logo en el fondo: bajan y suben suavemente al moverse por la página */
+        .estrellas { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .estrellas svg { position: absolute; opacity: .22; filter: drop-shadow(0 0 12px rgba(31,181,197,.5)); will-change: transform; }
+        main, header, footer { position: relative; z-index: 1; }
+
+        /* Botón "Conocer AUKA": el azul sigue al mouse dentro del botón */
+        .btn-g { background: radial-gradient(160px circle at var(--mx, 50%) var(--my, 50%), rgba(31,181,197,.22), transparent 70%), #fff; }
+        .btn-g:hover { background: radial-gradient(160px circle at var(--mx, 50%) var(--my, 50%), rgba(31,181,197,.28), transparent 70%) padding-box, linear-gradient(#fff, #fff) padding-box, var(--grad) border-box; }
+
+        /* Tarjetas: brillo que sigue al mouse y degradé que se mueve lento */
+        .tarjeta::after, .modulo::after, .plan::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s;
+               background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(36,89,176,.10), transparent 60%); }
+        .tarjeta:hover::after, .modulo:hover::after, .plan:hover::after { opacity: 1; }
+        .modulo, .plan { position: relative; overflow: hidden; }
+        .tono-t, .tono-b, .tono-v, .modulo.psi, .modulo.ges { background-size: 200% 200%; animation: respirar 12s ease-in-out infinite; }
+        .tono-b, .modulo.ges { animation-delay: -4s; } .tono-v { animation-delay: -8s; }
+        @@keyframes respirar { 0%,100% { background-position: 0% 0%; } 50% { background-position: 100% 100%; } }
+
+        /* Borde con degradé que gira alrededor de la tarjeta elegida */
+        @@property --ang { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+        .quien.sel, .plan.sel, .mv-item.abierta {
+            background: linear-gradient(#fff, #fff) padding-box,
+                        conic-gradient(from var(--ang), var(--navy), var(--blue), var(--teal), #8fb6ff, var(--navy)) border-box;
+            animation: girar 5s linear infinite;
+        }
+        .plan.sel { background: linear-gradient(170deg, #f0fbfd, #fff 55%) padding-box, conic-gradient(from var(--ang), var(--navy), var(--blue), var(--teal), #8fb6ff, var(--navy)) border-box; }
+        .mv-item.abierta { background: linear-gradient(170deg, #f0fbfd, #fff 60%) padding-box, conic-gradient(from var(--ang), var(--navy), var(--blue), var(--teal), #8fb6ff, var(--navy)) border-box; }
+        @@keyframes girar { to { --ang: 360deg; } }
+
+        /* Al bajar: transición suave, sin difuminado */
+        .foco { transition: opacity .35s ease-out, transform .45s ease-out; will-change: opacity, transform; }
+
+        /* Las animaciones de una sección se pausan cuando no está en pantalla */
+        .pausa *, .pausa *::before, .pausa *::after { animation-play-state: paused !important; }
+
+        /* ===== Modo liviano: mismo diseño y color, sin efectos pesados ===== */
+        .liviano .estrellas, .liviano .luz { display: none; }
+        .liviano .fondo i { will-change: auto; }
+        .liviano .burbuja { animation: none; filter: none; }
+        .liviano .demo .card .in, .liviano .hero h1 span, .liviano .btn-p, .liviano .cta,
+        .liviano .tono-t, .liviano .tono-b, .liviano .tono-v, .liviano .modulo.psi, .liviano .modulo.ges,
+        .liviano .quien.sel, .liviano .plan.sel, .liviano .mv-item.abierta { animation: none; }
+        .liviano .btn-p::after { display: none; }
+        .liviano .nav { backdrop-filter: none; background: rgba(255,255,255,.97); }
+        .liviano .tarjeta::after, .liviano .modulo::after, .liviano .plan::after { display: none; }
+        .liviano .foco { transform: none !important; opacity: 1 !important; }
+
+        /* Aparición al bajar */
+        .rev { opacity: 0; transform: translateY(26px); transition: opacity .7s ease, transform .7s ease; }
+        .rev.vis { opacity: 1; transform: none; }
+        .rev.d1 { transition-delay: .08s; } .rev.d2 { transition-delay: .16s; } .rev.d3 { transition-delay: .24s; } .rev.d4 { transition-delay: .32s; }
+        .tarjeta.rev.vis:hover, .plan.rev.vis:hover { transition-delay: 0s; }
+
+        /* Si el computador tiene "efectos de animación" apagados: solo se quietan las burbujas y lo que flota;
+           los números, estados, colores y pantallas de ejemplo siguen funcionando. */
+        @@media (prefers-reduced-motion: reduce) {
+            .burbuja, .demo .card .in { animation: none !important; }
+            .demo .card { transform: none !important; }
+            html { scroll-behavior: auto; }
+        }
+        @@media (max-width: 980px) {
+            .hero .wrap, .vitrina { grid-template-columns: 1fr; }
+            .demo { min-height: 470px; max-width: 520px; }
+            .g5 { grid-template-columns: repeat(3, 1fr); }
+            .g3 { grid-template-columns: 1fr 1fr; }
+        }
+        @@media (max-width: 760px) {
+            section { padding: 60px 0; }
+            .links { display: none; position: absolute; top: 68px; left: 0; right: 0; background: #fff; flex-direction: column; gap: 0; border-bottom: 1px solid var(--line); padding: .5rem 20px 1rem; }
+            .links.abierto { display: flex; }
+            .links a { padding: .7rem 0; border-bottom: 1px solid var(--line); }
+            .links a::after { display: none; }
+            .links .solo-cel { display: block; font-weight: 800; }
+            .menu-btn { display: block; }
+            .nav .btn { display: none; }
+            .g5, .g3, .g2 { grid-template-columns: 1fr; }
+            .para .g5 { grid-template-columns: 1fr 1fr; }
+            .demo { min-height: 0; }
+            .demo .card { position: static; width: auto !important; margin-bottom: 12px; transform: none !important; }
+            .vitrina { padding: 20px; }
+            .mv-txt p { padding: 0 20px 22px; }
+            .cta { padding: 40px 22px; border-radius: 24px; }
+            .ley button { flex-wrap: wrap; } .ley button small { min-width: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="fondo" aria-hidden="true"><i class="m1"></i><i class="m2"></i></div>
+    <div class="progreso" aria-hidden="true"></div>
+    <div class="estrellas" aria-hidden="true">
+        <svg viewBox="0 0 100 100" data-v="420" style="width:70px;top:18%;left:7%"><use href="#estrella" /></svg>
+        <svg viewBox="0 0 100 100" data-v="-380" style="width:44px;top:62%;left:90%"><use href="#estrella" /></svg>
+        <svg viewBox="0 0 100 100" data-v="-520" style="width:30px;top:84%;left:24%"><use href="#estrella" /></svg>
+        <svg viewBox="0 0 100 100" data-v="300" style="width:54px;top:38%;left:56%;opacity:.12"><use href="#estrella" /></svg>
+    </div>
+    <div class="luz" id="luz" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#estrella" /></svg></div>
+    <!-- Estrella de 4 puntas como la del logo de AUKA -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <defs>
+            <linearGradient id="gEstrella" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9cf0f6" /><stop offset=".55" stop-color="#1fb5c5" /><stop offset="1" stop-color="#2459b0" /></linearGradient>
+            <symbol id="estrella" viewBox="0 0 100 100"><path fill="url(#gEstrella)" d="M50 0 C54 34 66 46 100 50 C66 54 54 66 50 100 C46 66 34 54 0 50 C34 46 46 34 50 0Z" /></symbol>
+        </defs>
+    </svg>
+
+    <!-- Barra superior -->
+    <header class="nav">
+        <div class="wrap">
+            <a href="/" class="marca"><img src="~/img/auka-icono.png" alt="" /><b>AUKA</b></a>
+            <nav class="links" id="links">
+                <a href="#que-es">Qué es</a>
+                <a href="#para-quien">Para quién</a>
+                <a href="#modulos">Módulos</a>
+                <a href="#planes">Planes</a>
+                <a href="#seguridad">Tus datos</a>
+                <a href="#nosotros">Nosotros</a>
+                <a asp-controller="Account" asp-action="Login" class="solo-cel" style="color:var(--navy)">Ingresar →</a>
+            </nav>
+            <a asp-controller="Account" asp-action="Login" class="btn btn-p">Ingresar</a>
+            <button class="menu-btn" id="menuBtn" aria-label="Abrir menú">☰</button>
+        </div>
+    </header>
+
+    <main>
+    <!-- Portada -->
+    <section class="hero" id="inicio">
+        <span class="burbuja b1"></span><span class="burbuja b2"></span><span class="burbuja b3"></span>
+        <div class="wrap">
+            <div>
+                <div class="eyebrow">Plataforma de acompañamiento</div>
+                <h1><span>Acompañar sin dejar a nadie atrás</span></h1>
+                <p class="lead">AUKA ayuda a los equipos de colegios, empresas e instituciones a acompañar a las personas: su bienestar, su seguimiento y la comunicación con sus familias, todo en un solo lugar y fácil de usar.</p>
+                <div class="acciones">
+                    <a asp-controller="Contacto" asp-action="Index" class="btn btn-p">Solicita una cotización</a>
+                    <a href="#que-es" class="btn btn-g">Conocer AUKA</a>
+                </div>
+                <div class="nota"><span>Fácil de usar</span><span>Desde el computador o el celular</span><span>Datos protegidos</span></div>
+            </div>
+
+            <!-- Ejemplo ilustrativo (no son datos reales) -->
+            <div class="demo" id="demo" aria-hidden="true">
+                <div class="card c1" data-f="14"><div class="in">
+                    <div class="t">Citaciones de la semana</div>
+                    <div class="fila"><div class="avatar">MP</div>Entrevista con apoderada<span class="chip ok">Confirmada</span></div>
+                    <div class="fila"><div class="avatar">JR</div>Seguimiento mensual<span class="chip pend" id="chipVivo">Por confirmar</span></div>
+                    <div class="fila"><div class="avatar">AL</div>Taller grupal<span class="chip info">Mañana</span></div>
+                </div></div>
+                <div class="card c2" data-f="26"><div class="in">
+                    <div class="t">Acompañamiento al día</div>
+                    <div class="num"><span id="cuenta">0</span>%</div>
+                    <div style="color:var(--mut);font-size:.85rem">de los seguimientos del mes</div>
+                    <div class="barra"><i id="barraVivo"></i></div>
+                </div></div>
+                <div class="card c3" data-f="38"><div class="in">
+                    <div class="t">Aviso</div>
+                    <div style="font-size:.9rem" id="avisoVivo">📩 La familia recibió la citación por correo</div>
+                </div></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Qué es -->
+    <section id="que-es">
+        <div class="wrap">
+            <div class="titulo-sec center rev">
+                <div class="eyebrow">Qué es AUKA</div>
+                <h2>Una plataforma hecha para acompañar personas</h2>
+                <p class="lead">Ordena el trabajo del equipo que cuida a otros, para que nadie se pierda en planillas, cuadernos o correos sueltos.</p>
+            </div>
+            <div class="grid g3">
+                <div class="tarjeta tono-t rev d1"><div class="ico">🤝</div><h3>Acompañar</h3><p>Cada persona tiene su ficha, sus citaciones y su historial. El equipo sabe en qué va cada caso y a quién le toca.</p></div>
+                <div class="tarjeta tono-b rev d2"><div class="ico">🗓️</div><h3>Coordinar</h3><p>Calendario compartido, citaciones que llegan por correo y respuestas de las familias: confirmar, cambiar la fecha o avisar.</p></div>
+                <div class="tarjeta tono-v rev d3"><div class="ico">🛡️</div><h3>Proteger</h3><p>La información sensible se guarda con segunda clave y cada organización ve solo lo suyo.</p></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Para quién -->
+    <section id="para-quien" class="para">
+        <div class="wrap">
+            <div class="titulo-sec center rev">
+                <div class="eyebrow">Para quién</div>
+                <h2>Para quien necesite acompañar</h2>
+                <p class="lead">AUKA se adapta a cada organización. Elige una y mira cómo se ve.</p>
+            </div>
+            <div class="grid g5" id="quienes">
+                <div class="tarjeta quien tono-t rev d1 sel" data-q="colegio"><div class="ico">🏫</div><h3>Colegios</h3><p>Equipo psicosocial, orientación y familias.</p></div>
+                <div class="tarjeta quien tono-b rev d2" data-q="instituto"><div class="ico">🎓</div><h3>Institutos</h3><p>Seguimiento y bienestar estudiantil.</p></div>
+                <div class="tarjeta quien tono-v rev d3" data-q="empresa"><div class="ico">🏢</div><h3>Empresas</h3><p>Bienestar laboral y protocolos.</p></div>
+                <div class="tarjeta quien tono-t rev d4" data-q="fundacion"><div class="ico">💙</div><h3>Fundaciones</h3><p>Casos, visitas y redes de apoyo.</p></div>
+                <div class="tarjeta quien tono-b rev d4" data-q="particular"><div class="ico">🧑‍⚕️</div><h3>Profesionales</h3><p>Psicólogos y trabajadores sociales.</p></div>
+            </div>
+
+            <div class="vitrina rev" aria-live="polite">
+                <div>
+                    <div class="eyebrow" id="vEye">Así se ve en un colegio</div>
+                    <h3 id="vTit">Alumnos, apoderados y equipo, conectados</h3>
+                    <ul id="vLista"></ul>
+                </div>
+                <div class="pantalla" aria-hidden="true">
+                    <div class="barra-v"><i></i><i></i><i></i><span id="vVentana">AUKA · Panel psicosocial</span></div>
+                    <div class="cuerpo" id="vCuerpo"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Módulos -->
+    <section id="modulos">
+        <div class="wrap">
+            <div class="titulo-sec center rev">
+                <div class="eyebrow">Módulos</div>
+                <h2>Todo lo que tu equipo necesita</h2>
+                <p class="lead">Activamos solo lo que tu organización usa. Si necesitas algo más o algo menos, lo ajustamos contigo.</p>
+            </div>
+            <div class="grid g2">
+                <div class="modulo psi rev d1">
+                    <span class="etq psi">Módulo Psicosocial</span>
+                    <h3 style="font-size:1.45rem;color:var(--navy)">Bienestar y acompañamiento</h3>
+                    <p style="color:var(--mut);margin:0">Para psicólogos, trabajadores sociales y orientadores.</p>
+                    <ul>
+                        <li>Ficha de cada persona con su historial y registros</li>
+                        <li>Citaciones con aviso por correo y confirmación</li>
+                        <li>Portal para alumnos, pacientes y familias</li>
+                        <li>Seguimiento mensual, visitas, derivaciones y protocolos</li>
+                        <li>Calendario y bitácora del equipo, compartidos o separados</li>
+                        <li>Alertas de casos que necesitan atención</li>
+                    </ul>
+                </div>
+                <div class="modulo ges rev d2">
+                    <span class="etq ges">Gestión escolar · Premium</span>
+                    <h3 style="font-size:1.45rem;color:var(--navy)">El colegio completo</h3>
+                    <p style="color:var(--mut);margin:0">Para colegios e institutos que quieren todo en un solo lugar.</p>
+                    <ul>
+                        <li>Todo el módulo psicosocial</li>
+                        <li>Cursos, notas y calendario de evaluaciones</li>
+                        <li>Horarios de clases y libro de anotaciones</li>
+                        <li>Clubes y talleres</li>
+                        <li>Paneles para dirección, docentes, apoderados y alumnos</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cómo empezar -->
+    <section>
+        <div class="wrap">
+            <div class="titulo-sec center rev">
+                <div class="eyebrow">Cómo empezar</div>
+                <h2>Simple, y te acompañamos en cada paso</h2>
+            </div>
+            <div class="grid g3 pasos">
+                <div class="tarjeta paso tono-t rev d1"><h3>Conversemos</h3><p>Nos cuentas cómo trabaja tu equipo y qué necesitas.</p></div>
+                <div class="tarjeta paso tono-b rev d2"><h3>Lo dejamos a tu medida</h3><p>Activamos los módulos y permisos que tu organización usa, y sacamos lo que no.</p></div>
+                <div class="tarjeta paso tono-v rev d3"><h3>Tu equipo trabaja</h3><p>Seguimos cerca: si algo necesita cambiar, lo ajustamos contigo.</p></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Planes -->
+    <section id="planes">
+        <div class="wrap">
+            <div class="titulo-sec center rev">
+                <div class="eyebrow">Planes</div>
+                <h2>Elige cómo quieres acompañar</h2>
+                <p class="lead">Toca un plan para compararlo. Cada organización es distinta: por eso el valor se cotiza según tu tamaño y lo que necesites.</p>
+            </div>
+            <div class="grid g3" id="planes-lista">
+                <div class="plan rev d1" tabindex="0">
+                    <h3>Plan Psicosocial</h3>
+                    <div class="para-quien">Para colegios que quieren ordenar su equipo psicosocial.</div>
+                    <ul>
+                        <li>Psicólogo, trabajador social y orientador</li>
+                        <li>Fichas, seguimiento y protocolos</li>
+                        <li>Citaciones por correo y portal para familias</li>
+                        <li>Administración del colegio: alumnos y equipo</li>
+                    </ul>
+                    <a asp-controller="Contacto" asp-action="Index" class="btn btn-p">Solicitar cotización</a>
+                </div>
+                <div class="plan rev d2 sel" tabindex="0">
+                    <span class="cinta">El más completo</span>
+                    <h3>Plan Premium</h3>
+                    <div class="para-quien">Para colegios e institutos que quieren todo en AUKA.</div>
+                    <ul>
+                        <li>Todo el Plan Psicosocial</li>
+                        <li>Gestión escolar: notas, horarios y anotaciones</li>
+                        <li>Clubes, talleres y calendario de evaluaciones</li>
+                        <li>Paneles para cada rol del colegio</li>
+                    </ul>
+                    <a asp-controller="Contacto" asp-action="Index" class="btn btn-p">Solicitar cotización</a>
+                </div>
+                <div class="plan rev d3" tabindex="0">
+                    <h3>Plan Organización</h3>
+                    <div class="para-quien">Para empresas, fundaciones y profesionales particulares.</div>
+                    <ul>
+                        <li>Psicólogo, trabajador social y orientador</li>
+                        <li>Fichas de pacientes con sus datos de contacto</li>
+                        <li>Solo las planillas que tu organización necesita</li>
+                        <li>Citaciones con asistencia y alertas de inactividad</li>
+                    </ul>
+                    <a asp-controller="Contacto" asp-action="Index" class="btn btn-p">Solicitar cotización</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tus datos -->
+    <section id="seguridad" class="seg">
+        <div class="wrap">
+            <div class="titulo-sec center rev">
+                <div class="eyebrow" style="color:var(--teal)">Tus datos</div>
+                <h2>La información de las personas, protegida</h2>
+                <p class="lead">AUKA está pensado para cuidar información sensible y para acompañar el cumplimiento de las leyes chilenas que protegen a las personas.</p>
+            </div>
+            <div class="grid g3">
+                <div class="tarjeta rev d1"><div class="ico">🏛️</div><h3>Cada uno ve lo suyo</h3><p>Cada organización solo ve su propia información, y cada rol solo lo que le corresponde.</p></div>
+                <div class="tarjeta rev d2"><div class="ico">🔐</div><h3>Segunda clave</h3><p>Las fichas confidenciales piden una segunda clave personal antes de abrirse.</p></div>
+                <div class="tarjeta rev d3"><div class="ico">💾</div><h3>Respaldos diarios</h3><p>La información se respalda todos los días y no se comparte con terceros, salvo obligación legal.</p></div>
+            </div>
+
+            <div class="center rev" style="margin-top:46px">
+                <div class="eyebrow" style="color:var(--teal)">Leyes que consideramos</div>
+                <h3 style="color:#fff;font-size:1.35rem">Toca cada una para ver cómo la aplica AUKA</h3>
+            </div>
+            <div class="leyes" id="leyes">
+                <div class="ley rev abierta"><button type="button"><small>Ley 21.719</small>Protección de datos personales</button>
+                    <div class="det"><p>Aceptación de la política de privacidad y de los términos al primer ingreso, acceso solo a lo necesario según el rol, y derecho de cada persona a conocer y pedir la corrección de sus datos. La información que la ley obliga a conservar no se elimina antes de tiempo.</p></div></div>
+                <div class="ley rev"><button type="button"><small>Ley 19.628</small>Protección de la vida privada</button>
+                    <div class="det"><p>Los datos se usan solo para el acompañamiento de la persona, dentro de su organización. No se venden ni se comparten con terceros, salvo que la ley lo exija (por ejemplo, un tribunal).</p></div></div>
+                <div class="ley rev"><button type="button"><small>Ley 20.584</small>Derechos y deberes de los pacientes</button>
+                    <div class="det"><p>Las fichas y bitácoras de los profesionales son confidenciales: se abren con segunda clave y solo las ve el equipo que corresponde. Cada registro queda con quién lo hizo y cuándo.</p></div></div>
+                <div class="ley rev"><button type="button"><small>Ley 21.643</small>Ley Karin · acoso y violencia en el trabajo</button>
+                    <div class="det"><p>En empresas, AUKA tiene fichas para registrar casos, informes y seguimiento de las medidas, con acceso restringido al equipo a cargo.</p></div></div>
+                <div class="ley rev"><button type="button"><small>Ley 20.536</small>Violencia escolar y convivencia</button>
+                    <div class="det"><p>En colegios, AUKA incluye protocolos de maltrato escolar, derivaciones a convivencia y seguimiento de cada caso, con avisos al apoderado cuando corresponde.</p></div></div>
+                <div class="ley rev"><button type="button"><small>Ley 21.430</small>Garantías y protección de la niñez</button>
+                    <div class="det"><p>Fichas de vulneración de derechos y protocolo de riesgo vital, para que el equipo actúe a tiempo y deje registro de cada paso. Los alumnos más pequeños no tienen cuenta propia: su apoderado recibe y confirma todo.</p></div></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Misión y visión -->
+    <section id="nosotros">
+        <div class="wrap">
+            <div class="titulo-sec center rev">
+                <div class="eyebrow">Nosotros</div>
+                <h2>Tecnología cercana, para ayudar a las personas</h2>
+            </div>
+            <div class="mv-lista" id="mv">
+                <div class="mv-item abierta rev d1">
+                    <div class="mv-cab"><div class="ico" style="background:#c9f1f5">🎯</div><h3>Misión</h3><span>Toca para ver</span></div>
+                    <div class="mv-txt"><p>Ayudar a las personas a través de quienes las acompañan, entregando a colegios, empresas e instituciones una plataforma simple y segura para cuidar el bienestar, el seguimiento y la comunicación con las familias. Estamos cerca de cada cliente: escuchamos, ajustamos lo que necesita y lo acompañamos para que se sienta cómodo usando AUKA.</p></div>
+                </div>
+                <div class="mv-item rev d2">
+                    <div class="mv-cab"><div class="ico" style="background:#e0dbff">🌱</div><h3>Visión</h3><span>Toca para ver</span></div>
+                    <div class="mv-txt"><p>Ser la plataforma de acompañamiento de confianza en Chile y Latinoamérica, reconocida por su cercanía con las personas y por actualizarse cada día con la tecnología que hoy facilita el trabajo de los equipos, sin dejar a nadie atrás.</p></div>
+                </div>
+            </div>
+
+            <div class="center rev" style="margin-top:56px">
+                <div class="eyebrow">Lo que viene</div>
+                <h3 style="font-size:1.4rem;color:var(--navy)">AUKA sigue creciendo</h3>
+                <div class="viene" id="viene">
+                    <button type="button" class="sel" data-v="0">📱 App móvil</button>
+                    <button type="button" data-v="1">💳 Pago en línea</button>
+                    <button type="button" data-v="2">📝 Informes en línea</button>
+                    <button type="button" data-v="3">📊 Importación inteligente</button>
+                    <button type="button" data-v="4">✅ Asistencia digital</button>
+                    <button type="button" data-v="5">🌎 Chile y Latinoamérica</button>
+                </div>
+                <div class="viene-det" id="vieneDet"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Llamado final -->
+    <section style="padding-top:0">
+        <div class="wrap">
+            <div class="cta rev">
+                <span class="burbuja b1"></span><span class="burbuja b2"></span>
+                <h2>¿Conversamos?</h2>
+                <p>Cuéntanos cómo trabaja tu equipo y te mostramos cómo AUKA puede acompañarlos.</p>
+                <div class="acciones">
+                    <a asp-controller="Contacto" asp-action="Index" class="btn btn-w">Solicita una cotización</a>
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-o">Ya tengo cuenta · Ingresar</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    </main>
+
+    <!-- Pie -->
+    <footer>
+        <div class="wrap">
+            <a href="/" class="marca"><img src="~/img/auka-icono.png" alt="" style="width:32px" /><b style="font-size:1.1rem">AUKA</b></a>
+            <nav>
+                <a href="/Legal/Privacidad">Política de privacidad</a>
+                <a href="/Legal/Terminos">Términos y condiciones</a>
+                <a asp-controller="Contacto" asp-action="Index">Contacto</a>
+                <a href="mailto:auka.plataforma@@gmail.com">auka.plataforma@@gmail.com</a>
+            </nav>
+            <div>© @DateTime.Now.Year AUKA · Acompañar sin dejar a nadie atrás</div>
+        </div>
+    </footer>
+
+    <script>
+    (function () {
+        var $ = function (s, c) { return (c || document).querySelector(s); };
+        var $$ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
+        var quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;   // solo apaga el seguimiento del mouse
+
+        // Menú del celular
+        var lk = $('#links');
+        $('#menuBtn').addEventListener('click', function () { lk.classList.toggle('abierto'); });
+        lk.addEventListener('click', function (e) { if (e.target.tagName === 'A') lk.classList.remove('abierto'); });
+
+        var LIVIANO = document.documentElement.classList.contains('liviano');
+
+        // Todo lo que depende del scroll se calcula una sola vez por cuadro
+        var secciones = $$('section[id]'), enlaces = $$('#links a'), barraP = $('.progreso');
+        var m1 = $('.fondo .m1'), m2 = $('.fondo .m2'), estrellasFondo = $$('.estrellas svg');
+        var pendiente = false, ultimoActual = null;
+        var alBajar = function () {
+            pendiente = false;
+            var max = document.documentElement.scrollHeight - innerHeight;
+            var p = max > 0 ? Math.min(1, Math.max(0, scrollY / max)) : 0;
+            barraP.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+            if (!LIVIANO) {
+                m1.style.transform = 'translate(' + (-p * 700) + 'px,' + (p * 900) + 'px)';
+                m2.style.transform = 'translate(' + (p * 800) + 'px,' + (-p * 500) + 'px)';
+                estrellasFondo.forEach(function (e) { e.style.transform = 'translateY(' + (p * (+e.dataset.v)) + 'px) rotate(' + (p * 180) + 'deg)'; });
+            }
+            var actual = '';
+            for (var i = 0; i < secciones.length; i++) { if (secciones[i].getBoundingClientRect().top < 140) actual = secciones[i].id; else break; }
+            if (actual !== ultimoActual) { ultimoActual = actual; enlaces.forEach(function (a) { a.classList.toggle('act', a.getAttribute('href') === '#' + actual); }); }
+            if (!LIVIANO) enfocar();
+        };
+        var pedirCuadro = function () { if (!pendiente) { pendiente = true; requestAnimationFrame(alBajar); } };
+        addEventListener('scroll', pedirCuadro, { passive: true });
+        addEventListener('resize', pedirCuadro);
+
+        // Pausar animaciones de las secciones que no están en pantalla
+        if ('IntersectionObserver' in window) {
+            var vis = new IntersectionObserver(function (en) { en.forEach(function (x) { x.target.classList.toggle('pausa', !x.isIntersecting); }); }, { rootMargin: '120px' });
+            $$('section').forEach(function (s) { vis.observe(s); });
+        }
+
+        // Aparición suave al bajar
+        var io = 'IntersectionObserver' in window ? new IntersectionObserver(function (en) {
+            en.forEach(function (x) { if (x.isIntersecting) { x.target.classList.add('vis'); io.unobserve(x.target); } });
+        }, { threshold: .12 }) : null;
+        $$('.rev').forEach(function (e) { if (io) io.observe(e); else e.classList.add('vis'); });
+
+        // Tarjetas de la portada: siguen el mouse (se mueven hacia los lados)
+        var demo = $('#demo');
+        if (demo && !quieto && !LIVIANO) {
+            $('.hero').addEventListener('mousemove', function (e) {
+                if (innerWidth < 760) return;
+                var r = demo.getBoundingClientRect();
+                var dx = (e.clientX - (r.left + r.width / 2)) / r.width, dy = (e.clientY - (r.top + r.height / 2)) / r.height;
+                $$('.card', demo).forEach(function (c) { var f = +c.dataset.f; c.style.transform = 'translate(' + (dx * f) + 'px,' + (dy * f) + 'px)'; });
+            });
+            $('.hero').addEventListener('mouseleave', function () { $$('.card', demo).forEach(function (c) { c.style.transform = ''; }); });
+        }
+
+        // El 78 % sube desde 0 y después se va moviendo; la citación cambia de estado
+        var cuenta = $('#cuenta'), barra = $('#barraVivo'), valor = 0;
+        var animarA = function (meta) {
+            var ini = valor, t0 = performance.now(), dur = 1400;
+            barra.style.width = meta + '%';
+            (function paso(t) {
+                var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+                valor = Math.round(ini + (meta - ini) * e); cuenta.textContent = valor;
+                if (k < 1) requestAnimationFrame(paso);
+            })(t0);
+        };
+        setTimeout(function () { animarA(78); }, 500);
+        {
+            var metas = [80, 83, 79, 85, 82, 78], i = 0;
+            setInterval(function () { animarA(metas[i++ % metas.length]); }, 4200);
+            var chip = $('#chipVivo'), aviso = $('#avisoVivo'), estado = 0;
+            var avisos = ['📩 La familia recibió la citación por correo', '✅ Juan confirmó su citación', '🔔 Nueva solicitud de cita', '📝 Seguimiento registrado'];
+            setInterval(function () {
+                estado = (estado + 1) % 2;
+                chip.className = 'chip ' + (estado ? 'ok' : 'pend'); chip.textContent = estado ? 'Confirmada' : 'Por confirmar';
+                chip.classList.remove('pop'); void chip.offsetWidth; chip.classList.add('pop');
+                aviso.style.opacity = 0;
+                setTimeout(function () { aviso.textContent = avisos[(avisos.indexOf(aviso.textContent) + 1) % avisos.length]; aviso.style.transition = 'opacity .4s'; aviso.style.opacity = 1; }, 300);
+            }, 3000);
+        }
+
+        // Luz azul que sigue al mouse con un pequeño retraso
+        var luz = $('#luz'), lx = innerWidth / 2, ly = innerHeight / 3, tx = lx, ty = ly, moviendo = false;
+        var seguir = function () {
+            lx += (tx - lx) * .09; ly += (ty - ly) * .09;
+            luz.style.transform = 'translate(' + lx.toFixed(1) + 'px,' + ly.toFixed(1) + 'px)';
+            if (Math.abs(tx - lx) + Math.abs(ty - ly) > .5) requestAnimationFrame(seguir); else moviendo = false;   // se detiene cuando llega
+        };
+        if (!LIVIANO && matchMedia('(pointer: fine)').matches) {
+            addEventListener('mousemove', function (e) {
+                tx = e.clientX; ty = e.clientY; luz.classList.add('on');
+                if (!moviendo) { moviendo = true; requestAnimationFrame(seguir); }
+            }, { passive: true });
+            document.addEventListener('mouseleave', function () { luz.classList.remove('on'); });
+        }
+
+        // Brillo dentro de botones y tarjetas: sigue la posición del mouse
+        if (!LIVIANO) $$('.btn-g, .tarjeta, .modulo, .plan').forEach(function (el) {
+            el.addEventListener('mousemove', function (e) {
+                var r = el.getBoundingClientRect();
+                el.style.setProperty('--mx', (e.clientX - r.left) + 'px'); el.style.setProperty('--my', (e.clientY - r.top) + 'px');
+            });
+        });
+
+        // Al bajar: transición suave (los bloques se acercan al centro y se aclaran un poco al alejarse)
+        var focos = $$('.titulo-sec, .grid, .vitrina, .mv-lista, .leyes, .cta');
+        focos.forEach(function (f) { f.classList.add('foco'); });
+        var enfocar = function () {
+            var h = innerHeight;
+            var medidas = focos.map(function (f) { return f.getBoundingClientRect(); });   // primero se mide todo...
+            focos.forEach(function (f, n) {                                                 // ...y después se mueve
+                var r = medidas[n];
+                if (r.bottom < -100 || r.top > h + 100) return;
+                var centro = r.top + Math.min(r.height, h) / 2, d = Math.abs(centro - h / 2) / (h * .75);
+                var k = Math.max(0, Math.min(1, d - .35));        // 0 = en el centro, 1 = lejos
+                var arriba = (r.top + r.height / 2) < h / 2 ? -1 : 1;
+                f.style.opacity = (1 - k * .35).toFixed(3);       // sin difuminado: solo se aclara un poco
+                f.style.transform = 'translateY(' + (arriba * k * 18).toFixed(1) + 'px)';
+            });
+        };
+        setTimeout(pedirCuadro, 50);
+
+        // Para quién: cada organización muestra su ejemplo (ilustrativo, sin datos reales)
+        var VIT = {
+            colegio: { eye: 'Así se ve en un colegio', tit: 'Alumnos, apoderados y equipo, conectados', ven: 'AUKA · Panel psicosocial',
+                lista: ['La psicóloga cita y el apoderado confirma desde su celular', 'Seguimiento mensual y protocolos de convivencia', 'Kínder a 6° básico: todo lo maneja el apoderado'],
+                items: [['🗓️', 'Citación a apoderado · jueves 10:00', 'ok', 'Confirmada'], ['📋', 'Seguimiento mensual · 3° medio A', 'info', 'Al día'], ['⚠️', 'Derivación de profesor jefe', 'pend', 'Por revisar'], ['🤝', 'Compromiso compartido con el profesor jefe', 'ok', 'Enviado']] },
+            instituto: { eye: 'Así se ve en un instituto', tit: 'Bienestar estudiantil ordenado', ven: 'AUKA · Bienestar estudiantil',
+                lista: ['Fichas y seguimiento de cada estudiante', 'Citaciones con confirmación por correo', 'Alertas de quienes dejaron de venir'],
+                items: [['👩‍🎓', 'Entrevista de orientación', 'ok', 'Confirmada'], ['📈', 'Plan de acompañamiento', 'info', 'En curso'], ['⏰', 'Sin asistir hace 60 días', 'pend', 'Alerta'], ['📨', 'Aviso enviado al estudiante', 'ok', 'Enviado']] },
+            empresa: { eye: 'Así se ve en una empresa', tit: 'Bienestar de los trabajadores', ven: 'AUKA · Bienestar laboral',
+                lista: ['Pacientes con su correo personal o de la empresa', 'Casos Ley Karin con acceso restringido', 'Orientación y reintegro laboral'],
+                items: [['🧑‍💼', 'Atención psicológica · paciente', 'ok', 'Asistió'], ['⚖️', 'Caso Ley Karin · medidas', 'info', 'En seguimiento'], ['🔁', 'Reintegro laboral', 'pend', 'Por agendar'], ['🗓️', 'Orientación laboral', 'ok', 'Confirmada']] },
+            fundacion: { eye: 'Así se ve en una fundación', tit: 'Casos y redes de apoyo', ven: 'AUKA · Trabajo social',
+                lista: ['Visitas en terreno y ficha social familiar', 'Beneficios entregados con guía de despacho', 'Coordinación con la red'],
+                items: [['🏠', 'Visita domiciliaria', 'ok', 'Realizada'], ['🎁', 'Entrega de beneficio', 'info', 'Guía lista'], ['🔗', 'Derivación a la red', 'pend', 'Pendiente'], ['👨‍👩‍👧', 'Entrevista familiar', 'ok', 'Agendada']] },
+            particular: { eye: 'Así se ve para un profesional', tit: 'Tu consulta, simple', ven: 'AUKA · Mis pacientes',
+                lista: ['Tus pacientes con su historial', 'Agenda y citaciones por correo', 'Portal para que cada paciente confirme'],
+                items: [['🧑', 'Sesión con paciente · lunes 18:00', 'ok', 'Confirmada'], ['📝', 'Registro de sesión', 'info', 'Guardado'], ['📅', 'Propone otra fecha', 'pend', 'Por responder'], ['📨', 'Recordatorio enviado', 'ok', 'Enviado']] }
+        };
+        var mostrar = function (k) {
+            var v = VIT[k];
+            $('#vEye').textContent = v.eye; $('#vTit').textContent = v.tit; $('#vVentana').textContent = v.ven;
+            $('#vLista').innerHTML = v.lista.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+            $('#vCuerpo').innerHTML = v.items.map(function (it, n) {
+                return '<div class="item" style="animation-delay:' + (n * .12) + 's"><span style="font-size:1.1rem">' + it[0] + '</span>' + it[1] + '<span class="chip ' + it[2] + '">' + it[3] + '</span></div>';
+            }).join('');
+        };
+        var CAMBIOS = { 'Por revisar': ['Revisado', 'ok'], 'Por confirmar': ['Confirmada', 'ok'], 'Por agendar': ['Agendado', 'info'], 'Por responder': ['Respondida', 'ok'],
+                        'Pendiente': ['Derivado', 'ok'], 'Alerta': ['Contactado', 'info'], 'En curso': ['Al día', 'ok'], 'En seguimiento': ['Al día', 'ok'] };
+        setInterval(function () {
+            var chips = $$('#vCuerpo .chip'); if (!chips.length) return;
+            var c = chips[Math.floor(Math.random() * chips.length)], prox = CAMBIOS[c.textContent];
+            if (!prox) { c.dataset.antes = c.dataset.antes || ''; return; }
+            c.dataset.antes = c.textContent + '|' + c.className;
+            c.textContent = prox[0]; c.className = 'chip ' + prox[1] + ' pop';
+            setTimeout(function () { if (!c.dataset.antes) return; var a = c.dataset.antes.split('|'); c.textContent = a[0]; c.className = a[1]; c.dataset.antes = ''; }, 2600);
+        }, 1800);
+
+        $$('#quienes .quien').forEach(function (q) {
+            q.addEventListener('click', function () { $$('#quienes .quien').forEach(function (x) { x.classList.remove('sel'); }); q.classList.add('sel'); mostrar(q.dataset.q); });
+        });
+        mostrar('colegio');
+
+        // Planes: el que tocas se ilumina
+        $$('#planes-lista .plan').forEach(function (p) {
+            var elegir = function () { $$('#planes-lista .plan').forEach(function (x) { x.classList.remove('sel'); }); p.classList.add('sel'); };
+            p.addEventListener('click', function (e) { if (e.target.tagName !== 'A') elegir(); });
+            p.addEventListener('mouseenter', function () { if (innerWidth > 760) elegir(); });
+            p.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elegir(); } });
+        });
+
+        // Leyes: se abre la que tocas
+        $$('#leyes .ley button').forEach(function (b) {
+            b.addEventListener('click', function () { b.parentNode.classList.toggle('abierta'); });
+        });
+
+        // Misión y visión: se abre una y la otra se cierra
+        $$('#mv .mv-item').forEach(function (m) {
+            m.addEventListener('click', function () { $$('#mv .mv-item').forEach(function (x) { x.classList.toggle('abierta', x === m); }); });
+        });
+
+        // Lo que viene: resumen de cada novedad
+        var VIENE = [
+            ['📱 App móvil', 'Las familias, los alumnos y el equipo tendrán AUKA en su celular, con avisos al instante para no perderse ninguna citación.'],
+            ['💳 Pago en línea', 'Cada organización podrá contratar y pagar su plan en línea de forma segura, sin trámites.'],
+            ['📝 Informes en línea', 'Los profesionales podrán redactar sus informes dentro de AUKA desde sus propios formatos y descargarlos listos para firmar e imprimir.'],
+            ['📊 Importación inteligente', 'Subir las planillas que ya usa cada organización, aunque tengan otro formato, y que AUKA ordene los datos sola. Así nadie empieza de cero.'],
+            ['✅ Asistencia digital', 'El profesor pasará lista desde AUKA y la familia recibirá un resumen diario. Cada alumno verá su porcentaje de asistencia por asignatura, con alertas a tiempo cuando se acerque al mínimo para pasar de curso.'],
+            ['🌎 Chile y Latinoamérica', 'AUKA nace en Antofagasta y crece hacia otras regiones de Chile y Latinoamérica, adaptándose a cada lugar sin dejar a nadie atrás.']
+        ];
+        var verViene = function (i) {
+            $$('#viene button').forEach(function (b) { b.classList.toggle('sel', +b.dataset.v === i); });
+            var d = $('#vieneDet');
+            d.innerHTML = '<h4>' + VIENE[i][0] + ' <em>Próximamente</em></h4><p>' + VIENE[i][1] + '</p>';
+            d.classList.remove('aparece'); void d.offsetWidth; d.classList.add('aparece');
+        };
+        $$('#viene button').forEach(function (b) { b.addEventListener('click', function () { verViene(+b.dataset.v); }); });
+        verViene(0);
+    })();
+    </script>
+</body>
+</html>

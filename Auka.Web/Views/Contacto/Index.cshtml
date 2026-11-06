@@ -15,12 +15,15 @@
         .top img{height:38px}.top b{font-size:1.4rem;letter-spacing:.04em}
         .au-btn{background:linear-gradient(120deg,var(--a-navy),var(--a-blue));color:#fff;border:0;border-radius:999px;font-weight:700;padding:.6rem 1.6rem;text-decoration:none;display:inline-block}
         .au-btn:hover{color:#fff;filter:brightness(1.08)}
-        .form-control,.form-select{border-radius:12px}label{font-size:.78rem;font-weight:700;color:var(--a-mut)}
+        .form-control,.form-select{border-radius:12px}
+        .volver{margin-left:auto;display:inline-flex;align-items:center;gap:.5rem;padding:.35rem .9rem .35rem .4rem;border-radius:999px;color:#fff;text-decoration:none;font-weight:600;font-size:.88rem;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);transition:background .2s}
+        .volver .flecha{width:26px;height:26px;border-radius:50%;background:#fff;color:var(--a-navy);display:grid;place-items:center;transition:transform .2s}
+        .volver:hover{color:#fff;background:rgba(255,255,255,.26)}.volver:hover .flecha{transform:translateX(-3px)}label{font-size:.78rem;font-weight:700;color:var(--a-mut)}
     </style>
 </head>
 <body>
     <div class="box">
-        <div class="top"><img src="~/img/auka-icono.png" alt="AUKA" /><b>AUKA</b></div>
+        <div class="top"><a href="/" style="display:flex;align-items:center;gap:.8rem;color:#fff;text-decoration:none"><img src="~/img/auka-icono.png" alt="AUKA" /><b>AUKA</b></a><a href="/" class="volver"><span class="flecha">←</span>Volver al inicio</a></div>
         <div class="p-4">
             <h4 class="fw-bold mb-1">Conversemos</h4>
             <p class="text-secondary">Cuéntanos qué necesitas y te respondemos por correo.</p>
@@ -37,8 +40,8 @@
                             @foreach (var t in (string[])ViewBag.Tipos) { <option>@t</option> }
                         </select></div>
                     <div class="col-md-6"><label>TU NOMBRE*</label><input name="nombre" class="form-control" required maxlength="120" /></div>
-                    <div class="col-md-6"><label>CARGO</label><input name="cargo" class="form-control" maxlength="80" placeholder="Director/a, sostenedor/a..." /></div>
-                    <div class="col-12"><label>COLEGIO</label><input name="colegio" class="form-control" maxlength="140" /></div>
+                    <div class="col-md-6"><label>CARGO</label><input name="cargo" class="form-control" maxlength="80" placeholder="Director/a, psicólogo/a, encargado/a..." /></div>
+                    <div class="col-12"><label>COLEGIO U ORGANIZACIÓN</label><input name="colegio" class="form-control" maxlength="140" /></div>
                     <div class="col-md-6"><label>CORREO*</label><input name="correo" type="email" class="form-control" required maxlength="160" /></div>
                     <div class="col-md-6"><label>TELÉFONO</label><input name="telefono" class="form-control" maxlength="40" /></div>
                     <div class="col-12"><label>MENSAJE*</label><textarea name="mensaje" class="form-control" rows="5" required minlength="5" maxlength="2000"></textarea></div>

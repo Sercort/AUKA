@@ -85,6 +85,14 @@ public class AccountController : Controller
             return View();
         }
 
+        // Alumno/a sin cuenta propia (kínder a 6° básico): lo maneja su apoderado/a
+        if (usuario.Rol == RolUsuario.Estudiante &&
+            await _context.Estudiantes.IgnoreQueryFilters().AnyAsync(e => e.UsuarioId == usuario.Id && !e.AccesoPropio))
+        {
+            ViewBag.Error = "Tu cuenta la maneja tu apoderado/a: pídele que ingrese con su usuario.";
+            return View();
+        }
+
         // Colegio suspendido por la plataforma: sus usuarios no pueden entrar (los datos se conservan)
         if (usuario.Rol != RolUsuario.AdminPlataforma)
         {
@@ -302,9 +310,7 @@ public class AccountController : Controller
                 });
                 await _context.SaveChangesAsync();
 
-                var baseUrl = !string.IsNullOrWhiteSpace(_correoOpt.UrlBase)
-                    ? _correoOpt.UrlBase.TrimEnd('/')
-                    : $"{Request.Scheme}://{Request.Host}";
+                var baseUrl = UrlPublica.Obtener(HttpContext, _correoOpt.UrlBase);
                 var url = $"{baseUrl}/Account/RestablecerPassword?token={token}";
 
                 var html = CorreoPlantilla.Construir(
@@ -610,6 +616,14 @@ public class AccountController : Controller
             return RedirectToAction("Login");
         }
 
+        // Alumno/a sin cuenta propia (kínder a 6° básico): lo maneja su apoderado/a
+        if (usuario.Rol == RolUsuario.Estudiante &&
+            await _context.Estudiantes.IgnoreQueryFilters().AnyAsync(e => e.UsuarioId == usuario.Id && !e.AccesoPropio))
+        {
+            TempData["Error"] = "Tu cuenta la maneja tu apoderado/a: pídele que ingrese con su usuario.";
+            return RedirectToAction("Login");
+        }
+
         var claims = await ConstruirClaimsAsync(usuario);
         var identity = new SystemClaimsIdentity(claims, "AukaAuth");
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
@@ -622,9 +636,12 @@ public class AccountController : Controller
     }
 
     // GET: /Account/Registrar
+    // Fuera de tu PC (producción por internet) nadie se registra solo: los colegios y
+    // organizaciones los creas tú desde tu panel de plataforma. Quien quiera AUKA, escribe en Contacto.
     [HttpGet]
-    public IActionResult Registrar()
+    public IActionResult Registrar([FromServices] IWebHostEnvironment env)
     {
+        if (!env.IsDevelopment()) return RedirectToAction("Index", "Contacto");
         return View();
     }
 
@@ -634,8 +651,10 @@ public class AccountController : Controller
     public async Task<IActionResult> Registrar(
         string nombreColegio, string rbd, string telefonoColegio, string direccion,
         string nombreAdmin, string apellidoAdmin, string rutAdmin, string emailAdmin,
-        string password, string confirmarPassword)
+        string password, string confirmarPassword, [FromServices] IWebHostEnvironment env)
     {
+        if (!env.IsDevelopment()) return RedirectToAction("Index", "Contacto");
+
         if (password != confirmarPassword)
         {
             ViewBag.Error = "Las contraseñas no coinciden.";

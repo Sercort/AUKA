@@ -28,6 +28,10 @@ public class Estudiante
     public string? Telefono { get; set; }
     public string? CorreoContacto { get; set; }   // correo personal o de la empresa
 
+    // ¿Usa la plataforma con su propia cuenta? Kínder a 6° básico: no (todo lo maneja su apoderado/a).
+    // Se marca solo según el curso y el equipo lo puede cambiar en la ficha.
+    public bool AccesoPropio { get; set; } = true;
+
     // Usar EstudianteApoderado en lugar de Apoderado
     public ICollection<EstudianteApoderado> Apoderados { get; set; } = new List<EstudianteApoderado>();
 

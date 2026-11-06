@@ -6,45 +6,63 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Iniciar Sesión - AUKA</title>
+    <title>Iniciar sesión · AUKA</title>
+    <link rel="icon" type="image/png" href="~/img/auka-icono.png" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <style>
-            body {
-                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                padding: 20px 0;
-            }
-
-            .card-login {
-                background: #ffffff;
-                border-radius: 15px;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-                padding: 40px;
-                width: 100%;
-                max-width: 420px;
-            }
-
-            .btn-primary-custom {
-                background-color: #2a5298;
-                border: none;
-                padding: 12px;
-                font-weight: 600;
-            }
-
-                .btn-primary-custom:hover {
-                    background-color: #1e3c72;
-                }
+        /* Colores del logo de AUKA: azul profundo, azul y turquesa */
+        :root { --a-navy: #1a319b; --a-blue: #2459b0; --a-teal: #1fb5c5; }
+        body {
+            background: radial-gradient(1200px 600px at 85% -10%, rgba(31,181,197,.35), transparent 60%),
+                        linear-gradient(135deg, var(--a-navy) 0%, var(--a-blue) 60%, #1b8fb0 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px 16px;
+        }
+        .card-login {
+            background: #ffffff;
+            border-radius: 22px;
+            box-shadow: 0 18px 45px rgba(10, 25, 80, .35);
+            padding: 36px 34px 26px;
+            width: 100%;
+            max-width: 420px;
+        }
+        .logo-login { width: 96px; height: auto; margin-bottom: .35rem; }
+        .marca { font-weight: 800; letter-spacing: .12em; color: var(--a-navy); font-size: 2rem; line-height: 1; margin-bottom: .45rem; }
+        .sello { font-size: 1rem; font-weight: 700; margin-bottom: 1.6rem;
+                 background: linear-gradient(90deg, var(--a-navy), var(--a-blue) 45%, var(--a-teal)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .leyes { font-size: .75rem; color: #5d6f86; line-height: 1.35; }
+        /* Botón "Volver al inicio": píldora de vidrio con el logo */
+        .volver { position: fixed; top: 18px; left: 18px; z-index: 10; display: inline-flex; align-items: center; gap: .55rem;
+                  padding: .45rem 1rem .45rem .5rem; border-radius: 999px; text-decoration: none; color: #fff; font-weight: 600; font-size: .9rem;
+                  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28); backdrop-filter: blur(8px);
+                  box-shadow: 0 6px 18px rgba(10,25,80,.18); transition: background .2s, transform .2s, box-shadow .2s; }
+        .volver .flecha { width: 28px; height: 28px; border-radius: 50%; background: #fff; color: var(--a-navy); display: grid; place-items: center; font-size: 1rem; transition: transform .2s; }
+        .volver:hover { color: #fff; background: rgba(255,255,255,.24); transform: translateY(-1px); box-shadow: 0 10px 24px rgba(10,25,80,.25); }
+        .volver:hover .flecha { transform: translateX(-3px); }
+        @@media (max-width: 560px) { .volver { position: static; align-self: flex-start; margin: 0 0 14px; } body { flex-direction: column; } }
+        .form-control:focus { border-color: var(--a-teal); box-shadow: 0 0 0 .2rem rgba(31,181,197,.2); }
+        .btn-primary-custom {
+            background: linear-gradient(90deg, var(--a-navy), var(--a-blue) 60%, var(--a-teal));
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            transition: filter .15s, transform .15s;
+        }
+        .btn-primary-custom:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .enlace { color: var(--a-blue); }
     </style>
 </head>
 <body>
+    <a href="/" class="volver" aria-label="Volver al inicio de AUKA"><span class="flecha">←</span>Volver al inicio</a>
 
     <div class="card-login text-center">
-        <h2 class="fw-bold text-primary mb-2" style="color: #1e3c72 !important;">AUKA</h2>
-        <p class="text-muted mb-4">Plataforma de Gestión Escolar Integral</p>
+        <img src="~/img/auka-icono.png" alt="AUKA" class="logo-login" />
+        <div class="marca">AUKA</div>
+        <p class="sello">Acompañar sin dejar a nadie atrás</p>
 
         @if (TempData["SuccessMessage"] != null)
         {
@@ -90,25 +108,18 @@
 
         <!-- SECCIÓN REGISTRO DE NUEVO COLEGIO -->
         <div class="border-top pt-3 mt-3">
-            <p class="small text-muted mb-1">¿Tu establecimiento aún no usa AUKA?</p>
-            <a asp-controller="Account" asp-action="Registrar" class="fw-bold text-primary text-decoration-none small">
-                🏫 Registrar un nuevo Colegio / Institución
+            <p class="small text-muted mb-1">¿Tu colegio u organización aún no usa AUKA?</p>
+            <a asp-controller="Contacto" asp-action="Index" class="fw-bold enlace text-decoration-none small">
+                🏫 Contáctanos para conocer AUKA
             </a>
         </div>
 
-        <!-- CUENTAS DEMO: solo se muestran en tu propio computador (localhost), nunca a usuarios reales -->
-        @if (Context.Request.Host.Host is "localhost" or "127.0.0.1")
-        {
-            <div class="mt-3 text-muted small pt-2 border-top">
-                <p class="mb-0 fw-semibold">Cuentas Demo para Probar:</p>
-                <code>admin@auka.cl</code>
-                <br />
-                <small>Claves: <code>123456</code> </small>
-            </div>
-        }
-
-        <!-- Ley 21.719 -->
-        <div class="mt-3 pt-2 border-top small text-muted">
+        <!-- Ley 19.628 y Ley 21.719 -->
+        <div class="leyes mt-3 pt-2 border-top">
+            🔒 Tus datos se tratan conforme a la Ley N° 19.628 y la Ley N° 21.719 de protección de datos personales:
+            cada organización ve solo su información y no se comparte con terceros, salvo obligación legal.
+        </div>
+        <div class="mt-2 small text-muted">
             <a href="/Legal/Privacidad" class="text-muted">Política de privacidad</a> · <a href="/Legal/Terminos" class="text-muted">Términos y condiciones</a>
         </div>
     </div>

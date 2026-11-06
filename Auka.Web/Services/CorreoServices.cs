@@ -1,14 +1,16 @@
 ﻿using System.Net;
-using System.Net.Mail;
 using Auka.Application.Interfaces;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Options;
+using MimeKit;
 
 namespace Auka.Web.Services;
 
 /// <summary>Configuración del correo (sección "Correo" de appsettings.json / secretos de usuario).</summary>
 public class CorreoOptions
 {
-    public bool Habilitado { get; set; } = false;          // false = modo pruebas: no envía, solo simula
+    public bool Habilitado { get; set; } = true;           // true = envía correos reales. Poner false solo para pruebas (simula)
     public string Servidor { get; set; } = "smtp.gmail.com";
     public int Puerto { get; set; } = 587;
     public bool UsarSsl { get; set; } = true;
@@ -42,33 +44,68 @@ public class SmtpCorreoService : ICorreoService
             return (true, true, null);
         }
 
-        try
+        // Gmail solo deja enviar "desde" la misma cuenta con que se inicia sesión
+        var remitente = string.IsNullOrWhiteSpace(_opt.Remitente) ||
+                        (_opt.Servidor.Contains("gmail", StringComparison.OrdinalIgnoreCase) && !string.Equals(_opt.Remitente, _opt.Usuario, StringComparison.OrdinalIgnoreCase))
+            ? _opt.Usuario : _opt.Remitente;
+
+        var msg = new MimeMessage();
+        msg.From.Add(new MailboxAddress(_opt.NombreRemitente, remitente));
+        foreach (var d in lista)
         {
-            using var cliente = new SmtpClient(_opt.Servidor, _opt.Puerto)
-            {
-                EnableSsl = _opt.UsarSsl,
-                Credentials = new NetworkCredential(_opt.Usuario, _opt.Clave),
-                Timeout = 15000
-            };
-            var remitente = string.IsNullOrWhiteSpace(_opt.Remitente) ? _opt.Usuario : _opt.Remitente;
-            using var msg = new MailMessage
-            {
-                From = new MailAddress(remitente, _opt.NombreRemitente),
-                Subject = asunto,
-                Body = cuerpoHtml,
-                IsBodyHtml = true,
-                SubjectEncoding = System.Text.Encoding.UTF8,
-                BodyEncoding = System.Text.Encoding.UTF8
-            };
-            foreach (var d in lista) msg.To.Add(d);
-            await cliente.SendMailAsync(msg, ct);
-            return (true, false, null);
+            if (!MailboxAddress.TryParse(d.Trim(), out var dir)) return (false, false, $"Correo de destino no válido: {d}");
+            msg.To.Add(dir);
         }
-        catch (Exception ex)
+        msg.Subject = asunto;
+        msg.Body = new BodyBuilder { HtmlBody = cuerpoHtml }.ToMessageBody();
+
+        // Envío con MailKit (más estable con Gmail que System.Net.Mail).
+        // Primero el puerto configurado (587 con STARTTLS); si la conexión se corta, se reintenta por 465 (SSL directo).
+        var intentos = new List<(int Puerto, SecureSocketOptions Seg)>
         {
-            _log.LogWarning(ex, "No se pudo enviar el correo a {Destinos}", string.Join(", ", lista));
-            return (false, false, ex.Message);
+            (_opt.Puerto, _opt.Puerto == 465 ? SecureSocketOptions.SslOnConnect : _opt.UsarSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.Auto)
+        };
+        if (_opt.Puerto == 587 && _opt.Servidor.Contains("gmail", StringComparison.OrdinalIgnoreCase))
+            intentos.Add((465, SecureSocketOptions.SslOnConnect));
+
+        string? motivo = null;
+        foreach (var (puerto, seg) in intentos)
+        {
+            try
+            {
+                using var cliente = new SmtpClient { Timeout = 20000 };
+                await cliente.ConnectAsync(_opt.Servidor, puerto, seg, ct);
+                await cliente.AuthenticateAsync(_opt.Usuario, _opt.Clave, ct);
+                await cliente.SendAsync(msg, ct);
+                await cliente.DisconnectAsync(true, ct);
+                return (true, false, null);
+            }
+            catch (AuthenticationException ex)
+            {
+                // La clave no sirve: no tiene sentido probar otro puerto
+                _log.LogWarning(ex, "Gmail rechazó la clave de {Usuario}", _opt.Usuario);
+                return (false, false, "Gmail no aceptó la clave (5.7.8 Username and Password not accepted): usa una contraseña de aplicación de 16 letras de la cuenta " + _opt.Usuario + ". " + ex.Message);
+            }
+            catch (SslHandshakeException ex)
+            {
+                _log.LogWarning(ex, "Error de conexión segura con {Servidor}:{Puerto}", _opt.Servidor, puerto);
+                motivo = $"Puerto {puerto}: no se pudo crear la conexión segura (secure connection). Suele ser un antivirus que revisa el correo: desactiva su protección de correo. {ex.Message}";
+            }
+            catch (SmtpCommandException ex)
+            {
+                _log.LogWarning(ex, "Gmail rechazó el envío a {Destinos}", string.Join(", ", lista));
+                return (false, false, $"Gmail rechazó el envío ({(int)ex.StatusCode} {ex.StatusCode}): {ex.Message}");
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "No se pudo enviar el correo por {Servidor}:{Puerto}", _opt.Servidor, puerto);
+                var m = ex.Message;
+                for (var e = ex.InnerException; e != null; e = e.InnerException) m += " → " + e.Message;
+                motivo = (motivo == null ? "" : motivo + " | ") + $"Puerto {puerto}: {m}";
+            }
         }
+        return (false, false, motivo);
     }
 }
 
