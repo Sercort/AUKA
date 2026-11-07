@@ -13,5 +13,9 @@ public class Curso
     public int? ProfesorJefeId { get; set; }
     public Usuario? ProfesorJefe { get; set; }
 
+    // Viernes propio del curso (null = como el colegio). Ej: 3º Básico A sale a las 15:30 por recuperación de Matemática.
+    public TimeSpan? ViernesSalida { get; set; }
+    public bool? ViernesTarde { get; set; }
+
     public ICollection<Estudiante> Estudiantes { get; set; } = new List<Estudiante>();
 }

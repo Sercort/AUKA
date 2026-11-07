@@ -21,6 +21,9 @@
     .hg .c.ed { cursor: pointer; transition: transform .15s, box-shadow .15s; }
     .hg .c.ed:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(20,35,58,.12); }
     .hg .c.ed:not(.llena)::after { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.3rem; color: #b6c3d6; font-weight: 900; }
+    .hg .c.recu { background: #fff8e6; border-color: #ffd98a; }
+    .hg .c.recu .rl { font-size: .68rem; font-weight: 800; color: #b45d00; }
+    .hg .c.ed.recu::after { top: 14px; }
     .hg .c.off { background: repeating-linear-gradient(135deg, #f1f4f9, #f1f4f9 8px, #e9eef5 8px, #e9eef5 16px); border: 0; color: var(--a-mut); font-size: .72rem; text-align: center; vertical-align: middle; }
     .hg tr.pausa td.p { border-radius: 12px; text-align: center; font-weight: 800; font-size: .8rem; padding: .35rem; }
     .hg tr.pausa.rec td.p { background: #fff6e0; color: #8a5a00; }
@@ -41,7 +44,13 @@
                     <th>Hora</th>
                     @foreach (var d in HorariosController.Dias)
                     {
-                        <th>@d</th>
+                        <th>
+                            @d
+                            @if (d == "Viernes")
+                            {
+                                <small class="d-block text-lowercase" style="letter-spacing:0;font-weight:700">@(Model.ViernesTarde ? "jornada completa" : "sale " + Model.ViernesSalida.ToString("hh\\:mm"))</small>
+                            }
+                        </th>
                     }
                 </tr>
             </thead>
@@ -63,13 +72,13 @@
                         <td class="h">@b.HoraInicio.ToString("hh\\:mm")<small>a @b.HoraFin.ToString("hh\\:mm")</small><small>Bloque @nClase</small></td>
                         @for (var dia = 1; dia <= 5; dia++)
                         {
-                            var bloqueado = dia == 5 && !Model.ViernesTarde && b.HoraInicio >= Model.ViernesSalida;
+                            Model.Celdas.TryGetValue((dia, b.Id), out var cel);
+                            var bloqueado = cel == null && dia == 5 && !Model.ViernesTarde && b.HoraInicio >= Model.ViernesSalida;
                             if (bloqueado)
                             {
                                 <td class="c off">Salida viernes<br />@Model.ViernesSalida.ToString("hh\\:mm")</td>
                                 continue;
                             }
-                            Model.Celdas.TryGetValue((dia, b.Id), out var cel);
                             if (cel != null)
                             {
                                 var col = Color(cel.Asignatura).Split('|');
@@ -82,7 +91,8 @@
                             }
                             else
                             {
-                                <td class="c @(Model.Editable ? "ed" : "")" data-dia="@dia" data-bloque="@b.Id" data-asig="" data-prof="" data-sala=""></td>
+                                var recu = dia == 5 && b.HoraInicio >= Model.ViernesSalidaColegio;
+                                <td class="c @(Model.Editable ? "ed" : "") @(recu ? "recu" : "")" data-dia="@dia" data-bloque="@b.Id" data-asig="" data-prof="" data-sala="">@if (recu) { <span class="rl">Recuperación</span> }</td>
                             }
                         }
                     </tr>
@@ -120,6 +130,7 @@
                             <option value="@a"></option>
                         }
                     </datalist>
+                    <div id="hgSug" class="mb-2"></div>
                     <label class="form-label">Profesor/a</label>
                     <select name="profesorId" id="hgProf" class="form-select mb-3">
                         <option value="">Sin asignar</option>
@@ -131,6 +142,7 @@
                     <label class="form-label">Sala <span class="text-muted fw-normal">(opcional)</span></label>
                     <input name="sala" id="hgSala" class="form-control" maxlength="40" placeholder="Ej: Sala 12, Laboratorio, Gimnasio" />
                     <div id="hgMsg" class="mt-3"></div>
+                    <input type="hidden" name="forzar" id="hgForzar" value="false" />
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-danger px-3 me-auto" id="hgBorrar">Dejar libre</button>
@@ -151,19 +163,77 @@
                     $('hgAsig').value = td.dataset.asig || ''; $('hgProf').value = td.dataset.prof || ''; $('hgSala').value = td.dataset.sala || '';
                     var hora = td.parentElement.querySelector('td.h').firstChild.textContent.trim();
                     $('hgT').textContent = dias[+td.dataset.dia] + ' · ' + hora;
-                    $('hgMsg').innerHTML = ''; $('hgBorrar').style.display = td.dataset.asig ? '' : 'none';
+                    $('hgMsg').innerHTML = ''; $('hgSug').innerHTML = ''; $('hgForzar').value = 'false'; $('hgBorrar').style.display = td.dataset.asig ? '' : 'none';
+                    marcarOcupados(td.dataset.dia, td.dataset.bloque);
                     modal().show();
                     setTimeout(function () { $('hgAsig').focus(); }, 300);
                 });
             });
+            var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+            // Marca en la lista quién ya está ocupado a esa hora (en otro curso)
+            var original = {};
+            Array.prototype.forEach.call($('hgProf').options, function (o) { original[o.value] = o.textContent; });
+            var marcarOcupados = function (dia, bloque) {
+                Array.prototype.forEach.call($('hgProf').options, function (o) { o.textContent = original[o.value]; });
+                fetch('/Horarios/Ocupados?cursoId=@Model.CursoId&dia=' + dia + '&bloqueId=' + bloque, { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        Array.prototype.forEach.call($('hgProf').options, function (o) {
+                            if (d.profesores[o.value]) o.textContent = '⛔ ' + original[o.value] + ' — ocupado en ' + d.profesores[o.value];
+                        });
+                    }).catch(function () { });
+            };
+            // Botones para elegir rápido a un profesor/a libre
+            var botones = function (lista, titulo) {
+                if (!lista || !lista.length) return '';
+                return '<div class="small fw-bold mb-1">' + titulo + '</div><div class="d-flex gap-2 flex-wrap">' + lista.map(function (p) {
+                    return '<button type="button" class="btn btn-sm btn-outline-success" data-elegir="' + p.id + '">✅ ' + esc(p.nombre) + ' <small class="text-muted">' + esc(p.detalle) + '</small></button>';
+                }).join('') + '</div>';
+            };
+            document.addEventListener('click', function (e) {
+                var b = e.target.closest('[data-elegir]'); if (!b) return;
+                $('hgProf').value = b.getAttribute('data-elegir'); $('hgMsg').innerHTML = '';
+                $('hgSug').innerHTML = '<div class="alert alert-success py-1 px-2 mb-0 small">Seleccionado. Presiona «Guardar».</div>';
+            });
+            // Al escribir la asignatura: Consejo de curso / Orientación → profesor/a jefe; las demás → quiénes están libres
+            var jefe = '@Model.ProfesorJefeId';
+            var sugerir = function () {
+                var a = $('hgAsig').value.trim(); if (!a) { $('hgSug').innerHTML = ''; return; }
+                if (/^(consejo|orientaci|jefatura)/i.test(a)) {
+                    if (jefe) { $('hgProf').value = jefe; $('hgSug').innerHTML = '<div class="alert alert-info py-1 px-2 mb-0 small">👩‍🏫 Va el profesor/a jefe del curso.</div>'; }
+                    else $('hgSug').innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small">Este curso aún no tiene profesor/a jefe: asígnalo en la nómina del curso.</div>';
+                    return;
+                }
+                fetch('/Horarios/Sugeridos?dia=' + $('hgDia').value + '&bloqueId=' + $('hgBloque').value + '&asignatura=' + encodeURIComponent(a), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (l) { $('hgSug').innerHTML = botones(l, 'Libres a esta hora para ' + a + ':'); })
+                    .catch(function () { });
+            };
+            $('hgAsig').addEventListener('change', sugerir);
             var enviar = function (borrar) {
                 var fd = new FormData($('hgF')); if (borrar) fd.set('asignatura', '');
                 $('hgMsg').innerHTML = '<div class="alert alert-info py-2 mb-0">Guardando…</div>';
                 fetch('/Horarios/GuardarClase', { method: 'POST', body: fd, credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })
                     .then(function (d) {
-                        if (d.ok) location.reload();
-                        else $('hgMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0"></div>', $('hgMsg').firstChild.textContent = d.error;
+                        if (d.ok && d.aviso) {
+                            $('hgMsg').innerHTML = '<div class="alert alert-warning py-2 mb-0">⚠️ ' + esc(d.aviso) + ' <br><button type="button" class="btn btn-sm btn-warning mt-2" id="hgOk">Entendido</button></div>';
+                            $('hgOk').onclick = function () { location.reload(); };
+                        } else if (d.ok) location.reload();
+                        else if (d.choque && d.bloqueante) {
+                            var alt = botones(d.alternativas, 'Pueden hacerla a esta hora:') || '<div class="small">No hay otro profesor/a de esa área libre a esta hora.</div>';
+                            var lib2 = (d.libres || []).length ? '<div class="mt-2 small"><b>O mueve la clase a un bloque libre de ambos:</b> ' + d.libres.map(esc).join(' · ') + '</div>' : '';
+                            $('hgMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0">⛔ ' + esc(d.error) + '<div class="mt-2">' + alt + '</div>' + lib2 + '</div>';
+                        }
+                        else if (d.choque) {
+                            var lib = (d.libres || []).length ? '<div class="mt-2 small"><b>Bloques libres para este curso y este profesor/a:</b> ' + d.libres.map(esc).join(' · ') + '</div>' : '';
+                            $('hgMsg').innerHTML = '<div class="alert alert-warning py-2 mb-0">⚠️ ' + esc(d.error) + lib +
+                                '<div class="mt-2 d-flex gap-2 flex-wrap"><button type="button" class="btn btn-sm btn-outline-secondary" id="hgCambiar">Elegir otro</button>' +
+                                '<button type="button" class="btn btn-sm btn-warning" id="hgIgual">Guardar igual (ya lo acordamos)</button></div></div>';
+                            $('hgCambiar').onclick = function () { $('hgMsg').innerHTML = ''; };
+                            $('hgIgual').onclick = function () { $('hgForzar').value = 'true'; enviar(false); };
+                        }
+                        else { $('hgMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0">' + esc(d.error) + '</div>'; }
                     })
                     .catch(function () { $('hgMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0">No se pudo guardar. Revisa tu conexión.</div>'; });
             };

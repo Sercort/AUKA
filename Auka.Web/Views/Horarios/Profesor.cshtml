@@ -8,5 +8,39 @@
     <div class="txt"><h2>@Model.Titulo</h2><p>@Model.Subtitulo</p></div>
     <div class="acc"><a asp-action="Profesores">Volver al personal</a></div>
 </div>
-<p class="small text-muted mb-2">Se completa solo: cada vez que la UTP asigna a este profesor/a en el horario de un curso, aparece aquí.</p>
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
+@{
+    var confirmado = Model.ConfirmadoUtc != null && (Model.UltimoCambioUtc == null || Model.ConfirmadoUtc >= Model.UltimoCambioUtc);
+    var cambio = Model.ConfirmadoUtc != null && !confirmado;
+    var exceso = Model.HorasContrato is > 0 && Model.Horas > Model.HorasContrato;
+}
+<div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
+    @if (confirmado)
+    {
+        <span class="au-chip verde">✅ Horario confirmado el @Model.ConfirmadoUtc!.Value.ToLocalTime().ToString("dd-MM-yyyy")</span>
+    }
+    else if (cambio)
+    {
+        <span class="au-chip sol">🔄 Cambió después de su confirmación: falta confirmar de nuevo</span>
+    }
+    else if (Model.Horas > 0)
+    {
+        <span class="au-chip sol">⏳ Pendiente de confirmación del profesor/a</span>
+    }
+    @if (Model.HorasContrato is > 0)
+    {
+        <span class="au-chip @(exceso ? "coral" : "")">@(exceso ? "⚠️" : "⏱️") @Model.Horas de @Model.HorasContrato horas de contrato</span>
+    }
+    @if (Model.EsPropio && Model.Horas > 0 && !confirmado)
+    {
+        <form method="post" action="/Horarios/ConfirmarHorario" class="m-0 ms-auto">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-success px-4">✅ Estoy de acuerdo con mi horario</button>
+        </form>
+    }
+</div>
+<p class="small text-muted mb-2">Se completa solo: cada vez que la UTP asigna a este profesor/a en el horario de un curso, aparece aquí. Si algo no te calza, conversa con la UTP antes de confirmar.</p>
 @await Html.PartialAsync("_GrillaHorario", Model)

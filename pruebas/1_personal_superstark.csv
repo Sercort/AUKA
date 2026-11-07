@@ -1,0 +1,54 @@
+﻿Nombre;Apellido;RUT;Correo institucional;Correo personal;Teléfono;Cargo;Asignaturas
+Jorge;Miranda Fuentes;15.255.438-9;jorge.miranda@superstark.cl;sergio.cortes18@inacapmail.cl;+56980316128;Director;
+Paola;Martínez Olivares;16.006.991-0;paola.martinez@superstark.cl;sergio.cortes18@inacapmail.cl;+56942800874;UTP;
+Luis;Riquelme Vásquez;12.067.632-6;luis.riquelme@superstark.cl;sergio.cortes18@inacapmail.cl;+56990179821;Inspector general;
+Patricia;Molina López;19.618.201-2;patricia.molina@superstark.cl;sergio.cortes18@inacapmail.cl;+56997440742;Inspector;
+Carolina;Miranda Hernández;10.419.329-3;carolina.miranda@superstark.cl;sergio.cortes18@inacapmail.cl;+56948684649;Orientadora;
+Loreto;Rivera Ramírez;14.520.970-6;loreto.rivera@superstark.cl;sergio.cortes18@inacapmail.cl;+56964446332;Psicólogo;
+Carolina;Muñoz Campos;12.923.439-3;carolina.munoz@superstark.cl;sergio.cortes18@inacapmail.cl;+56996684946;Trabajador Social;
+Marcela;Gómez Rojas;18.811.025-8;marcela.gomez@superstark.cl;sergio.cortes18@inacapmail.cl;+56940516055;Docente;Lenguaje y Comunicación
+Natalia;Castillo Miranda;15.104.363-1;natalia.castillo@superstark.cl;sergio.cortes18@inacapmail.cl;+56968991799;Docente;Lenguaje y Comunicación
+Jorge;Díaz Araya;11.311.422-3;jorge.diaz@superstark.cl;sergio.cortes18@inacapmail.cl;+56981891417;Docente;Lenguaje y Comunicación
+Patricia;Rivera Cortés;10.617.074-6;patricia.rivera@superstark.cl;sergio.cortes18@inacapmail.cl;+56943953841;Docente;Lenguaje y Comunicación
+Andrea;Herrera Núñez;19.980.479-0;andrea.herrera@superstark.cl;sergio.cortes18@inacapmail.cl;+56992288535;Docente;Lenguaje y Comunicación
+Patricia;Fuentes Gutiérrez;18.002.045-4;patricia.fuentes@superstark.cl;sergio.cortes18@inacapmail.cl;+56992422393;Docente;Lenguaje y Comunicación
+Mauricio;Herrera Castillo;9.747.937-2;mauricio.herrera@superstark.cl;sergio.cortes18@inacapmail.cl;+56967329647;Docente;Lenguaje y Comunicación
+Eduardo;Molina Fernández;17.756.647-0;eduardo.molina@superstark.cl;sergio.cortes18@inacapmail.cl;+56945021764;Docente;Matemática
+Marcela;Bravo Torres;9.371.303-6;marcela.bravo@superstark.cl;sergio.cortes18@inacapmail.cl;+56948978197;Docente;Matemática
+Patricio;Reyes Sandoval;18.150.849-3;patricio.reyes@superstark.cl;sergio.cortes18@inacapmail.cl;+56992036270;Docente;Matemática
+Eduardo;Reyes Cortés;15.879.768-2;eduardo.reyes@superstark.cl;sergio.cortes18@inacapmail.cl;+56980469870;Docente;Matemática
+Paola;Rojas Sepúlveda;17.522.641-9;paola.rojas@superstark.cl;sergio.cortes18@inacapmail.cl;+56940547189;Docente;Matemática
+Gloria;Rojas Vergara;11.070.817-3;gloria.rojas@superstark.cl;sergio.cortes18@inacapmail.cl;+56994730444;Docente;Matemática
+Rodrigo;Vásquez Díaz;12.902.334-1;rodrigo.vasquez@superstark.cl;sergio.cortes18@inacapmail.cl;+56968728894;Docente;Matemática
+Karina;Morales Contreras;9.119.650-6;karina.morales@superstark.cl;sergio.cortes18@inacapmail.cl;+56980850140;Docente;Historia, Geografía y Cs. Sociales
+Rodrigo;Bravo Vásquez;17.153.820-3;rodrigo.bravo@superstark.cl;sergio.cortes18@inacapmail.cl;+56941527569;Docente;Historia, Geografía y Cs. Sociales
+Patricio;Carrasco Castillo;18.880.804-2;patricio.carrasco@superstark.cl;sergio.cortes18@inacapmail.cl;+56982094307;Docente;Historia, Geografía y Cs. Sociales
+Lorena;Muñoz Contreras;9.859.928-2;lorena.munoz@superstark.cl;sergio.cortes18@inacapmail.cl;+56953884084;Docente;Historia, Geografía y Cs. Sociales
+Karina;Hernández Sepúlveda;17.995.603-9;karina.hernandez@superstark.cl;sergio.cortes18@inacapmail.cl;+56973565576;Docente;Ciencias Naturales
+Álvaro;Figueroa Castillo;19.741.479-0;alvaro.figueroa@superstark.cl;sergio.cortes18@inacapmail.cl;+56945468186;Docente;Ciencias Naturales
+Claudia;Vega Sepúlveda;19.555.855-8;claudia.vega@superstark.cl;sergio.cortes18@inacapmail.cl;+56942961443;Docente;Ciencias Naturales
+Lorena;Torres Castillo;9.128.835-4;lorena.torres@superstark.cl;sergio.cortes18@inacapmail.cl;+56953451093;Docente;Biología, Ciencias para la Ciudadanía
+Patricia;Ramírez Fuentes;19.010.502-4;patricia.ramirez@superstark.cl;sergio.cortes18@inacapmail.cl;+56973516626;Docente;Química, Ciencias para la Ciudadanía
+Marcela;Contreras Muñoz;11.574.536-0;marcela.contreras@superstark.cl;sergio.cortes18@inacapmail.cl;+56954219174;Docente;Física
+Francisco;Núñez Vega;10.253.550-2;francisco.nunez@superstark.cl;sergio.cortes18@inacapmail.cl;+56942537095;Docente;Inglés
+Luis;Morales Cortés;8.928.145-8;luis.morales@superstark.cl;sergio.cortes18@inacapmail.cl;+56943566802;Docente;Inglés
+Marcela;Álvarez Campos;11.454.198-2;marcela.alvarez@superstark.cl;sergio.cortes18@inacapmail.cl;+56962970849;Docente;Inglés
+Paola;Núñez González;13.101.924-6;paola.nunez@superstark.cl;sergio.cortes18@inacapmail.cl;+56957544360;Docente;Inglés
+Ximena;Vergara Vega;16.264.690-7;ximena.vergara@superstark.cl;sergio.cortes18@inacapmail.cl;+56961761245;Docente;Educación Física y Salud
+Patricio;García Espinoza;17.736.666-8;patricio.garcia@superstark.cl;sergio.cortes18@inacapmail.cl;+56995674013;Docente;Educación Física y Salud
+Paola;Araya Pizarro;8.954.153-0;paola.araya@superstark.cl;sergio.cortes18@inacapmail.cl;+56992394819;Docente;Educación Física y Salud
+Karina;Rodríguez Rivera;12.976.079-6;karina.rodriguez@superstark.cl;sergio.cortes18@inacapmail.cl;+56955594912;Docente;Educación Física y Salud
+Patricio;Gómez Molina;15.031.602-2;patricio.gomez@superstark.cl;sergio.cortes18@inacapmail.cl;+56986573245;Docente;Artes Visuales
+Claudio;Sandoval Fuentes;15.851.265-3;claudio.sandoval@superstark.cl;sergio.cortes18@inacapmail.cl;+56959906825;Docente;Artes Visuales
+Carolina;Sandoval Gómez;9.669.908-5;carolina.sandoval@superstark.cl;sergio.cortes18@inacapmail.cl;+56996238467;Docente;Música
+Paola;Campos Bravo;17.999.442-9;paola.campos@superstark.cl;sergio.cortes18@inacapmail.cl;+56991046228;Docente;Música
+Claudia;Martínez Castro;19.456.477-5;claudia.martinez@superstark.cl;sergio.cortes18@inacapmail.cl;+56983023587;Docente;Tecnología
+Mauricio;Sandoval Vera;19.617.155-K;mauricio.sandoval@superstark.cl;sergio.cortes18@inacapmail.cl;+56963748515;Docente;Tecnología
+Lorena;Carrasco Sandoval;18.809.464-3;lorena.carrasco@superstark.cl;sergio.cortes18@inacapmail.cl;+56998246585;Docente;Religión
+Patricia;Araya Rivera;12.382.789-9;patricia.araya@superstark.cl;sergio.cortes18@inacapmail.cl;+56990630007;Docente;Religión
+Gloria;García Pérez;14.191.102-3;gloria.garcia@superstark.cl;sergio.cortes18@inacapmail.cl;+56995088308;Docente;Filosofía, Educación Ciudadana
+Verónica;Sepúlveda Vera;9.831.625-6;veronica.sepulveda@superstark.cl;sergio.cortes18@inacapmail.cl;+56960192032;Docente;Filosofía, Educación Ciudadana
+Marcelo;Vega Miranda;17.487.826-9;marcelo.vega@superstark.cl;sergio.cortes18@inacapmail.cl;+56963581356;Docente;Especialidad TP - Mecánica Automotriz
+Pablo;Díaz Vergara;18.386.540-4;pablo.diaz@superstark.cl;sergio.cortes18@inacapmail.cl;+56971356740;Docente;Especialidad TP - Electricidad
+Gloria;Valenzuela Hernández;19.764.120-7;gloria.valenzuela@superstark.cl;sergio.cortes18@inacapmail.cl;+56996158289;Docente;Especialidad TP - Administración
+Ximena;Ramírez Fuentes;10.726.920-7;ximena.ramirez@superstark.cl;sergio.cortes18@inacapmail.cl;+56945296020;Docente;Especialidad TP - Programación

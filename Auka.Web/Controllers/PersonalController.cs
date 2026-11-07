@@ -175,6 +175,8 @@ public class PersonalController : Controller
         usuario.Rol = rol;
         usuario.CargoInstitucional = string.IsNullOrWhiteSpace(cargoEspecifico) ? rol.ToString() : cargoEspecifico.Trim();
         usuario.Asignaturas = asignaturasImpartidas?.Trim();
+        // La asignatura que se escribe aquí es la misma que se ve en horarios y en todo AUKA
+        usuario.Departamento = HorariosController.DepartamentoDesde(usuario.Asignaturas, usuario.Departamento);
 
         _context.Usuarios.Update(usuario);
         await _context.SaveChangesAsync();
@@ -273,6 +275,7 @@ public class PersonalController : Controller
             CargoInstitucional = string.IsNullOrWhiteSpace(cargoEspecifico) ? rol.ToString() : cargoEspecifico.Trim(),
             EsInspectorGeneral = (rol == RolUsuario.Inspector) && esInspectorGeneral,
             Asignaturas = asignaturasImpartidas?.Trim(),
+            Departamento = HorariosController.DepartamentoDesde(asignaturasImpartidas, null),
             ColegioId = colegioId,
             Activo = true,
             DebeCambiarPassword = true,
@@ -395,8 +398,11 @@ public class PersonalController : Controller
                 EmailPersonal = string.IsNullOrWhiteSpace(Celda(p, iPer)) ? null : Celda(p, iPer).ToLowerInvariant(),
                 Telefono = string.IsNullOrWhiteSpace(Celda(p, iTel)) ? null : Celda(p, iTel),
                 Rol = rol.Value,
-                CargoInstitucional = rol.Value.ToString(),
+                CargoInstitucional = rol == RolUsuario.Inspector && SinTildes(rolTxt).Contains("general") ? "Inspector/a general" : rol.Value.ToString(),
+                // "Inspector general" en la columna Cargo: queda marcado como inspector/a general
+                EsInspectorGeneral = rol == RolUsuario.Inspector && SinTildes(rolTxt).Contains("general"),
                 Asignaturas = rol == RolUsuario.Docente && !string.IsNullOrWhiteSpace(Celda(p, iAsi)) ? Celda(p, iAsi) : null,
+                Departamento = rol == RolUsuario.Docente ? HorariosController.DepartamentoDesde(Celda(p, iAsi), null) : null,
                 ColegioId = colegioId,
                 Activo = true,
                 DebeCambiarPassword = true,

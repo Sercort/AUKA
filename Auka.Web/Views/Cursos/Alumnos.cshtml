@@ -102,6 +102,18 @@
     <button type="button" class="au-card" data-f="docs"><small>Documentos pendientes</small><b style="color:@(pendientes > 0 ? "#b45d00" : "var(--a-navy)")">@pendientes</b><span class="ver">Ver qué falta</span></button>
     <button type="button" class="au-card" data-f="asis"><small>Asistencia del curso</small><b>@Pct(asisP, asisT)</b><span class="ver">@(asisT == 0 ? "Aún sin registros" : "Ver bajo 85%")</span></button>
 </div>
+@if (esGestion && alumnos.Count > 0)
+{
+    <form asp-action="ClavesCurso" method="post" class="au-card p-3 mb-3 d-flex align-items-center gap-3 flex-wrap" data-c="¿Generar claves provisorias para este curso? A quienes se les genere, su clave anterior dejará de funcionar." onsubmit="return confirm(this.dataset.c);">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cursoId" value="@Model.Id" />
+        <b>🔑 Claves provisorias del curso</b>
+        <label class="d-flex gap-2 align-items-center m-0"><input type="checkbox" name="apoderados" value="true" checked class="form-check-input m-0" /> Incluir apoderados/as</label>
+        <label class="d-flex gap-2 align-items-center m-0"><input type="checkbox" name="todos" value="true" class="form-check-input m-0" /> También a quienes ya entraron</label>
+        <button class="btn btn-outline-warning btn-sm px-3">Generar e imprimir</button>
+        <small class="text-muted w-100">Por defecto solo para quienes aún no entran a AUKA. Se descargan en planilla o se imprimen para entregarlas.</small>
+    </form>
+}
 @if (pendientes > 0 && !esArchivo && (User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin")))
 {
     <div class="mb-3"><a asp-action="Pendientes" asp-route-cursoId="@Model.Id" class="btn btn-outline-warning btn-sm px-3">📄 Gestionar documentos pendientes del curso</a></div>

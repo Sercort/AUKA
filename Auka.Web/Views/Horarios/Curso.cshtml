@@ -18,4 +18,44 @@
 {
     <p class="small text-muted mb-2">👀 Solo lectura: lo arma la UTP (o quien el administrador autorizó).</p>
 }
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button></div>
+}
+@if (Model.Editable)
+{
+    var propio = Model.ViernesPropio;
+    <form method="post" action="/Horarios/GuardarViernesCurso" class="au-card p-3 mb-3">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cursoId" value="@Model.CursoId" />
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <b>📅 Viernes de este curso</b>
+            <label class="d-flex align-items-center gap-2 m-0" style="cursor:pointer">
+                <input type="radio" name="modo" value="colegio" class="form-check-input m-0" checked="@(!propio)" /> Igual que el colegio (@Model.ViernesColegio)
+            </label>
+            <label class="d-flex align-items-center gap-2 m-0" style="cursor:pointer">
+                <input type="radio" name="modo" value="salida" class="form-check-input m-0" checked="@propio" /> Recuperación u otra hora: sale a las
+            </label>
+            <input type="time" name="salida" class="form-control" style="max-width:130px" value="@Model.ViernesSalida.ToString("hh\\:mm")" />
+            <button class="btn btn-primary btn-sm px-4">Guardar</button>
+        </div>
+        <small class="text-muted d-block mt-2">Ej: 3º Básico A recupera Matemática y sale a las 15:30. Al guardar, los bloques del viernes hasta esa hora quedan abiertos (en amarillo, «Recuperación») para asignar la asignatura, el profesor/a y la sala.</small>
+    </form>
+}
+@if (Model.Editable)
+{
+    <div class="d-flex gap-2 flex-wrap mb-3">
+        <form method="post" action="/Horarios/GenerarHorario" class="m-0" data-c="¿Completar los bloques vacíos de este curso automáticamente?" onsubmit="return confirm(this.dataset.c);">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="cursoId" value="@Model.CursoId" />
+            <button class="btn btn-warning btn-sm px-3">🪄 Completar automáticamente</button>
+        </form>
+        <form method="post" action="/Horarios/GenerarHorario" class="m-0" data-c="¿Borrar el horario de este curso y armarlo de nuevo automáticamente?" onsubmit="return confirm(this.dataset.c);">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="cursoId" value="@Model.CursoId" />
+            <input type="hidden" name="rehacer" value="true" />
+            <button class="btn btn-outline-danger btn-sm px-3">↻ Rehacer desde cero</button>
+        </form>
+    </div>
+}
 @await Html.PartialAsync("_GrillaHorario", Model)

@@ -38,6 +38,10 @@ public class Usuario
 
     // Departamento o asignatura principal del docente (Matemática, Lenguaje, Ciencias...): ordena el listado de horarios
     public string? Departamento { get; set; }
+    // Horas de clase a la semana según contrato (bloques). Si se pasa, el horario avisa.
+    public int? HorasContrato { get; set; }
+    // Cuándo el docente confirmó que está de acuerdo con su horario (si después cambia, se le pide confirmar de nuevo)
+    public DateTime? HorarioConfirmadoUtc { get; set; }
     public string? Asignaturas { get; set; }
 
     public int ColegioId { get; set; }

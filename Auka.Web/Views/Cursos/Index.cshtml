@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Cursos/Index.cshtml — cursos en carpetas por nivel, con archivador de años escolares *@
+@* Auka.Web/Views/Cursos/Index.cshtml — cursos en carpetas por nivel, con archivador de años escolares *@
 @model IEnumerable<Auka.Application.Entities.Curso>
 @{
     ViewData["Title"] = "Cursos";
@@ -28,6 +28,10 @@
     .ar-aviso { display: flex; gap: .7rem; align-items: center; background: #fff6e0; color: #8a5a00; border-radius: 14px; padding: .7rem 1rem; font-weight: 700; margin-bottom: 14px; }
 </style>
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
@@ -46,6 +50,11 @@
     {
         <div class="acc">
             <a asp-action="Pendientes">📄 Documentos pendientes</a>
+            <button type="button" data-bs-toggle="modal" data-bs-target="#mImp">📥 Importar planilla</button>
+            <form asp-action="CorregirDuplicados" method="post" class="d-inline" data-c="¿Revisar y corregir cursos, alumnos/as y apoderados/as repetidos de este año?" onsubmit="return confirm(this.dataset.c);">
+                @Html.AntiForgeryToken()
+                <button type="submit">🧹 Corregir duplicados</button>
+            </form>
             <a asp-action="Matricular" class="blanco">📝 Matricular alumno/a</a>
         </div>
     }
@@ -102,3 +111,35 @@
         @await Html.PartialAsync("_CursosCarpetas", carpetas)
     }
 </div>
+
+@if (esGestion && !esArchivo)
+{
+    <div class="modal fade" id="mImp" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <form class="modal-content" asp-action="ImportarAlumnos" method="post" enctype="multipart/form-data" onsubmit="var b=this.querySelector('button.btn-primary'); if(b.disabled) return false; b.disabled=true; b.textContent='Importando… (1 a 2 min, no cierres)'; return true;">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h5 class="modal-title fw-bold">📥 Importar alumnos/as y apoderados/as</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <ol class="mb-3">
+                        <li>Descarga la plantilla y llénala en Excel (una fila por alumno/a).</li>
+                        <li>Guárdala como <b>CSV</b> (Archivo › Guardar como › CSV delimitado por punto y coma).</li>
+                        <li>Súbela aquí. AUKA crea los cursos, los alumnos/as y apoderados/as, y los vincula (hermanos con el mismo apoderado/a).</li>
+                    </ol>
+                    <button type="button" class="btn btn-outline-primary btn-sm px-3 mb-3" id="impPlantilla">📄 Descargar plantilla</button>
+                    <input type="file" name="archivo" accept=".csv" class="form-control" required />
+                    <small class="text-muted d-block mt-2">No se envían correos: al terminar verás las claves provisorias para descargar o imprimir. Si un alumno/a o apoderado/a ya existe (mismo RUT), no se duplica.</small>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">Importar</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('impPlantilla').addEventListener('click', function () {
+            var csv = '\ufeffNivel;Letra;Especialidad;RUT alumno;Nombres alumno;Apellidos alumno;Correo alumno;Fecha nacimiento;RUT apoderado;Nombres apoderado;Apellidos apoderado;Correo apoderado;Teléfono apoderado;Parentesco\r\n' +
+                '1º Básico;A;;24.123.456-8;Martina;Pérez Soto;;15-03-2019;12.345.678-5;Carolina;Soto Rojas;carolina.soto@@gmail.com;+56912345678;Madre\r\n';
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            a.download = 'plantilla_alumnos_auka.csv'; document.body.appendChild(a); a.click(); a.remove();
+        });
+    </script>
+}

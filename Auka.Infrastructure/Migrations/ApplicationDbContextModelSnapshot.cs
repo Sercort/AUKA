@@ -554,6 +554,12 @@ namespace Auka.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<TimeSpan?>("ViernesSalida")
+                        .HasColumnType("interval");
+
+                    b.Property<bool?>("ViernesTarde")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1218,6 +1224,9 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<int>("Dia")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime>("ModificadaUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("ProfesorId")
                         .HasColumnType("integer");
 
@@ -1344,6 +1353,12 @@ namespace Auka.Infrastructure.Migrations
 
                     b.Property<string>("Departamento")
                         .HasColumnType("text");
+
+                    b.Property<int?>("HorasContrato")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("HorarioConfirmadoUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
                         .IsRequired()

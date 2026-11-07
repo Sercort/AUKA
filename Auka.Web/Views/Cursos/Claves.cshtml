@@ -1,0 +1,91 @@
+﻿@* Auka.Web/Views/Cursos/Claves.cshtml — claves provisorias (importación o curso completo): imprimir o bajar en planilla *@
+@model List<Auka.Web.Controllers.CursosController.Credencial>
+@{
+    ViewData["Title"] = ViewBag.Titulo ?? "Claves provisorias";
+    var errores = ViewBag.Errores as List<string> ?? new();
+    int? cursoId = ViewBag.CursoId;
+}
+<style>
+    .cl-tab { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .cl-tab th { font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--a-mut); padding: .6rem; border-bottom: 1px solid var(--a-line); text-align: left; }
+    .cl-tab td { padding: .55rem .6rem; border-bottom: 1px solid #eef2f8; }
+    .cl-tab td.k { font-family: Consolas, monospace; font-weight: 800; font-size: 1rem; color: var(--a-navy); letter-spacing: .04em; }
+    .cl-print { display: none; }
+    @@media print {
+        .au-top, .au-foot, .no-print, .au-head { display: none !important; }
+        .au-main { padding: 0 !important; }
+        .cl-print { display: block; margin-bottom: 10px; }
+        .au-card { box-shadow: none !important; border: 0 !important; }
+        .cl-tab tr { page-break-inside: avoid; }
+    }
+</style>
+
+<div class="au-head sol no-print">
+    <div class="ico">🔑</div>
+    <div class="txt"><h2>@ViewData["Title"]</h2><p>@ViewBag.Resumen</p></div>
+    <div class="acc">
+        @if (cursoId != null)
+        {
+            <a href="/Cursos/Alumnos/@cursoId">Volver al curso</a>
+        }
+        else
+        {
+            <a asp-action="Index">Volver a cursos</a>
+        }
+    </div>
+</div>
+
+@if (Model.Count > 0)
+{
+    <div class="alert alert-warning no-print">⚠️ <b>Estas claves se muestran solo ahora.</b> Descárgalas o imprímelas antes de salir de esta página. Al entrar, cada persona debe crear su propia clave.</div>
+    <div class="d-flex gap-2 flex-wrap mb-3 no-print">
+        <button type="button" class="btn btn-primary px-4" id="clCsv">📥 Descargar planilla (Excel)</button>
+        <button type="button" class="btn btn-outline-secondary px-4" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+}
+@if (errores.Count > 0)
+{
+    <div class="alert alert-danger no-print">
+        <b>@errores.Count @(errores.Count == 1 ? "fila con problema" : "filas con problemas") (no se guardaron):</b>
+        <ul class="mb-0 mt-1">@foreach (var e in errores.Take(50)) { <li>@e</li> }</ul>
+    </div>
+}
+
+<div class="au-card p-3">
+    <div class="cl-print"><b>AUKA · @ViewData["Title"]</b> · @DateTime.Now.ToString("dd-MM-yyyy") · Ingreso: la dirección de AUKA del colegio · Al entrar, crear una clave nueva.</div>
+    @if (Model.Count == 0)
+    {
+        <div class="au-vacio"><span class="e">🔑</span>No hay claves nuevas para mostrar.</div>
+    }
+    else
+    {
+        <table class="cl-tab" id="clTabla">
+            <thead><tr><th>Curso</th><th>Tipo</th><th>Nombre</th><th>RUT</th><th>Entra con</th><th>Clave provisoria</th></tr></thead>
+            <tbody>
+                @foreach (var c in Model.OrderBy(x => x.Curso).ThenBy(x => x.Tipo).ThenBy(x => x.Nombre))
+                {
+                    <tr><td>@c.Curso</td><td>@c.Tipo</td><td>@c.Nombre</td><td>@c.Rut</td><td>@c.Usuario</td><td class="k">@c.Clave</td></tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@if (Model.Count > 0)
+{
+    <script>
+        (function () {
+            document.getElementById('clCsv').addEventListener('click', function () {
+                var filas = [['Curso', 'Tipo', 'Nombre', 'RUT', 'Entra con', 'Clave provisoria']];
+                document.querySelectorAll('#clTabla tbody tr').forEach(function (tr) {
+                    filas.push(Array.prototype.map.call(tr.children, function (td) { return td.textContent.trim(); }));
+                });
+                var csv = '\ufeff' + filas.map(function (f) { return f.map(function (x) { return '"' + x.replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+                a.download = 'claves_provisorias_' + new Date().toISOString().slice(0, 10) + '.csv';
+                document.body.appendChild(a); a.click(); a.remove();
+            });
+        })();
+    </script>
+}

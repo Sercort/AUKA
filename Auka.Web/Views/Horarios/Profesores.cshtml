@@ -13,6 +13,12 @@
         .OrderBy(g => g.Key).ToList();
     var colores = new[] { "#1a319b", "#2459b0", "#1fb5c5", "#2bb673", "#6c5ce7", "#fb8500", "#ef6f6c" };
     var k = 0;
+    var cursosDe = ViewBag.Cursos as Dictionary<int, List<string>> ?? new();
+    var ciclosDe = ViewBag.Ciclos as Dictionary<int, List<string>> ?? new();
+    var cambioDe = ViewBag.UltimoCambio as Dictionary<int, DateTime> ?? new();
+    bool Confirmado(Usuario u) => u.HorarioConfirmadoUtc != null && (!cambioDe.TryGetValue(u.Id, out var c) || u.HorarioConfirmadoUtc >= c);
+    var excedidos = docentes.Where(u => u.HorasContrato is > 0 && horas.GetValueOrDefault(u.Id) > u.HorasContrato).ToList();
+    var sinConfirmar = docentes.Count(u => horas.GetValueOrDefault(u.Id) > 0 && !Confirmado(u));
 }
 <style>
     .hp-grupo { display: flex; align-items: center; gap: .6rem; margin: 20px 0 10px; }
@@ -25,6 +31,19 @@
     .hp .d { flex: 1; min-width: 0; }
     .hp small { color: var(--a-mut); display: block; }
     .hp select { font-size: .78rem; padding: .2rem 1.8rem .2rem .6rem; border-radius: 999px; margin-top: .3rem; max-width: 100%; }
+    .hp .ed { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; margin-top: .3rem; }
+    .hp .ed input { width: 76px; font-size: .78rem; padding: .2rem .5rem; border-radius: 999px; }
+    .hp .carga { height: 6px; border-radius: 9px; background: #edf1f7; margin-top: .4rem; overflow: hidden; }
+    .hp .carga i { display: block; height: 100%; border-radius: 9px; background: var(--a-grad); }
+    .hp .carga i.exc { background: var(--a-grad-coral); }
+    .hp .cs { display: flex; gap: .25rem; flex-wrap: wrap; margin-top: .35rem; }
+    .hp .cs span { font-size: .68rem; font-weight: 800; background: #eef3ff; color: var(--a-navy); border-radius: 6px; padding: .05rem .4rem; }
+    .hp-res { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 8px; }
+    .hp-tab { width: 100%; font-size: .86rem; }
+    .hp-tab th { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--a-mut); padding: .3rem .4rem; text-align: center; }
+    .hp-tab th:first-child, .hp-tab td:first-child { text-align: left; }
+    .hp-tab td { padding: .35rem .4rem; border-top: 1px solid #eef2f8; text-align: center; font-weight: 700; }
+    @@media (max-width: 860px) { .hp-res { grid-template-columns: 1fr; } }
 </style>
 
 <div class="au-head violeta">
@@ -32,9 +51,47 @@
     <div class="txt"><h2>Horarios del personal</h2><p>Docentes por departamento y luego el equipo directivo. Toca a una persona para ver su horario.</p></div>
     <div class="acc"><a asp-action="Index">Horarios por curso</a></div>
 </div>
+@{
+    var deptos = docentes.GroupBy(u => string.IsNullOrWhiteSpace(u.Departamento) ? "Sin departamento" : u.Departamento!).OrderBy(g => g.Key).ToList();
+    int N(IEnumerable<Usuario> l, string ciclo) => l.Count(u => ciclosDe.TryGetValue(u.Id, out var c) && c.Contains(ciclo));
+}
+<div class="hp-res">
+    <div class="au-card p-3">
+        <b class="d-block mb-2">📊 Docentes por departamento y ciclo</b>
+        <table class="hp-tab">
+            <thead><tr><th>Departamento</th><th>Total</th><th>Parvularia</th><th>Básica</th><th>Media</th><th>Horas asignadas</th></tr></thead>
+            <tbody>
+                @foreach (var g in deptos)
+                {
+                    <tr>
+                        <td>@g.Key</td><td>@g.Count()</td>
+                        <td>@N(g, "Educación parvularia")</td><td>@N(g, "Educación básica")</td><td>@N(g, "Educación media")</td>
+                        <td>@g.Sum(u => horas.GetValueOrDefault(u.Id))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <small class="text-muted d-block mt-2">Se cuenta según los cursos en que cada docente tiene clases en el horario.</small>
+    </div>
+    <div class="au-card p-3">
+        <b class="d-block mb-2">🔔 Avisos</b>
+        @if (excedidos.Count == 0 && sinConfirmar == 0)
+        {
+            <div class="text-success fw-bold">✅ Todo en orden: nadie pasa sus horas y los horarios están confirmados.</div>
+        }
+        @foreach (var u in excedidos)
+        {
+            <div class="alert alert-danger py-2 mb-2">⚠️ <a href="/Horarios/Profesor/@u.Id">@u.Nombre @u.Apellido</a> tiene @horas.GetValueOrDefault(u.Id) horas y su contrato es de @u.HorasContrato.</div>
+        }
+        @if (sinConfirmar > 0)
+        {
+            <div class="alert alert-warning py-2 mb-0">⏳ @sinConfirmar @(sinConfirmar == 1 ? "docente aún no confirma" : "docentes aún no confirman") su horario. Les llega un aviso en la campana cuando cambia.</div>
+        }
+    </div>
+</div>
 @if (puede)
 {
-    <p class="small text-muted">Puedes asignar el departamento de cada docente desde su tarjeta; se guarda solo.</p>
+    <p class="small text-muted">La asignatura de cada docente se toma de lo que escribiste en <a href="/Personal">Personal</a> (el departamento se completa solo). Aquí puedes ajustar el departamento y las horas de contrato; se guardan solos.</p>
 }
 
 @foreach (var g in porDepto)
@@ -48,16 +105,35 @@
                 <a asp-action="Profesor" asp-route-id="@u.Id" class="av" style="background:@colores[k++ % colores.Length];text-decoration:none">@(u.Nombre.Length > 0 ? u.Nombre[..1] : "")@(u.Apellido.Length > 0 ? u.Apellido[..1] : "")</a>
                 <div class="d">
                     <a asp-action="Profesor" asp-route-id="@u.Id" style="text-decoration:none;color:inherit"><b>@u.Nombre @u.Apellido</b></a>
-                    <small>🗓️ @h @(h == 1 ? "bloque" : "bloques") de clase a la semana</small>
+                    @if (!string.IsNullOrWhiteSpace(u.Asignaturas))
+                    {
+                        <small>📖 @u.Asignaturas</small>
+                    }
+                    @{
+                        var exc = u.HorasContrato is > 0 && h > u.HorasContrato;
+                        var pctC = u.HorasContrato is > 0 ? Math.Min(100, h * 100 / u.HorasContrato.Value) : 0;
+                    }
+                    <small>🗓️ @h @(u.HorasContrato is > 0 ? "de " + u.HorasContrato : "") horas @(exc ? "· ⚠️ se pasa" : "") · @(h == 0 ? "sin clases" : Confirmado(u) ? "✅ confirmado" : "⏳ por confirmar")</small>
+                    @if (u.HorasContrato is > 0)
+                    {
+                        <div class="carga"><i class="@(exc ? "exc" : "")" style="width:@pctC%"></i></div>
+                    }
+                    @if (cursosDe.TryGetValue(u.Id, out var cs))
+                    {
+                        <div class="cs">@foreach (var c in cs) { <span>@c</span> }</div>
+                    }
                     @if (puede)
                     {
-                        <select class="form-select hp-depto" data-id="@u.Id" aria-label="Departamento">
-                            <option value="">Sin departamento</option>
-                            @foreach (var d in HorariosController.Departamentos.Union(string.IsNullOrEmpty(u.Departamento) ? Array.Empty<string>() : new[] { u.Departamento! }))
-                            {
-                                <option value="@d" selected="@(u.Departamento == d)">@d</option>
-                            }
-                        </select>
+                        <div class="ed">
+                            <select class="form-select hp-depto" data-id="@u.Id" aria-label="Departamento" style="flex:1;min-width:130px">
+                                <option value="">Sin departamento</option>
+                                @foreach (var d in HorariosController.Departamentos.Union(string.IsNullOrEmpty(u.Departamento) ? Array.Empty<string>() : new[] { u.Departamento! }))
+                                {
+                                    <option value="@d" selected="@(u.Departamento == d)">@d</option>
+                                }
+                            </select>
+                            <input type="number" min="1" max="60" class="form-control hp-horas" data-id="@u.Id" value="@u.HorasContrato" placeholder="Horas" title="Horas de contrato a la semana" />
+                        </div>
                     }
                 </div>
             </div>
@@ -86,6 +162,13 @@
     <script>
         (function () {
             var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            document.querySelectorAll('.hp-horas').forEach(function (s) {
+                s.addEventListener('change', function () {
+                    var fd = new FormData(); fd.append('usuarioId', s.dataset.id); fd.append('horas', s.value); fd.append('__RequestVerificationToken', token);
+                    fetch('/Horarios/AsignarHoras', { method: 'POST', body: fd, credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); }).then(function (d) { if (d.ok) location.reload(); });
+                });
+            });
             document.querySelectorAll('.hp-depto').forEach(function (s) {
                 s.addEventListener('change', function () {
                     var fd = new FormData(); fd.append('usuarioId', s.dataset.id); fd.append('departamento', s.value); fd.append('__RequestVerificationToken', token);

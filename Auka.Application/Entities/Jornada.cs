@@ -38,4 +38,5 @@ public class ClaseHorario
     public int? ProfesorId { get; set; }
     public Usuario? Profesor { get; set; }
     public string? Sala { get; set; }
+    public DateTime ModificadaUtc { get; set; } = DateTime.UtcNow;
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -54,6 +54,364 @@ public class CursosController : Controller
                 .Select(g => new { g.Key, N = g.Count() }).ToListAsync()).ToDictionary(x => x.Key, x => x.N);
         return View(delAnio
             .OrderBy(c => OrdenNivel(c.Nombre) < 0 ? 99 : OrdenNivel(c.Nombre)).ThenBy(c => c.Nombre).ThenBy(c => c.Letra).ToList());
+    }
+
+    // ---------------------------------------------------------------- Importar alumnos y apoderados (planilla)
+    public record Credencial(string Curso, string Tipo, string Nombre, string Rut, string Usuario, string Clave);
+
+    private static string SinTildes(string t)
+    {
+        var d = (t ?? "").Normalize(System.Text.NormalizationForm.FormD);
+        return new string(d.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray()).ToLowerInvariant().Trim();
+    }
+
+    /// <summary>
+    /// Matrícula masiva desde CSV (Excel → Guardar como CSV). Columnas:
+    /// Nivel; Letra; Especialidad; RUT alumno; Nombres alumno; Apellidos alumno; Correo alumno; Fecha nacimiento;
+    /// RUT apoderado; Nombres apoderado; Apellidos apoderado; Correo apoderado; Teléfono apoderado; Parentesco.
+    /// Crea cursos (año actual), alumnos/as, apoderados/as y los vincula (hermanos con el mismo apoderado/a).
+    /// No envía correos: entrega una planilla con las claves provisorias para imprimir.
+    /// </summary>
+    // Una importación a la vez por colegio: si se presiona dos veces (o se recarga), la segunda no duplica cursos
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, bool> _importando = new();
+
+    [Authorize(Roles = "UTP,Director,SuperAdmin")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(6_000_000)]
+    public async Task<IActionResult> ImportarAlumnos(IFormFile? archivo)
+    {
+        var colLock = ColegioActual();
+        if (!_importando.TryAdd(colLock, true))
+        {
+            TempData["Error"] = "Ya hay una importación en curso para este colegio. Espera a que termine (1 a 2 minutos) antes de volver a importar.";
+            return RedirectToAction(nameof(Index));
+        }
+        try { return await ImportarAlumnosCore(archivo); }
+        finally { _importando.TryRemove(colLock, out _); }
+    }
+
+    private async Task<IActionResult> ImportarAlumnosCore(IFormFile? archivo)
+    {
+        if (archivo == null || archivo.Length == 0) { TempData["Error"] = "Elige el archivo CSV."; return RedirectToAction(nameof(Index)); }
+        if (!archivo.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) { TempData["Error"] = "Por ahora se lee CSV. En Excel: Archivo › Guardar como › CSV (delimitado por punto y coma)."; return RedirectToAction(nameof(Index)); }
+        if (archivo.Length > 5_000_000) { TempData["Error"] = "El archivo es demasiado grande (máximo 5 MB)."; return RedirectToAction(nameof(Index)); }
+
+        var lineas = new List<string>();
+        using (var lector = new StreamReader(archivo.OpenReadStream(), System.Text.Encoding.UTF8, true))
+        {
+            string? l;
+            while ((l = await lector.ReadLineAsync()) != null) if (!string.IsNullOrWhiteSpace(l)) lineas.Add(l);
+        }
+        if (lineas.Count < 2) { TempData["Error"] = "El archivo no tiene filas."; return RedirectToAction(nameof(Index)); }
+        if (lineas.Count > 1501) { TempData["Error"] = "Máximo 1.500 alumnos/as por archivo."; return RedirectToAction(nameof(Index)); }
+
+        var sep = lineas[0].Count(c => c == ';') >= lineas[0].Count(c => c == ',') ? ';' : ',';
+        var cab = lineas[0].Split(sep).Select(h => SinTildes(h.Trim().Trim('"').TrimStart('\ufeff'))).ToList();
+        int Col(params string[] k) => cab.FindIndex(h => k.Any(x => h.StartsWith(x)));
+        int iNiv = Col("nivel", "curso"), iLet = Col("letra"), iEsp = Col("especialidad"),
+            iRut = Col("rut alumno", "rut estudiante"), iNom = Col("nombres alumno", "nombre alumno", "nombres estudiante"), iApe = Col("apellidos alumno", "apellido alumno", "apellidos estudiante"),
+            iCor = Col("correo alumno", "correo estudiante"), iNac = Col("fecha nac", "nacimiento"),
+            iRutA = Col("rut apoderado"), iNomA = Col("nombres apoderado", "nombre apoderado"), iApeA = Col("apellidos apoderado", "apellido apoderado"),
+            iCorA = Col("correo apoderado"), iTelA = Col("telefono apoderado", "telefono"), iPar = Col("parentesco"),
+            iTipo = Col("tipo"), iOri = Col("colegio origen", "colegio de origen"), iRbd = Col("rbd"), iCom = Col("comuna"),
+            iMot = Col("motivo"), iDoc = Col("documentos pendientes", "documentos"), iPie = Col("pie", "nee");
+        if (iNiv < 0 || iRut < 0 || iNom < 0 || iRutA < 0)
+        {
+            TempData["Error"] = "Faltan columnas. Usa la plantilla: necesito al menos Nivel, RUT alumno, Nombres alumno y RUT apoderado.";
+            return RedirectToAction(nameof(Index));
+        }
+        string C(string[] f, int i) => i >= 0 && i < f.Length ? f[i].Trim().Trim('"').Trim() : "";
+
+        var colegioId = ColegioActual();
+        var anio = DateTime.Now.Year;
+        var hasher = new PasswordHasher<string>();
+        var errores = new List<string>();
+        var credenciales = new List<Credencial>();
+        int alumnosNuevos = 0, alumnosExistentes = 0, apoNuevos = 0, cursosNuevos = 0, vinculos = 0;
+
+        // Datos actuales del colegio (para no duplicar)
+        var cursos = await _context.Cursos.Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio).ToListAsync();
+        var usuarios = await _context.Usuarios.Where(u => u.ColegioId == colegioId && (u.Rol == RolUsuario.Estudiante || u.Rol == RolUsuario.Apoderado)).ToListAsync();
+        var porRut = usuarios.GroupBy(u => (Rut.Normalizar(u.Rut), u.Rol)).ToDictionary(g => g.Key, g => g.First());
+        var correos = (await _context.Usuarios.IgnoreQueryFilters().Select(u => u.Email.ToLower()).ToListAsync()).ToHashSet();
+        var col = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+        var especialidades = (col?.Especialidades ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+        for (int i = 1; i < lineas.Count; i++)
+        {
+            var f = lineas[i].Split(sep);
+            var fila = i + 1;
+            var nivelTxt = C(f, iNiv);
+            if (nivelTxt.Length == 0 && C(f, iRut).Length == 0) continue;
+            if (!Rut.TryValidar(C(f, iRut), out var rutEst, out var rutEstFmt)) { errores.Add($"Fila {fila}: RUT del alumno/a no válido ({C(f, iRut)})."); continue; }
+            if (!Rut.TryValidar(C(f, iRutA), out var rutApo, out var rutApoFmt)) { errores.Add($"Fila {fila}: RUT del apoderado/a no válido ({C(f, iRutA)})."); continue; }
+            if (rutEst == rutApo) { errores.Add($"Fila {fila}: el alumno/a y el apoderado/a tienen el mismo RUT."); continue; }
+            var nom = C(f, iNom); var ape = C(f, iApe);
+            if (nom.Length == 0) { errores.Add($"Fila {fila}: falta el nombre del alumno/a."); continue; }
+
+            try
+            {
+                // Curso (nivel + letra) del año actual; se crea si no existe
+                var orden = OrdenNivel(nivelTxt);
+                var nivel = orden >= 0 ? NivelesOficiales[orden] : nivelTxt;
+                var letra = C(f, iLet).ToUpperInvariant();
+                if (letra.Length == 0) letra = "A";
+                var curso = cursos.FirstOrDefault(c => Normal(c.Nombre) == Normal(nivel) && string.Equals(c.Letra, letra, StringComparison.OrdinalIgnoreCase));
+                if (curso == null)
+                {
+                    curso = new Curso { Nombre = nivel, Letra = letra, CapacidadMaxima = 40, ColegioId = colegioId, AnioAcademico = anio };
+                    _context.Cursos.Add(curso);
+                    await _context.SaveChangesAsync();
+                    cursos.Add(curso); cursosNuevos++;
+                }
+                var nombreCurso = $"{curso.Nombre} {curso.Letra}".Trim();
+                var accesoPropio = !Citaciones.EsCursoMenor(curso.Nombre);
+
+                // Alumno/a
+                if (!porRut.TryGetValue((rutEst, RolUsuario.Estudiante), out var uEst))
+                {
+                    var correo = C(f, iCor).ToLowerInvariant();
+                    if (!EsCorreoReal(correo) || correos.Contains(correo)) correo = $"{rutEst.ToLowerInvariant()}@alumnos.auka.cl";
+                    var clave = GenerarClave();
+                    uEst = new Usuario { Rut = rutEstFmt, Nombre = nom, Apellido = ape, Email = correo, Rol = RolUsuario.Estudiante, ColegioId = colegioId, Activo = true, DebeCambiarPassword = true, FechaCreacion = DateTime.UtcNow };
+                    uEst.PasswordHash = hasher.HashPassword(correo, clave);
+                    _context.Usuarios.Add(uEst);
+                    await _context.SaveChangesAsync();
+                    porRut[(rutEst, RolUsuario.Estudiante)] = uEst; correos.Add(correo); alumnosNuevos++;
+                    if (accesoPropio) credenciales.Add(new Credencial(nombreCurso, "Alumno/a", $"{nom} {ape}", rutEstFmt, correo.EndsWith("auka.cl") ? rutEstFmt : correo, clave));
+                }
+                else alumnosExistentes++;
+
+                var est = await _context.Estudiantes.FirstOrDefaultAsync(e => e.UsuarioId == uEst.Id);
+                if (est == null)
+                {
+                    est = new Estudiante { UsuarioId = uEst.Id, ColegioId = colegioId, CursoId = curso.Id, TipoMatricula = TipoMatricula.Nuevo, FechaMatricula = DateTime.UtcNow, AccesoPropio = accesoPropio };
+                    _context.Estudiantes.Add(est);
+                }
+                else { est.CursoId = curso.Id; est.AccesoPropio = accesoPropio; }
+                if (DateOnly.TryParse(C(f, iNac), new System.Globalization.CultureInfo("es-CL"), out var nac)) est.FechaNacimiento = nac;
+                // Tipo de matrícula y traslado (columnas opcionales)
+                var tipoTxt = SinTildes(C(f, iTipo));
+                if (tipoTxt.StartsWith("trasl")) est.TipoMatricula = TipoMatricula.Traslado;
+                else if (tipoTxt.StartsWith("renov") || tipoTxt.StartsWith("antig")) est.TipoMatricula = TipoMatricula.Renovacion;
+                else if (tipoTxt.StartsWith("nuev")) est.TipoMatricula = TipoMatricula.Nuevo;
+                if (est.TipoMatricula == TipoMatricula.Traslado)
+                {
+                    est.ColegioOrigen = Limpio(C(f, iOri), 160);
+                    est.RbdOrigen = Limpio(C(f, iRbd), 20);
+                    est.ComunaOrigen = Limpio(C(f, iCom), 80);
+                    est.MotivoTraslado = Limpio(C(f, iMot), 300);
+                    est.FechaTraslado ??= DateOnly.FromDateTime(DateTime.Now);
+                }
+                var docs = C(f, iDoc).Split(new[] { '|', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (docs.Length > 0) est.DocumentosPendientes = string.Join("|", docs);
+                var pie = SinTildes(C(f, iPie));
+                if (pie.StartsWith("si") || pie == "x" || pie == "1") est.NecesidadesEducativas = true;
+                var esp = C(f, iEsp);
+                if (EsMedioTP(curso.Nombre) && esp.Length > 0 && !SinTildes(esp).StartsWith("cientifico") && !SinTildes(esp).StartsWith("humanista"))
+                {
+                    est.Especialidad = esp;
+                    if (!especialidades.Any(x => string.Equals(x, esp, StringComparison.OrdinalIgnoreCase))) especialidades.Add(esp);
+                }
+                await _context.SaveChangesAsync();
+                var hist = await _context.MatriculasAnuales.FirstOrDefaultAsync(m => m.EstudianteId == est.Id && m.Anio == anio);
+                if (hist == null) _context.MatriculasAnuales.Add(new MatriculaAnual { ColegioId = colegioId, EstudianteId = est.Id, CursoId = curso.Id, Anio = anio, Tipo = est.TipoMatricula });
+                else hist.CursoId = curso.Id;
+
+                // Apoderado/a (si ya existe, se le suma este hijo/a)
+                if (!porRut.TryGetValue((rutApo, RolUsuario.Apoderado), out var uApo))
+                {
+                    var correo = C(f, iCorA).ToLowerInvariant();
+                    if (!EsCorreoReal(correo) || correos.Contains(correo)) correo = $"{rutApo.ToLowerInvariant()}@apoderados.auka.cl";
+                    var clave = GenerarClave();
+                    uApo = new Usuario
+                    {
+                        Rut = rutApoFmt, Nombre = C(f, iNomA).Length > 0 ? C(f, iNomA) : "Apoderado/a", Apellido = C(f, iApeA), Email = correo,
+                        Telefono = C(f, iTelA), Rol = RolUsuario.Apoderado, ColegioId = colegioId, Activo = true, DebeCambiarPassword = true, FechaCreacion = DateTime.UtcNow
+                    };
+                    uApo.PasswordHash = hasher.HashPassword(correo, clave);
+                    _context.Usuarios.Add(uApo);
+                    await _context.SaveChangesAsync();
+                    porRut[(rutApo, RolUsuario.Apoderado)] = uApo; correos.Add(correo); apoNuevos++;
+                    credenciales.Add(new Credencial(nombreCurso, "Apoderado/a", $"{uApo.Nombre} {uApo.Apellido}", rutApoFmt, correo.EndsWith("auka.cl") ? rutApoFmt : correo, clave));
+                }
+                var apo = await _context.Apoderados.FirstOrDefaultAsync(a => a.UsuarioId == uApo.Id);
+                if (apo == null) { apo = new Apoderado { UsuarioId = uApo.Id, TelefonoContacto = C(f, iTelA) }; _context.Apoderados.Add(apo); await _context.SaveChangesAsync(); }
+                if (!await _context.EstudiantesApoderados.AnyAsync(x => x.EstudianteId == est.Id && x.ApoderadoId == apo.Id))
+                {
+                    var tieneTitular = await _context.EstudiantesApoderados.AnyAsync(x => x.EstudianteId == est.Id && x.EsSostenedorPrincipal);
+                    _context.EstudiantesApoderados.Add(new EstudianteApoderado { EstudianteId = est.Id, ApoderadoId = apo.Id, Parentesco = C(f, iPar).Length > 0 ? C(f, iPar) : "Apoderado/a", EsSostenedorPrincipal = !tieneTitular });
+                    vinculos++;
+                }
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                errores.Add($"Fila {fila}: no se pudo guardar ({ex.GetBaseException().Message}).");
+                _context.ChangeTracker.Clear();
+                cursos = await _context.Cursos.Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio).ToListAsync();
+            }
+        }
+
+        if (col != null && especialidades.Count > 0)
+        {
+            var colegio = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+            if (colegio != null) { colegio.Especialidades = string.Join("|", especialidades.Distinct()); await _context.SaveChangesAsync(); }
+        }
+
+        ViewBag.Resumen = $"{alumnosNuevos} alumnos/as nuevos, {alumnosExistentes} ya existían, {apoNuevos} apoderados/as nuevos, {vinculos} vínculos alumno–apoderado, {cursosNuevos} cursos creados.";
+        ViewBag.Errores = errores;
+        ViewBag.Titulo = "Importación de alumnos/as y apoderados/as";
+        return View("Claves", credenciales);
+    }
+
+    /// <summary>
+    /// Claves provisorias de todo un curso, para imprimir o bajar en planilla.
+    /// Por defecto solo para quienes aún no entran (no han cambiado su clave); así no se le cambia la clave a quien ya la usa.
+    /// </summary>
+    [Authorize(Roles = "UTP,Director,SuperAdmin")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ClavesCurso(int cursoId, bool apoderados = true, bool todos = false)
+    {
+        var colegioId = ColegioActual();
+        var curso = await _context.Cursos.FirstOrDefaultAsync(c => c.Id == cursoId && c.ColegioId == colegioId);
+        if (curso == null) return NotFound();
+        var nombreCurso = $"{curso.Nombre} {curso.Letra}".Trim();
+        var hasher = new PasswordHasher<string>();
+        var lista = new List<Credencial>();
+
+        var ests = await _context.Estudiantes.Include(e => e.Usuario)
+            .Include(e => e.Apoderados).ThenInclude(a => a.Apoderado).ThenInclude(a => a!.Usuario)
+            .Where(e => e.CursoId == cursoId && e.Usuario != null).AsSplitQuery().ToListAsync();
+        var hechos = new HashSet<int>();
+        foreach (var e in ests.OrderBy(x => x.Usuario!.Apellido))
+        {
+            var objetivos = new List<(Usuario U, string Tipo)>();
+            if (e.AccesoPropio) objetivos.Add((e.Usuario!, "Alumno/a"));
+            if (apoderados) objetivos.AddRange(e.Apoderados.Where(a => a.Apoderado?.Usuario != null).Select(a => (a.Apoderado!.Usuario!, "Apoderado/a de " + e.Usuario!.Nombre)));
+            foreach (var (u, tipo) in objetivos)
+            {
+                if (!hechos.Add(u.Id)) continue;
+                if (!todos && !u.DebeCambiarPassword) continue;   // ya entró y eligió su clave: no se toca
+                var clave = GenerarClave();
+                u.PasswordHash = hasher.HashPassword(u.Email, clave);
+                u.DebeCambiarPassword = true;
+                lista.Add(new Credencial(nombreCurso, tipo, $"{u.Nombre} {u.Apellido}", u.Rut, u.Email.EndsWith("auka.cl") ? u.Rut : u.Email, clave));
+            }
+        }
+        await _context.SaveChangesAsync();
+        ViewBag.Resumen = lista.Count == 0
+            ? "Todos ya entraron y cambiaron su clave: no se generaron claves nuevas. (Marca «también a quienes ya entraron» para regenerarlas.)"
+            : $"Se generaron {lista.Count} claves provisorias para {nombreCurso}. Las claves anteriores de estas personas dejan de funcionar.";
+        ViewBag.Errores = new List<string>();
+        ViewBag.Titulo = $"Claves provisorias · {nombreCurso}";
+        ViewBag.CursoId = cursoId;
+        return View("Claves", lista);
+    }
+
+    /// <summary>
+    /// Corrige duplicados del año actual: cursos repetidos (mismo nivel y letra) se juntan en uno,
+    /// y alumnos/as o apoderados/as repetidos (mismo RUT) se dejan en una sola cuenta.
+    /// </summary>
+    [Authorize(Roles = "SuperAdmin,Director,UTP")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CorregirDuplicados()
+    {
+        var colegioId = ColegioActual();
+        var anio = DateTime.Now.Year;
+        int cursosJuntados = 0, alumnosJuntados = 0, apoJuntados = 0;
+
+        // 1) Cursos repetidos: se queda el más antiguo; se le pasan alumnos/as, historial y horario
+        var cursos = await _context.Cursos.Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio).ToListAsync();
+        foreach (var g in cursos.GroupBy(c => (Normal(c.Nombre), (c.Letra ?? "").Trim().ToUpperInvariant())).Where(g => g.Count() > 1))
+        {
+            var queda = g.OrderBy(c => c.Id).First();
+            foreach (var dup in g.Where(c => c.Id != queda.Id))
+            {
+                await _context.Estudiantes.Where(e => e.CursoId == dup.Id).ExecuteUpdateAsync(x => x.SetProperty(e => e.CursoId, queda.Id));
+                await _context.MatriculasAnuales.Where(m => m.CursoId == dup.Id).ExecuteUpdateAsync(x => x.SetProperty(m => m.CursoId, queda.Id));
+                var ocupados = await _context.ClasesHorario.Where(c => c.CursoId == queda.Id).Select(c => new { c.Dia, c.BloqueJornadaId }).ToListAsync();
+                foreach (var cl in await _context.ClasesHorario.Where(c => c.CursoId == dup.Id).ToListAsync())
+                {
+                    if (ocupados.Any(o => o.Dia == cl.Dia && o.BloqueJornadaId == cl.BloqueJornadaId)) _context.ClasesHorario.Remove(cl);
+                    else cl.CursoId = queda.Id;
+                }
+                if (queda.ProfesorJefeId == null && dup.ProfesorJefeId != null) queda.ProfesorJefeId = dup.ProfesorJefeId;
+                await _context.SaveChangesAsync();
+                _context.Cursos.Remove(dup);
+                await _context.SaveChangesAsync();
+                cursosJuntados++;
+            }
+        }
+
+        // 2) Apoderados/as repetidos (mismo RUT): sus hijos/as pasan a la cuenta más antigua; la repetida se desactiva
+        var apos = await _context.Usuarios.Where(u => u.ColegioId == colegioId && u.Rol == RolUsuario.Apoderado && u.Activo).ToListAsync();
+        foreach (var g in apos.GroupBy(u => Rut.Normalizar(u.Rut)).Where(g => g.Count() > 1))
+        {
+            var queda = g.OrderBy(u => u.Id).First();
+            var apoQueda = await _context.Apoderados.FirstOrDefaultAsync(a => a.UsuarioId == queda.Id);
+            foreach (var dup in g.Where(u => u.Id != queda.Id))
+            {
+                var apoDup = await _context.Apoderados.FirstOrDefaultAsync(a => a.UsuarioId == dup.Id);
+                if (apoDup != null)
+                {
+                    if (apoQueda == null) { apoDup.UsuarioId = queda.Id; apoQueda = apoDup; }
+                    else
+                    {
+                        var hijosQueda = await _context.EstudiantesApoderados.Where(x => x.ApoderadoId == apoQueda.Id).Select(x => x.EstudianteId).ToListAsync();
+                        foreach (var v in await _context.EstudiantesApoderados.Where(x => x.ApoderadoId == apoDup.Id).ToListAsync())
+                        {
+                            if (hijosQueda.Contains(v.EstudianteId)) _context.EstudiantesApoderados.Remove(v);
+                            else v.ApoderadoId = apoQueda.Id;
+                        }
+                        await _context.SaveChangesAsync();
+                        _context.Apoderados.Remove(apoDup);
+                    }
+                }
+                dup.Activo = false;
+                await _context.SaveChangesAsync();
+                apoJuntados++;
+            }
+        }
+
+        // 3) Alumnos/as repetidos (mismo RUT): se queda la cuenta con más datos; la repetida se desactiva
+        var alus = await _context.Usuarios.Where(u => u.ColegioId == colegioId && u.Rol == RolUsuario.Estudiante && u.Activo).ToListAsync();
+        foreach (var g in alus.GroupBy(u => Rut.Normalizar(u.Rut)).Where(g => g.Count() > 1))
+        {
+            var queda = g.OrderBy(u => u.Id).First();
+            var estQueda = await _context.Estudiantes.FirstOrDefaultAsync(e => e.UsuarioId == queda.Id);
+            foreach (var dup in g.Where(u => u.Id != queda.Id))
+            {
+                var estDup = await _context.Estudiantes.FirstOrDefaultAsync(e => e.UsuarioId == dup.Id);
+                if (estDup != null)
+                {
+                    if (estQueda == null) { estDup.UsuarioId = queda.Id; estQueda = estDup; }
+                    else
+                    {
+                        // Apoderados del repetido pasan al que queda
+                        var aposQueda = await _context.EstudiantesApoderados.Where(x => x.EstudianteId == estQueda.Id).Select(x => x.ApoderadoId).ToListAsync();
+                        foreach (var v in await _context.EstudiantesApoderados.Where(x => x.EstudianteId == estDup.Id).ToListAsync())
+                        {
+                            if (aposQueda.Contains(v.ApoderadoId)) _context.EstudiantesApoderados.Remove(v);
+                            else { v.EstudianteId = estQueda.Id; v.EsSostenedorPrincipal = false; }
+                        }
+                        await _context.SaveChangesAsync();
+                        _context.Estudiantes.Remove(estDup);
+                    }
+                }
+                dup.Activo = false;
+                await _context.SaveChangesAsync();
+                alumnosJuntados++;
+            }
+        }
+
+        TempData["SuccessMessage"] = cursosJuntados + alumnosJuntados + apoJuntados == 0
+            ? "✅ No había duplicados."
+            : $"🧹 Listo: se juntaron {cursosJuntados} cursos repetidos, {alumnosJuntados} alumnos/as y {apoJuntados} apoderados/as repetidos.";
+        return RedirectToAction(nameof(Index));
     }
 
     // ---------------------------------------------------------------- Ficha del alumno/a
