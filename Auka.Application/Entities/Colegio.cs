@@ -1,4 +1,4 @@
-﻿namespace Auka.Application.Entities;
+namespace Auka.Application.Entities;
 
 public class Colegio
 {
@@ -42,6 +42,10 @@ public class Colegio
     // Todos los permisos que entrega el administrador, por acción: "clubes:Director,UTP;inscribir:UTP,InspectorGeneral;horarios:UTP;profjefe:UTP".
     // null = valores por defecto (ver Auka.Web/Services/Permisos.cs). El administrador siempre puede todo.
     public string? Permisos { get; set; }
+
+    // Períodos de matrícula (JSON): año, desde, hasta, quiénes pueden matricular y si se cerró.
+    // null = sin períodos: matricula la administración (y desde septiembre, también para el año siguiente). Ver Auka.Web/Services/Matriculas.cs
+    public string? PeriodosMatricula { get; set; }
 
     // El administrador (Plan Premium) entra al resumen psicosocial: ve cantidades y estados, nunca el contenido de las fichas.
     // Lo activa solo el dueño de la plataforma cuando el colegio lo pide.

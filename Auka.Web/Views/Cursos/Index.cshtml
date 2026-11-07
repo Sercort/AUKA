@@ -49,6 +49,7 @@
     @if (esGestion && !esArchivo)
     {
         <div class="acc">
+            <a asp-action="PeriodosMatricula">🗓️ Períodos de matrícula</a>
             <a asp-action="Pendientes">📄 Documentos pendientes</a>
             <button type="button" data-bs-toggle="modal" data-bs-target="#mImp">📥 Importar planilla</button>
             <form asp-action="CorregirDuplicados" method="post" class="d-inline" data-c="¿Revisar y corregir cursos, alumnos/as y apoderados/as repetidos de este año?" onsubmit="return confirm(this.dataset.c);">

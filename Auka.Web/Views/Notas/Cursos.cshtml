@@ -1,0 +1,91 @@
+@* Auka.Web/Views/Notas/Cursos.cshtml — Libro de notas: carpetas por nivel › curso (luego cada asignatura) *@
+@{
+    ViewData["Title"] = "Libro de notas";
+    var carpetas = ViewBag.Carpetas as Auka.Web.Models.CarpetasVm ?? new Auka.Web.Models.CarpetasVm();
+    bool esGestion = ViewBag.EsGestion ?? false;
+    int total = ViewBag.Total ?? 0;
+    decimal promedio = ViewBag.Promedio ?? 0m;
+    int rojas = ViewBag.Rojas ?? 0;
+}
+<style>
+    .nt-res { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .nt-res .au-card { padding: 14px 18px; display: flex; align-items: center; gap: .8rem; flex: 1; min-width: 180px; }
+    .nt-res .n { font-size: 1.6rem; font-weight: 900; color: var(--a-navy); line-height: 1; }
+    .nt-res .n.rojo { color: #c0392b; }
+    .nt-res small { color: var(--a-mut); font-weight: 700; }
+    .nt-res .ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 1.3rem; background: #dff6f8; }
+</style>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<div class="au-head" style="background:linear-gradient(120deg,#0f8a99,#1fb5c5 60%,#3fdada)">
+    <div class="ico">📊</div>
+    <div class="txt">
+        <h2>Libro de notas</h2>
+        <p>Abre un nivel, elige el curso y luego la asignatura: verás a cada alumno/a con sus notas, como en el libro de clases.</p>
+    </div>
+    @if (esGestion)
+    {
+        <div class="acc">
+            <button type="button" data-bs-toggle="modal" data-bs-target="#mImpNotas">📥 Importar notas</button>
+        </div>
+    }
+</div>
+
+<div class="nt-res">
+    <div class="au-card"><span class="ic">📝</span><div><div class="n">@total.ToString("N0")</div><small>notas registradas este año</small></div></div>
+    <div class="au-card"><span class="ic" style="background:#eef3ff">📈</span><div><div class="n">@(promedio > 0 ? Auka.Web.Services.Csv.Nota1(promedio) : "—")</div><small>promedio del colegio</small></div></div>
+    <div class="au-card"><span class="ic" style="background:#fde5e4">🔴</span><div><div class="n @(rojas > 0 ? "rojo" : "")">@rojas.ToString("N0")</div><small>notas rojas (bajo 4,0)</small></div></div>
+</div>
+
+@if (carpetas.Cursos.Count == 0)
+{
+    <div class="au-card au-vacio"><span class="e">📊</span><b>No tienes cursos asignados este año.</b><p class="mb-0">Los cursos aparecen cuando tienes clases en su horario o eres profesor/a jefe.</p></div>
+}
+else
+{
+    @await Html.PartialAsync("_CursosCarpetas", carpetas)
+}
+
+@if (esGestion)
+{
+    <div class="modal fade" id="mImpNotas" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <form class="modal-content" asp-action="Importar" method="post" enctype="multipart/form-data" onsubmit="var b=this.querySelector('button.btn-primary'); if(b.disabled) return false; b.disabled=true; b.textContent='Importando… no cierres'; return true;">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h5 class="modal-title fw-bold">📥 Importar notas desde Excel</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <ol class="mb-3">
+                        <li>Descarga la plantilla y llénala en Excel: <b>una fila por nota</b> (RUT del alumno/a, asignatura, evaluación y nota).</li>
+                        <li>Guárdala como <b>CSV</b> (Archivo › Guardar como › CSV delimitado por punto y coma).</li>
+                        <li>Súbela aquí. El curso sale solo del alumno/a.</li>
+                    </ol>
+                    <button type="button" class="btn btn-outline-primary btn-sm px-3 mb-3" id="ntPlantilla">📄 Descargar plantilla</button>
+                    <input type="file" name="archivo" accept=".csv" class="form-control" required />
+                    <small class="text-muted d-block mt-2">Se cruza por RUT: si esa nota ya existe, se actualiza y no se duplica. Puedes importar por partes (un curso o una asignatura a la vez). También sirve una planilla exportada de otra plataforma si tiene esas columnas.</small>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">Importar</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('ntPlantilla').addEventListener('click', function () {
+            var csv = '﻿RUT alumno;Asignatura;Evaluación;Nota;Fecha;Ponderación\r\n' +
+                '24.123.456-8;Matemática;N1;6,2;15-03-2026;1\r\n' +
+                '24.123.456-8;Lenguaje y Comunicación;N1;5,8;18-03-2026;1\r\n';
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            a.download = 'plantilla_notas_auka.csv'; document.body.appendChild(a); a.click(); a.remove();
+        });
+    </script>
+}

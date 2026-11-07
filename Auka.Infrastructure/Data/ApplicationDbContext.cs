@@ -1,4 +1,4 @@
-﻿using Auka.Application.Entities;
+using Auka.Application.Entities;
 using Auka.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
@@ -36,9 +36,14 @@ public class ApplicationDbContext : DbContext
     public DbSet<Calificacion> Calificaciones { get; set; } = null!;
     public DbSet<Taller> Talleres { get; set; } = null!;
     public DbSet<InscripcionTaller> InscripcionesTaller { get; set; } = null!;
+    public DbSet<SesionTaller> SesionesTaller { get; set; } = null!;
+    public DbSet<InteresTaller> InteresesTaller { get; set; } = null!;
+    public DbSet<SalidaTaller> SalidasTaller { get; set; } = null!;
+    public DbSet<LogroTaller> LogrosTaller { get; set; } = null!;
     public DbSet<MatriculaAnual> MatriculasAnuales { get; set; } = null!;
     public DbSet<BloqueJornada> BloquesJornada { get; set; } = null!;
     public DbSet<ClaseHorario> ClasesHorario { get; set; } = null!;
+    public DbSet<SolicitudCambioHorario> SolicitudesCambioHorario { get; set; } = null!;
     public DbSet<BloqueHorario> BloquesHorarios { get; set; } = null!;
     public DbSet<Anotacion> Anotaciones { get; set; } = null!;
     public DbSet<AnotacionEliminada> AnotacionesEliminadas { get; set; } = null!;
@@ -82,6 +87,12 @@ public class ApplicationDbContext : DbContext
             e.ToTable("BloquesJornada");
             e.HasIndex(b => new { b.ColegioId, b.Orden }).IsUnique();
         });
+        modelBuilder.Entity<SolicitudCambioHorario>(e =>
+        {
+            e.ToTable("SolicitudesCambioHorario");
+            e.HasIndex(s => new { s.ColegioId, s.Estado });
+            e.HasIndex(s => s.ProfesorConsultadoId);
+        });
         modelBuilder.Entity<ClaseHorario>(e =>
         {
             e.ToTable("ClasesHorario");
@@ -98,6 +109,20 @@ public class ApplicationDbContext : DbContext
             e.HasIndex(m => m.CursoId);
             e.HasOne(m => m.Estudiante).WithMany().HasForeignKey(m => m.EstudianteId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(m => m.Curso).WithMany().HasForeignKey(m => m.CursoId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<InteresTaller>(e =>
+        {
+            e.ToTable("InteresesTaller");
+            e.HasIndex(x => new { x.ColegioId, x.Atendido });
+            e.HasOne(x => x.Estudiante).WithMany().HasForeignKey(x => x.EstudianteId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<SalidaTaller>(e => { e.ToTable("SalidasTaller"); e.HasIndex(x => new { x.EstudianteId, x.AvisadoMejora }); });
+        modelBuilder.Entity<LogroTaller>(e => { e.ToTable("LogrosTaller"); e.HasIndex(x => x.TallerId); });
+        modelBuilder.Entity<SesionTaller>(e =>
+        {
+            e.ToTable("SesionesTaller");
+            e.HasIndex(s => new { s.ColegioId, s.Dia });
+            e.HasOne(s => s.Taller).WithMany(t => t.Sesiones).HasForeignKey(s => s.TallerId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<InscripcionTaller>(e =>
         {

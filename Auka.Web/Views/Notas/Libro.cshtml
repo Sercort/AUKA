@@ -1,0 +1,354 @@
+@* Auka.Web/Views/Notas/Libro.cshtml — libro de notas de un curso.
+   Sin asignatura elegida: resumen (promedio de cada alumno/a en cada ramo).
+   Con asignatura: alumnos/as en filas y notas en columnas (N1, N2...), como el libro de clases.
+   "Editar notas" convierte la tabla en casillas; "Guardar" vuelve a la vista de lectura. *@
+@model Auka.Web.Controllers.NotasController.LibroVm
+@using Auka.Web.Services
+@{
+    var c = Model.Curso;
+    var nombreCurso = (c.Nombre + " " + c.Letra).Trim();
+    ViewData["Title"] = "Notas " + nombreCurso;
+    string Cls(decimal? n) => n == null ? "" : n < 4.0m ? "rojo" : "azul";
+    string N(decimal? n) => n is decimal v ? Csv.Nota1(v) : "";
+    var urlResumen = Url.Action("Libro", new { cursoId = c.Id });
+}
+<style>
+    .nt-tabs { display: flex; gap: .45rem; flex-wrap: wrap; margin-bottom: 16px; }
+    .nt-tabs a { text-decoration: none; display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .9rem; border-radius: 999px; background: #fff; border: 1.5px solid var(--a-line); color: var(--a-ink); font-weight: 800; font-size: .85rem; transition: background .2s, border-color .2s; }
+    .nt-tabs a:hover { border-color: var(--a-teal); background: #f0fbfc; }
+    .nt-tabs a.on { background: linear-gradient(120deg, #0f8a99, #1fb5c5); border-color: transparent; color: #fff; box-shadow: 0 6px 14px rgba(15,138,153,.25); }
+    .nt-tabs a .p { font-size: .72rem; background: #eef3ff; color: var(--a-navy); border-radius: 999px; padding: .05rem .45rem; }
+    .nt-tabs a .p.rojo { background: #fde5e4; color: #b03a37; }
+    .nt-tabs a.on .p { background: rgba(255,255,255,.25); color: #fff; }
+
+    .nt-libro { background: #fff; border: 1px solid var(--a-line); border-radius: 22px; box-shadow: var(--a-sombra); overflow: hidden; }
+    .nt-libro .cab { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid var(--a-line); background: linear-gradient(180deg, #f7fbff, #fff); }
+    .nt-libro .cab h3 { font-size: 1.15rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .nt-libro .cab small { color: var(--a-mut); font-weight: 700; }
+    .nt-libro .cab .bt { margin-left: auto; display: flex; gap: .5rem; flex-wrap: wrap; }
+    .nt-scroll { overflow-x: auto; }
+    .nt-t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .9rem; }
+    .nt-t th, .nt-t td { padding: .5rem .55rem; border-bottom: 1px solid #eef2f8; text-align: center; white-space: nowrap; }
+    .nt-t thead th { background: #f4f7fc; color: var(--a-mut); font-size: .74rem; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; position: sticky; top: 0; z-index: 2; }
+    .nt-t thead th small { display: block; font-weight: 700; text-transform: none; letter-spacing: 0; opacity: .8; }
+    .nt-t .al { text-align: left; position: sticky; left: 0; background: #fff; z-index: 1; min-width: 230px; font-weight: 700; color: var(--a-ink); box-shadow: 1px 0 0 #eef2f8; }
+    .nt-t thead .al { background: #f4f7fc; z-index: 3; }
+    .nt-t .num { color: var(--a-mut); width: 40px; font-weight: 800; }
+    .nt-t tbody tr:hover td { background: #f8fbff; }
+    .nt-t tbody tr:hover .al { background: #f8fbff; }
+    .nt-t .rojo { color: #c0392b; font-weight: 900; }
+    .nt-t .azul { color: #1a4fb0; font-weight: 800; }
+    .nt-t .prom { background: #f0f6ff; font-weight: 900; min-width: 78px; }
+    .nt-t thead .prom { background: #e4eeff; color: var(--a-navy); }
+    .nt-t tfoot td { background: #f8fafd; font-weight: 900; color: var(--a-navy); border-bottom: 0; }
+    .nt-t tfoot .al { background: #f8fafd; }
+    .nt-rut { display: block; font-size: .72rem; color: var(--a-mut); font-weight: 600; }
+    /* Edición */
+    .nt-in { width: 58px; text-align: center; border: 1.5px solid var(--a-line); border-radius: 10px; padding: .3rem .2rem; font-weight: 800; outline: none; transition: border-color .15s, box-shadow .15s; }
+    .nt-in:focus { border-color: var(--a-teal); box-shadow: 0 0 0 3px rgba(31,181,197,.18); }
+    .nt-in.rojo { color: #c0392b; border-color: #f3b8b6; background: #fff7f7; }
+    .nt-in.mal { border-color: #e0565b; background: #fde5e4; }
+    .nt-tit { width: 86px; text-align: center; border: 1.5px solid #d6e0ee; border-radius: 10px; padding: .25rem; font-weight: 800; font-size: .78rem; text-transform: none; }
+    .nt-fe { width: 120px; border: 1.5px solid #d6e0ee; border-radius: 10px; padding: .2rem; font-size: .74rem; margin-top: .25rem; }
+    .nt-del { display: inline-flex; align-items: center; gap: .2rem; margin-top: .3rem; font-size: .7rem; text-transform: none; color: #b03a37; cursor: pointer; }
+    .nt-nueva { background: #f0fbf5 !important; }
+    .nt-in.cambio { border-color: #ffb703; background: #fff8e6; }
+    .nt-motivo { display: none; padding: 12px 20px; background: #fff8e6; border-top: 1px solid #ffd98a; }
+    .nt-motivo.on { display: block; }
+    .nt-motivo label { display: block; color: #7a4d00; font-size: .88rem; margin-bottom: .4rem; }
+    .nt-barra { position: sticky; bottom: 0; display: flex; gap: .6rem; justify-content: flex-end; align-items: center; padding: 12px 20px; background: rgba(255,255,255,.95); border-top: 1px solid var(--a-line); backdrop-filter: blur(6px); z-index: 4; }
+    .nt-barra small { margin-right: auto; color: var(--a-mut); font-weight: 700; }
+    .nt-ley { display: flex; gap: 1rem; flex-wrap: wrap; padding: 10px 20px; color: var(--a-mut); font-size: .8rem; font-weight: 700; border-top: 1px solid var(--a-line); }
+</style>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<div class="au-head" style="background:linear-gradient(120deg,#0f8a99,#1fb5c5 60%,#3fdada)">
+    <div class="ico">📊</div>
+    <div class="txt">
+        <h2>Notas de @nombreCurso</h2>
+        <p>@Model.Filas.Count alumnos/as · Profesor/a jefe: @(c.ProfesorJefe != null ? c.ProfesorJefe.Nombre + " " + c.ProfesorJefe.Apellido : "sin asignar")</p>
+    </div>
+    <div class="acc">
+        <a asp-action="Index">📂 Todos los cursos</a>
+        <a asp-action="Exportar" asp-route-cursoId="@c.Id" asp-route-ramo="@Model.Ramo" class="blanco">📤 Descargar Excel</a>
+    </div>
+</div>
+
+<!-- Pestañas: resumen + cada asignatura del curso -->
+<nav class="nt-tabs" aria-label="Asignaturas">
+    <a href="@urlResumen" class="@(Model.Ramo == null ? "on" : "")">📋 Resumen del curso</a>
+    @foreach (var r in Model.Ramos)
+    {
+        <a asp-action="Libro" asp-route-cursoId="@c.Id" asp-route-ramo="@r.Nombre" class="@(r.Nombre == Model.Ramo ? "on" : "")" title="@(r.Profesor ?? "Sin profesor/a")">
+            @r.Nombre
+            @if (r.Promedio is decimal p)
+            {
+                <span class="p @(p < 4.0m ? "rojo" : "")">@Csv.Nota1(p)</span>
+            }
+        </a>
+    }
+</nav>
+
+@if (Model.Ramos.Count == 0)
+{
+    <div class="au-card au-vacio"><span class="e">📚</span><b>Este curso aún no tiene asignaturas.</b><p class="mb-0">Aparecen solas al armar su horario, o al importar notas.</p></div>
+}
+else if (Model.Ramo == null)
+{
+    var i = 0;
+    var gen = Model.Filas.Where(f => f.Promedio != null).Select(f => f.Promedio!.Value).ToList();
+    decimal? pg = gen.Count > 0 ? Math.Round(gen.Average(), 1, MidpointRounding.AwayFromZero) : null;
+    @* RESUMEN: promedio de cada alumno/a en cada asignatura *@
+    <div class="nt-libro">
+        <div class="cab">
+            <div><h3>📋 Resumen del curso</h3><small>Promedio de cada alumno/a en cada asignatura. Toca una asignatura arriba para ver o editar sus notas.</small></div>
+        </div>
+        <div class="nt-scroll">
+            <table class="nt-t">
+                <thead>
+                    <tr>
+                        <th class="num">N°</th>
+                        <th class="al">Alumno/a</th>
+                        @foreach (var r in Model.Ramos)
+                        {
+                            <th title="@r.Nombre">@(r.Nombre.Length > 14 ? r.Nombre[..13] + "…" : r.Nombre)</th>
+                        }
+                        <th class="prom">Promedio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.Filas)
+                    {
+                        i++;
+                        var d = Model.Resumen.TryGetValue(f.EstudianteId, out var x) ? x : new Dictionary<string, decimal>();
+                        <tr>
+                            <td class="num">@i</td>
+                            <td class="al">@f.Nombre<span class="nt-rut">@f.Rut</span></td>
+                            @foreach (var r in Model.Ramos)
+                            {
+                                decimal? v = d.TryGetValue(r.Nombre, out var nv) ? nv : null;
+                                <td class="@Cls(v)">@N(v)</td>
+                            }
+                            <td class="prom @Cls(f.Promedio)">@N(f.Promedio)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td></td>
+                        <td class="al">Promedio del curso</td>
+                        @foreach (var r in Model.Ramos)
+                        {
+                            <td class="@Cls(r.Promedio)">@N(r.Promedio)</td>
+                        }
+                        <td class="prom @Cls(pg)">@N(pg)</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="nt-ley"><span><b style="color:#1a4fb0">Azul</b>: 4,0 o más</span><span><b style="color:#c0392b">Rojo</b>: bajo 4,0</span></div>
+    </div>
+}
+else
+{
+    var ramo = Model.Ramos.First(r => r.Nombre == Model.Ramo);
+    var j = 0;
+    <form method="post" asp-action="GuardarLibro" id="ntForm" autocomplete="off">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cursoId" value="@c.Id" />
+        <input type="hidden" name="ramo" value="@Model.Ramo" />
+        <div class="nt-libro">
+            <div class="cab">
+                <div>
+                    <h3>📘 @Model.Ramo</h3>
+                    <small>@(ramo.Profesor ?? "Sin profesor/a asignado") · @Model.Columnas.Count @(Model.Columnas.Count == 1 ? "nota" : "notas") · Promedio del curso: @(Model.PromedioRamo is decimal pr ? Csv.Nota1(pr) : "—")</small>
+                </div>
+                <div class="bt">
+                    @if (Model.Editando)
+                    {
+                        <span class="au-chip sol">✏️ Modo edición</span>
+                    }
+                    else if (Model.PuedeEditar)
+                    {
+                        <a asp-action="Libro" asp-route-cursoId="@c.Id" asp-route-ramo="@Model.Ramo" asp-route-editar="true" class="btn btn-primary btn-sm px-4">✏️ Editar notas</a>
+                    }
+                    else
+                    {
+                        <span class="au-chip">👁️ Solo lectura</span>
+                    }
+                </div>
+            </div>
+            <div class="nt-scroll">
+                <table class="nt-t">
+                    <thead>
+                        <tr>
+                            <th class="num">N°</th>
+                            <th class="al">Alumno/a</th>
+                            @foreach (var col in Model.Columnas)
+                            {
+                                <th>
+                                    @if (Model.Editando)
+                                    {
+                                        <input class="nt-tit" name="t_@(col.Id)" value="@col.Titulo" maxlength="60" aria-label="Nombre de la evaluación" />
+                                        <small>@col.Fecha.ToString("dd-MM")</small>
+                                        <label class="nt-del"><input type="checkbox" name="del_@(col.Id)" value="1" /> quitar</label>
+                                    }
+                                    else
+                                    {
+                                        <span>@col.Titulo</span><small>@col.Fecha.ToString("dd-MM")@(col.Ponderacion != 1m ? " · x" + col.Ponderacion.ToString("0.#") : "")</small>
+                                    }
+                                </th>
+                            }
+                            @if (Model.Editando)
+                            {
+                                <th class="nt-nueva">
+                                    <input class="nt-tit" name="t_nueva" placeholder="N@(Model.Columnas.Count + 1)" maxlength="60" aria-label="Nombre de la nueva evaluación" />
+                                    <input class="nt-fe" type="date" name="f_nueva_iso" id="ntFecha" value="@DateTime.Today.ToString("yyyy-MM-dd")" aria-label="Fecha" />
+                                    <input type="hidden" name="f_nueva" id="ntFechaTxt" value="@DateTime.Today.ToString("dd-MM-yyyy")" />
+                                    <small>➕ nota nueva</small>
+                                </th>
+                            }
+                            <th class="prom">Promedio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in Model.Filas)
+                        {
+                            j++;
+                            <tr>
+                                <td class="num">@j</td>
+                                <td class="al">@f.Nombre<span class="nt-rut">@f.Rut</span></td>
+                                @foreach (var col in Model.Columnas)
+                                {
+                                    decimal? v = f.Notas.TryGetValue(col.Id, out var nv) ? nv : null;
+                                    if (Model.Editando)
+                                    {
+                                        <td><input class="nt-in @Cls(v)" name="n_@(f.EstudianteId)_@(col.Id)" value="@N(v)" data-orig="@N(v)" inputmode="decimal" maxlength="4" aria-label="Nota" /></td>
+                                    }
+                                    else
+                                    {
+                                        <td class="@Cls(v)">@N(v)</td>
+                                    }
+                                }
+                                @if (Model.Editando)
+                                {
+                                    <td class="nt-nueva"><input class="nt-in" name="n_@(f.EstudianteId)_nueva" inputmode="decimal" maxlength="4" aria-label="Nota nueva" /></td>
+                                }
+                                <td class="prom @Cls(f.Promedio)">@N(f.Promedio)</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td></td>
+                            <td class="al">Promedio de la evaluación</td>
+                            @foreach (var col in Model.Columnas)
+                            {
+                                var vs = Model.Filas.Where(f => f.Notas.ContainsKey(col.Id)).Select(f => f.Notas[col.Id]).ToList();
+                                decimal? pc = vs.Count > 0 ? Math.Round(vs.Average(), 1, MidpointRounding.AwayFromZero) : null;
+                                <td class="@Cls(pc)">@N(pc)</td>
+                            }
+                            @if (Model.Editando)
+                            {
+                                <td class="nt-nueva"></td>
+                            }
+                            <td class="prom @Cls(Model.PromedioRamo)">@N(Model.PromedioRamo)</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            @if (Model.Editando)
+            {
+                <div class="nt-motivo" id="ntMotivo">
+                    <label for="ntMotivoTxt"><b>✋ Cambiaste notas que ya estaban puestas.</b> Escribe el motivo: queda registrado y le llega un aviso @(User.IsInRole("UTP") ? "al profesor/a de la asignatura" : "a la UTP"). El alumno/a y su apoderado/a no reciben este aviso.</label>
+                    <input class="form-control" name="motivo" id="ntMotivoTxt" maxlength="300" placeholder="Ej.: error de digitación, prueba recuperativa, revisión de la evaluación…" />
+                </div>
+                <div class="nt-barra">
+                    <small>Notas de 1,0 a 7,0 (puedes escribir 5,5 · 5.5 · 55). Deja vacío para borrar. Enter baja a la siguiente.</small>
+                    <a asp-action="Libro" asp-route-cursoId="@c.Id" asp-route-ramo="@Model.Ramo" class="btn btn-outline-secondary px-4">Cancelar</a>
+                    <button type="submit" class="btn btn-success px-4">💾 Guardar notas</button>
+                </div>
+            }
+            else
+            {
+                <div class="nt-ley"><span><b style="color:#1a4fb0">Azul</b>: 4,0 o más</span><span><b style="color:#c0392b">Rojo</b>: bajo 4,0</span><span>El promedio considera la ponderación de cada nota.</span></div>
+            }
+        </div>
+    </form>
+
+    @if (Model.Editando)
+    {
+        <script>
+            (function () {
+                var form = document.getElementById('ntForm');
+                function leer(v) {
+                    v = (v || '').trim().replace(',', '.');
+                    if (!v) return null;
+                    var n = parseFloat(v);
+                    if (isNaN(n)) return NaN;
+                    if (n >= 10 && n <= 70 && v.indexOf('.') < 0) n = n / 10;
+                    return n;
+                }
+                function pintar(inp) {
+                    var n = leer(inp.value);
+                    inp.classList.toggle('mal', n !== null && (isNaN(n) || n < 1 || n > 7));
+                    inp.classList.toggle('rojo', n !== null && !isNaN(n) && n >= 1 && n < 4);
+                }
+                var ins = Array.prototype.slice.call(form.querySelectorAll('.nt-in'));
+                // ¿Se cambió o borró una nota que ya estaba puesta (o se quitó una evaluación con notas)? → pide motivo
+                var caja = document.getElementById('ntMotivo'), mot = document.getElementById('ntMotivoTxt');
+                function revisarMotivo() {
+                    var hay = false;
+                    ins.forEach(function (i) {
+                        var o = i.dataset.orig;
+                        var cambio = o !== undefined && o !== '' && i.value.trim().replace('.', ',') !== o;
+                        i.classList.toggle('cambio', cambio);
+                        if (cambio) hay = true;
+                    });
+                    form.querySelectorAll('input[name^="del_"]').forEach(function (c) { if (c.checked) hay = true; });
+                    caja.classList.toggle('on', hay);
+                    mot.required = hay;
+                    if (hay) mot.minLength = 5; else mot.removeAttribute('minlength');
+                }
+                form.addEventListener('input', revisarMotivo);
+                form.addEventListener('change', revisarMotivo);
+                ins.forEach(function (inp) {
+                    inp.addEventListener('input', function () { pintar(inp); });
+                    inp.addEventListener('keydown', function (e) {
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();
+                        // Baja a la misma columna en la fila siguiente
+                        var td = inp.closest('td'), tr = td.parentElement, idx = Array.prototype.indexOf.call(tr.children, td);
+                        var sig = tr.nextElementSibling;
+                        var dest = sig && sig.children[idx] ? sig.children[idx].querySelector('input') : null;
+                        if (dest) { dest.focus(); dest.select(); }
+                    });
+                });
+                // La fecha de la nota nueva viaja como dd-mm-aaaa
+                var fe = document.getElementById('ntFecha'), ft = document.getElementById('ntFechaTxt');
+                if (fe) fe.addEventListener('change', function () { var p = fe.value.split('-'); if (p.length === 3) ft.value = p[2] + '-' + p[1] + '-' + p[0]; });
+                // Avisar si hay notas fuera de rango antes de guardar
+                form.addEventListener('submit', function (e) {
+                    var malas = form.querySelectorAll('.nt-in.mal').length;
+                    if (malas > 0 && !confirm(malas + (malas === 1 ? ' nota no es válida' : ' notas no son válidas') + ' (deben ir de 1,0 a 7,0) y no se guardarán. ¿Guardar el resto?')) e.preventDefault();
+                });
+                // Avisar si se sale sin guardar
+                var cambiado = false;
+                form.addEventListener('input', function () { cambiado = true; });
+                form.addEventListener('submit', function () { cambiado = false; });
+                window.addEventListener('beforeunload', function (e) { if (cambiado) { e.preventDefault(); e.returnValue = ''; } });
+            })();
+        </script>
+    }
+}

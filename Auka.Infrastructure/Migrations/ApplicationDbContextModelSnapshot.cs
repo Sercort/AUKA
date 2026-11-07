@@ -492,6 +492,9 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<string>("Permisos")
                         .HasColumnType("text");
 
+                    b.Property<string>("PeriodosMatricula")
+                        .HasColumnType("text");
+
                     b.Property<bool>("PsicosocialAdministrador")
                         .HasColumnType("boolean");
 
@@ -558,6 +561,9 @@ namespace Auka.Infrastructure.Migrations
                         .HasColumnType("interval");
 
                     b.Property<bool?>("ViernesTarde")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HorarioBloqueado")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Nombre")
@@ -1116,6 +1122,9 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<int?>("Cupo")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("CupoMinimo")
+                        .HasColumnType("integer");
+
                     b.Property<string>("DocenteCargo")
                         .HasColumnType("text");
 
@@ -1123,6 +1132,18 @@ namespace Auka.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Horario")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("FechaFin")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaInicio")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Lugar")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Niveles")
                         .HasColumnType("text");
 
                     b.Property<string>("Nombre")
@@ -1134,6 +1155,157 @@ namespace Auka.Infrastructure.Migrations
                     b.HasIndex("DocenteId");
 
                     b.ToTable("Talleres", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.InteresTaller", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Atendido")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Categoria")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Comentario")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreadoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EstudianteId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RegistradoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TallerId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstudianteId");
+
+                    b.HasIndex("ColegioId", "Atendido");
+
+                    b.ToTable("InteresesTaller", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.SalidaTaller", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AvisadoMejora")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstudianteId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("PorId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("Promedio")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("TallerId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstudianteId", "AvisadoMejora");
+
+                    b.ToTable("SalidasTaller", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.LogroTaller", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Detalle")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Evento")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<int>("RegistradoPorId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TallerId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TallerId");
+
+                    b.ToTable("LogrosTaller", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.SesionTaller", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Dia")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeSpan>("HoraFin")
+                        .HasColumnType("interval");
+
+                    b.Property<TimeSpan>("HoraInicio")
+                        .HasColumnType("interval");
+
+                    b.Property<int>("TallerId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TallerId");
+
+                    b.HasIndex("ColegioId", "Dia");
+
+                    b.ToTable("SesionesTaller", (string)null);
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.InscripcionTaller", b =>
@@ -1198,6 +1370,69 @@ namespace Auka.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("BloquesJornada", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.SolicitudCambioHorario", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BloqueDestinoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClaseAId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ClaseBId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreadaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CursoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DiaDestino")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MotivoInterno")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MotivoMostrado")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ProfesorConsultadoId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RespondidaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Respuesta")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Resumen")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SolicitanteId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfesorConsultadoId");
+
+                    b.HasIndex("ColegioId", "Estado");
+
+                    b.ToTable("SolicitudesCambioHorario", (string)null);
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.ClaseHorario", b =>
@@ -1357,8 +1592,17 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<int?>("HorasContrato")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("HorarioAprobadoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("HorarioBloqueado")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("HorarioConfirmadoUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HorarioObservacion")
+                        .HasColumnType("text");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -1699,6 +1943,28 @@ namespace Auka.Infrastructure.Migrations
                     b.Navigation("Docente");
                 });
 
+            modelBuilder.Entity("Auka.Application.Entities.InteresTaller", b =>
+                {
+                    b.HasOne("Auka.Application.Entities.Estudiante", "Estudiante")
+                        .WithMany()
+                        .HasForeignKey("EstudianteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Estudiante");
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.SesionTaller", b =>
+                {
+                    b.HasOne("Auka.Application.Entities.Taller", "Taller")
+                        .WithMany("Sesiones")
+                        .HasForeignKey("TallerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Taller");
+                });
+
             modelBuilder.Entity("Auka.Application.Entities.Usuario", b =>
                 {
                     b.HasOne("Auka.Application.Entities.Colegio", null)
@@ -1745,6 +2011,8 @@ namespace Auka.Infrastructure.Migrations
             modelBuilder.Entity("Auka.Application.Entities.Taller", b =>
                 {
                     b.Navigation("Inscripciones");
+
+                    b.Navigation("Sesiones");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Anotaciones/SeleccionarCurso.cshtml — libro de anotaciones: primero se elige el curso *@
+@* Auka.Web/Views/Anotaciones/SeleccionarCurso.cshtml — libro de anotaciones: primero se elige el curso *@
 @model List<Auka.Web.Controllers.CursoAnotVm>
 @{
     ViewData["Title"] = "Anotaciones";
@@ -31,6 +31,13 @@
 {
     <div class="alert alert-danger mb-3">@TempData["ErrorMessage"]</div>
 }
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
 
 <div class="au-head violeta">
     <div class="ico">📒</div>
@@ -38,6 +45,12 @@
         <h2>Libro de anotaciones</h2>
         <p>Abre un nivel, elige el curso y verás las anotaciones de cada alumno/a.</p>
     </div>
+    @if (User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin"))
+    {
+        <div class="acc">
+            <button type="button" data-bs-toggle="modal" data-bs-target="#mImpAnot">📥 Importar anotaciones</button>
+        </div>
+    }
 </div>
 
 @if (enAlerta.Count > 0)
@@ -68,4 +81,37 @@ else
             Est(c.Id), estados.TryGetValue(c.Id, out var es) ? es.Motivo : null)).ToList()
     };
     @await Html.PartialAsync("_CursosCarpetas", carpetas)
+}
+
+@if (User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin"))
+{
+    <div class="modal fade" id="mImpAnot" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <form class="modal-content" asp-action="Importar" method="post" enctype="multipart/form-data" onsubmit="var b=this.querySelector('button.btn-primary'); if(b.disabled) return false; b.disabled=true; b.textContent='Importando… no cierres'; return true;">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h5 class="modal-title fw-bold">📥 Importar anotaciones desde Excel</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <ol class="mb-3">
+                        <li>Descarga la plantilla y llénala en Excel: <b>una fila por anotación</b>.</li>
+                        <li>Tipo: <b>Positiva</b> o <b>Negativa</b>. El RUT del profesor/a es opcional (si no va, queda a tu nombre).</li>
+                        <li>Guárdala como <b>CSV</b> (punto y coma) y súbela aquí.</li>
+                    </ol>
+                    <button type="button" class="btn btn-outline-primary btn-sm px-3 mb-3" id="anPlantilla">📄 Descargar plantilla</button>
+                    <input type="file" name="archivo" accept=".csv" class="form-control" required />
+                    <small class="text-muted d-block mt-2">Se cruza por RUT y no duplica: si la misma anotación (alumno/a, tipo, detalle y día) ya existe, se salta. No se envían avisos a los apoderados/as porque es historial.</small>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">Importar</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('anPlantilla').addEventListener('click', function () {
+            var csv = '\ufeffRUT alumno;Tipo;Detalle;Fecha;RUT profesor\r\n' +
+                '24.123.456-8;Positiva;Ayuda a sus compañeros en clases;12-03-2026;\r\n' +
+                '24.123.456-8;Negativa;No trae materiales;20-03-2026;\r\n';
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            a.download = 'plantilla_anotaciones_auka.csv'; document.body.appendChild(a); a.click(); a.remove();
+        });
+    </script>
 }

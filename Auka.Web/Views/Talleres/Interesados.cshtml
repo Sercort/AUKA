@@ -1,0 +1,74 @@
+@* Auka.Web/Views/Talleres/Interesados.cshtml — alumnos/as interesados en clubes, agrupados por club (o tipo) y por tramo de curso.
+   Sirve para ver dónde falta cupo y si se juntan suficientes para abrir un grupo nuevo (que nadie quede fuera). *@
+@model List<Auka.Web.Controllers.InteresadoVm>
+@using Auka.Web.Services
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Interesados en clubes";
+    var talleres = ViewBag.Talleres as List<Auka.Application.Entities.Taller> ?? new();
+    string Grupo(InteresadoVm i)
+    {
+        var t = talleres.FirstOrDefault(x => x.Id == i.TallerId);
+        return t != null ? t.Nombre : "✨ Club nuevo: " + (i.Categoria ?? "cualquier tipo");
+    }
+    var grupos = Model.GroupBy(Grupo).OrderByDescending(g => g.Count()).ToList();
+}
+<style>
+    .in-g { padding: 18px; margin-bottom: 14px; }
+    .in-g h3 { font-size: 1.05rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .in-tramo { display: flex; align-items: center; gap: .5rem; margin: 12px 0 6px; font-weight: 800; color: var(--a-mut); font-size: .85rem; }
+    .in-al { display: flex; gap: .6rem; align-items: center; padding: .45rem .3rem; border-bottom: 1px solid #eef2f8; }
+    .in-al:last-child { border-bottom: 0; }
+</style>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
+<div class="au-head sol">
+    <div class="ico">🙋</div>
+    <div class="txt"><h2>Interesados en clubes</h2><p>Quiénes quieren entrar a un club sin cupo, de otro nivel, o a uno que aún no existe. Si se juntan suficientes, abre un grupo nuevo: que nadie quede fuera.</p></div>
+    <div class="acc"><a asp-action="Index">🌟 Clubes</a></div>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="au-card au-vacio"><span class="e">🙋</span><b>No hay interesados pendientes.</b></div>
+}
+@foreach (var g in grupos)
+{
+    var t = talleres.FirstOrDefault(x => x.Nombre == g.Key);
+    var min = t?.CupoMinimo ?? 8;
+    var libres = t?.Cupo is > 0 ? t.Cupo.Value - t.Inscripciones.Count : (int?)null;
+    <form asp-action="AtenderInteres" method="post" class="au-card in-g">
+        @Html.AntiForgeryToken()
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h3>@g.Key</h3>
+            <span class="au-chip sol">🙋 @g.Count() @(g.Count() == 1 ? "interesado/a" : "interesados/as")</span>
+            @if (t != null)
+            {
+                <span class="au-chip @(libres is <= 0 ? "coral" : "verde")">@(libres == null ? "sin límite de cupo" : libres <= 0 ? "sin cupos" : libres + " cupos libres")</span>
+            }
+            @if (g.Count() >= min)
+            {
+                <span class="au-chip teal">💡 Alcanza para abrir un grupo nuevo (mínimo @min)</span>
+            }
+            <button class="btn btn-outline-success btn-sm px-3 ms-auto">✅ Marcar como atendidos</button>
+        </div>
+        @foreach (var tr in g.GroupBy(i => Clubes.TramoDe(i.Nivel)).OrderBy(x => Array.FindIndex(Clubes.Tramos, z => z.Clave == x.Key)))
+        {
+            <div class="in-tramo">🎯 @Clubes.NombreTramo(tr.Key) · @tr.Count()</div>
+            @foreach (var i in tr.OrderBy(x => x.Curso).ThenBy(x => x.Nombre))
+            {
+                <div class="in-al">
+                    <input type="checkbox" class="form-check-input" name="ids" value="@i.Id" checked aria-label="Atender" />
+                    <div class="flex-grow-1"><b>@i.Nombre</b> <small class="text-muted">· @i.Curso · @i.CreadoUtc.ToLocalTime().ToString("dd-MM")</small>@if (!string.IsNullOrEmpty(i.Comentario)) { <br /><small>«@i.Comentario»</small> }</div>
+                </div>
+            }
+        }
+        @if (t != null)
+        {
+            <a asp-action="Detalle" asp-route-id="@t.Id" class="btn btn-link btn-sm px-0 mt-2">Abrir el club para inscribir o ajustar el cupo</a>
+        }
+    </form>
+}

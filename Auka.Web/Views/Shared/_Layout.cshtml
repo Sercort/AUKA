@@ -1,4 +1,5 @@
-﻿@* Auka.Web/Views/Shared/_Layout.cshtml : diseño del Plan Premium (colegios).
+@inject Auka.Infrastructure.Data.ApplicationDbContext AukaDb
+@* Auka.Web/Views/Shared/_Layout.cshtml : diseño del Plan Premium (colegios).
    Logo y lema de AUKA, menú por rol, UN solo buscador (arriba, sirve para todo) y botón de sugerencias.
    El estilo de todos los módulos está en wwwroot/css/auka-app.css. *@
 @{
@@ -19,6 +20,13 @@
     var nombreUsuario = User.Identity?.Name ?? "";
     var iniciales = string.Concat(nombreUsuario.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpper(p[0])));
     var colegioNombre = User.FindFirst("ColegioNombre")?.Value ?? "";
+    // Períodos de matrícula abiertos para esta persona (aviso arriba y botón "Matrícula" en el menú)
+    var matAbiertas = new List<Auka.Web.Services.Matriculas.Periodo>();
+    if (autenticado && esStaff)
+    {
+        try { matAbiertas = await Auka.Web.Services.Matriculas.AbiertosParaAsync(AukaDb, User); } catch { }
+    }
+    var verMatricula = esGestion || matAbiertas.Count > 0;
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -90,9 +98,9 @@
                     {
                         <a class="@(on("Cursos", "Index") + on("Cursos", "Alumnos"))" asp-controller="Cursos" asp-action="Index">🏫 Cursos</a>
                     }
-                    @if (esGestion)
+                    @if (verMatricula)
                     {
-                        <a class="@on("Cursos", "Matricular")" asp-controller="Cursos" asp-action="Matricular">📝 Matrícula</a>
+                        <a class="@(on("Cursos", "Matricular") + on("Cursos", "PeriodosMatricula"))" asp-controller="Cursos" asp-action="Matricular">📝 Matrícula</a>
                     }
                     <a class="@on("Talleres", "")" asp-controller="Talleres" asp-action="Index">🌟 Clubes</a>
                     <a class="@on("Horarios", "")" asp-controller="Horarios" asp-action="Index">🗓️ Horarios</a>
@@ -106,6 +114,15 @@
     </header>
 
     <main role="main" class="au-main">
+        @if (matAbiertas.Count > 0 && !(ctrl == "Cursos" && (accion == "Matricular" || accion == "PeriodosMatricula")))
+        {
+            var pm = matAbiertas.OrderBy(m => m.Anio).Last();
+            <div class="au-matricula">
+                <span class="ic">📝</span>
+                <div><b>Matrícula @pm.Anio abierta</b><small>@(pm.Hasta != null ? "Puedes matricular alumnos/as hasta el " + pm.Hasta.Value.ToString("dd-MM-yyyy") + "." : "Ya puedes matricular alumnos/as para " + pm.Anio + ".")</small></div>
+                <a asp-controller="Cursos" asp-action="Matricular">Matricular ahora</a>
+            </div>
+        }
         @RenderBody()
     </main>
 

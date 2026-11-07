@@ -1,4 +1,4 @@
-﻿namespace Auka.Application.Entities;
+namespace Auka.Application.Entities;
 
 public enum RolUsuario
 {
@@ -42,6 +42,12 @@ public class Usuario
     public int? HorasContrato { get; set; }
     // Cuándo el docente confirmó que está de acuerdo con su horario (si después cambia, se le pide confirmar de nuevo)
     public DateTime? HorarioConfirmadoUtc { get; set; }
+    // La UTP aprueba el horario ya confirmado por el docente: queda bloqueado (el automático no lo mueve
+    // y para cambiarlo se pide un intercambio o se desbloquea)
+    public DateTime? HorarioAprobadoUtc { get; set; }
+    public bool HorarioBloqueado { get; set; }
+    // Si el docente no está de acuerdo con su horario, aquí queda lo que le complica
+    public string? HorarioObservacion { get; set; }
     public string? Asignaturas { get; set; }
 
     public int ColegioId { get; set; }

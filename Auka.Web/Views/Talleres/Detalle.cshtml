@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Talleres/Detalle.cshtml — ficha del club: datos, integrantes e inscripción *@
+@* Auka.Web/Views/Talleres/Detalle.cshtml — ficha del club: datos, integrantes e inscripción *@
 @model Auka.Application.Entities.Taller
 @using Auka.Web.Controllers
 @{
@@ -12,6 +12,16 @@
     var profe = Model.Docente != null ? $"{Model.Docente.Nombre} {Model.Docente.Apellido}" : (Model.DocenteCargo ?? "Sin profesor/a asignado");
     var lleno = Model.Cupo is > 0 && integrantes.Count >= Model.Cupo;
     var colores = new[] { "#fb8500", "#ffb703", "#2bb673", "#1fb5c5", "#2459b0", "#6c5ce7", "#ef6f6c" };
+    bool puedeEditar = ViewBag.PuedeEditarClub == true;
+    var niveles = Auka.Web.Services.Clubes.LeerNiveles(Model.Niveles);
+    var horario = Model.Sesiones.Count > 0 ? Auka.Web.Services.Clubes.Texto(Model.Sesiones) : Model.Horario;
+    var terminado = Auka.Web.Services.Clubes.Terminado(Model);
+    var logros = ViewBag.Logros as List<Auka.Application.Entities.LogroTaller> ?? new();
+    bool puedeLogros = ViewBag.PuedeLogros == true;
+    bool puedeRend = ViewBag.PuedeRendimiento == true;
+    var promedios = ViewBag.Promedios as Dictionary<int, decimal> ?? new();
+    var ganados = logros.Where(l => Auka.Web.Services.Clubes.Resultado(l.Resultado).Gana).ToList();
+    var animo = Auka.Web.Services.Clubes.Animo(logros);
 }
 <style>
     .ta-grid { display: grid; grid-template-columns: 320px 1fr; gap: 18px; align-items: start; }
@@ -45,6 +55,10 @@
     @@media (max-width: 900px) { .ta-grid { grid-template-columns: 1fr; } }
 </style>
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
@@ -66,8 +80,18 @@
     <div class="au-card ta-datos">
         <div class="fila"><span>📝</span><div><small>De qué se trata</small>@(string.IsNullOrWhiteSpace(Model.Descripcion) ? "Sin descripción." : Model.Descripcion)</div></div>
         <div class="fila"><span>👩‍🏫</span><div><small>Profesor/a a cargo</small><b>@profe</b></div></div>
-        <div class="fila"><span>🗓️</span><div><small>Días y horario</small>@(string.IsNullOrWhiteSpace(Model.Horario) ? "Por definir" : Model.Horario)</div></div>
+        <div class="fila"><span>🗓️</span><div><small>Días y horario</small>@(string.IsNullOrWhiteSpace(horario) ? "Por definir" : horario)</div></div>
+        <div class="fila"><span>📍</span><div><small>Lugar</small>@(Model.Lugar ?? "Por definir")</div></div>
+        <div class="fila"><span>🎯</span><div><small>Para quiénes</small>@(niveles.Count == 0 ? "Todos los cursos" : string.Join(" · ", niveles.Select(Auka.Web.Services.Clubes.NombreTramo)))</div></div>
+        @if (Model.FechaInicio != null || Model.FechaFin != null)
+        {
+            <div class="fila"><span>📆</span><div><small>Temporada</small>@(Model.FechaInicio?.ToString("dd-MM-yyyy") ?? "inicio de año") al @(Model.FechaFin?.ToString("dd-MM-yyyy") ?? "fin de año") @if (terminado) { <span class="au-chip coral">Terminó</span> }</div></div>
+        }
         <div class="fila"><span>🙋</span><div><small>Integrantes</small><b>@integrantes.Count</b>@(Model.Cupo is > 0 ? $" de {Model.Cupo} cupos" : " · sin límite de cupo")</div></div>
+        @if (puedeEditar)
+        {
+            <button type="button" class="btn btn-outline-primary btn-sm w-100 mt-2" data-bs-toggle="modal" data-bs-target="#mHorClub">✏️ Editar horario, lugar y para quiénes</button>
+        }
     </div>
 
     <div class="au-card ta-int">
@@ -124,7 +148,20 @@
                     var ini = string.Concat(a.Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpper(p[0])));
                     <div class="ta-al">
                         <span class="ta-av" style="background:@colores[k % colores.Length]">@ini</span>
-                        <div class="d"><b>@a.Nombre</b><br /><small>@a.Curso · @a.Rut · desde @a.FechaUtc.ToLocalTime().ToString("dd-MM-yyyy")</small></div>
+                        <div class="d"><b>@a.Nombre</b>
+                            @if (promedios.TryGetValue(a.EstudianteId, out var pr))
+                            {
+                                <span class="au-chip @(pr < 4.0m ? "coral" : "verde")" title="Promedio general del año">📊 @Auka.Web.Services.Csv.Nota1(pr)</span>
+                            }
+                            <br /><small>@a.Curso · @a.Rut · desde @a.FechaUtc.ToLocalTime().ToString("dd-MM-yyyy")</small></div>
+                        @if (puedeRend && promedios.TryGetValue(a.EstudianteId, out var pr2) && pr2 < 4.0m)
+                        {
+                            <form asp-action="QuitarPorRendimiento" method="post" data-c="¿Sacar a @a.Nombre del club por rendimiento? Se avisa a la UTP o al profesor/a (no a sus compañeros/as ni al apoderado/a)." onsubmit="return confirm(this.dataset.c);">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@a.Id" />
+                                <button class="btn btn-outline-warning btn-sm px-2" title="Las notas tienen prioridad">📉 Por notas</button>
+                            </form>
+                        }
                         @if (puede)
                         {
                             <form asp-action="Quitar" method="post" data-c="¿Quitar a @a.Nombre del club?" onsubmit="return confirm(this.dataset.c);">
@@ -140,6 +177,72 @@
             </div>
         }
     </div>
+</div>
+
+<div class="au-card p-3 mt-3">
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+        <h3 class="m-0" style="font-size:1.1rem;font-weight:900;color:var(--a-navy)">🏆 Logros del club</h3>
+        @foreach (var r in Auka.Web.Services.Clubes.Resultados.Where(x => x.Gana))
+        {
+            var n = ganados.Count(l => l.Resultado == r.Clave);
+            if (n > 0) { <span class="au-chip sol" title="@r.Nombre">@r.Icono @n</span> }
+        }
+        @if (puedeLogros)
+        {
+            <button type="button" class="btn btn-warning btn-sm px-3 ms-auto" data-bs-toggle="collapse" data-bs-target="#lgForm">➕ Registrar resultado</button>
+        }
+    </div>
+    @if (animo != null)
+    {
+        <div class="alert @(animo.StartsWith("🎉") ? "alert-success" : "alert-info") py-2">@animo</div>
+    }
+    @if (puedeLogros)
+    {
+        <form asp-action="AgregarLogro" method="post" class="collapse mb-3" id="lgForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="tallerId" value="@Model.Id" />
+            <div class="row g-2">
+                <div class="col-md-5"><input class="form-control" name="evento" maxlength="120" required placeholder="Ej: Campeonato comunal sub-12" aria-label="Evento" /></div>
+                <div class="col-md-3">
+                    <select class="form-select" name="resultado" aria-label="Resultado">
+                        @foreach (var r in Auka.Web.Services.Clubes.Resultados)
+                        {
+                            <option value="@r.Clave">@r.Icono @r.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2"><input class="form-control" type="date" name="fecha" value="@DateTime.Today.ToString("yyyy-MM-dd")" aria-label="Fecha" /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100">Guardar</button></div>
+                <div class="col-12"><input class="form-control" name="detalle" maxlength="300" placeholder="Detalle (opcional): ej. 2º lugar entre 8 colegios" aria-label="Detalle" /></div>
+            </div>
+            <small class="text-muted">Si ganan algo, AUKA felicita a los integrantes. Las derrotas no se muestran: solo sirven para darles ánimo.</small>
+        </form>
+    }
+    @if (ganados.Count == 0)
+    {
+        <p class="text-muted small mb-0">Aún no hay trofeos ni medallas. ¡A entrenar!</p>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-2">
+            @foreach (var l in ganados)
+            {
+                var r = Auka.Web.Services.Clubes.Resultado(l.Resultado);
+                <div class="d-flex align-items-center gap-2 p-2" style="border-radius:14px;background:#fff8e6">
+                    <span style="font-size:1.4rem">@r.Icono</span>
+                    <div class="flex-grow-1"><b>@l.Evento</b><br /><small class="text-muted">@r.Nombre · @l.Fecha.ToString("dd-MM-yyyy")@(l.Detalle != null ? " · " + l.Detalle : "")</small></div>
+                    @if (puedeLogros)
+                    {
+                        <form asp-action="QuitarLogro" method="post" class="m-0" data-c="¿Quitar este logro?" onsubmit="return confirm(this.dataset.c);">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@l.Id" />
+                            <button class="btn btn-sm btn-link text-danger" aria-label="Quitar">✕</button>
+                        </form>
+                    }
+                </div>
+            }
+        </div>
+    }
 </div>
 
 @if (puede && !lleno)
@@ -180,4 +283,22 @@
             });
         })();
     </script>
+}
+
+@if (puedeEditar)
+{
+    <div class="modal fade" id="mHorClub" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <form class="modal-content" asp-action="GuardarHorarioClub" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="modal-header"><h5 class="modal-title fw-bold">🗓️ Horario de «@Model.Nombre»</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    @await Html.PartialAsync("_HorarioClub", Model)
+                    <div class="alert alert-info small mt-3 mb-0">Si el nuevo horario choca con las clases de algún integrante (las clases mandan), con otro club en el mismo lugar o con el profesor/a, no se guarda y te dice quién. Al guardar, se avisa al profesor/a y a los integrantes.</div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">💾 Guardar</button></div>
+            </form>
+        </div>
+    </div>
 }

@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Horarios/Profesores.cshtml — horarios del personal, agrupados por departamento y luego directivos *@
+@* Auka.Web/Views/Horarios/Profesores.cshtml — horarios del personal, agrupados por departamento y luego directivos *@
 @model List<Auka.Application.Entities.Usuario>
 @using Auka.Application.Entities
 @using Auka.Web.Controllers
@@ -18,7 +18,14 @@
     var cambioDe = ViewBag.UltimoCambio as Dictionary<int, DateTime> ?? new();
     bool Confirmado(Usuario u) => u.HorarioConfirmadoUtc != null && (!cambioDe.TryGetValue(u.Id, out var c) || u.HorarioConfirmadoUtc >= c);
     var excedidos = docentes.Where(u => u.HorasContrato is > 0 && horas.GetValueOrDefault(u.Id) > u.HorasContrato).ToList();
-    var sinConfirmar = docentes.Count(u => horas.GetValueOrDefault(u.Id) > 0 && !Confirmado(u));
+    var sinConfirmar = docentes.Count(u => horas.GetValueOrDefault(u.Id) > 0 && !Confirmado(u) && u.HorarioObservacion == null);
+    var noAcuerdo = docentes.Where(u => u.HorarioObservacion != null).ToList();
+    var porAprobar = docentes.Where(u => !u.HorarioBloqueado && horas.GetValueOrDefault(u.Id) > 0 && Confirmado(u)).ToList();
+    var aprobados = docentes.Count(u => u.HorarioBloqueado);
+    var solicitudes = ViewBag.Solicitudes as List<SolicitudCambioHorario> ?? new();
+    var nombres = ViewBag.Nombres as Dictionary<int, string> ?? new();
+    string EstadoHorario(Usuario u, int h) => h == 0 ? "sin clases" : u.HorarioBloqueado ? (u.HorarioObservacion != null ? "📝 pidió un cambio" : "🔒 aprobado")
+        : u.HorarioObservacion != null ? "✋ no está de acuerdo" : Confirmado(u) ? "✅ confirmó · falta aprobar" : "⏳ por confirmar";
 }
 <style>
     .hp-grupo { display: flex; align-items: center; gap: .6rem; margin: 20px 0 10px; }
@@ -75,7 +82,21 @@
     </div>
     <div class="au-card p-3">
         <b class="d-block mb-2">🔔 Avisos</b>
-        @if (excedidos.Count == 0 && sinConfirmar == 0)
+        <div class="d-flex gap-2 flex-wrap mb-2">
+            <span class="au-chip verde">🔒 @aprobados aprobados</span>
+            <span class="au-chip teal">✅ @porAprobar.Count por aprobar</span>
+            <span class="au-chip sol">⏳ @sinConfirmar por confirmar</span>
+            @if (noAcuerdo.Count > 0) { <span class="au-chip coral">✋ @noAcuerdo.Count con comentarios o solicitudes</span> }
+        </div>
+        @foreach (var u in noAcuerdo)
+        {
+            <div class="alert @(u.HorarioBloqueado ? "alert-info" : "alert-danger") py-2 mb-2">@(u.HorarioBloqueado ? "📝" : "✋") <a href="/Horarios/Profesor/@u.Id">@u.Nombre @u.Apellido</a>: «@u.HorarioObservacion»</div>
+        }
+        @if (puede && porAprobar.Count > 0)
+        {
+            <div class="alert alert-info py-2 mb-2">✅ Ya confirmaron y esperan tu aprobación: @foreach (var u in porAprobar.Take(8)) { <a href="/Horarios/Profesor/@u.Id" class="me-2">@u.Nombre @u.Apellido</a> }@(porAprobar.Count > 8 ? "…" : "")</div>
+        }
+        @if (excedidos.Count == 0 && sinConfirmar == 0 && noAcuerdo.Count == 0)
         {
             <div class="text-success fw-bold">✅ Todo en orden: nadie pasa sus horas y los horarios están confirmados.</div>
         }
@@ -89,6 +110,36 @@
         }
     </div>
 </div>
+@if (puede && solicitudes.Count > 0)
+{
+    <div class="au-card p-3 mb-3">
+        <b class="d-block mb-2">🔁 Solicitudes de cambio de horario</b>
+        @foreach (var so in solicitudes)
+        {
+            var est = so.Estado == EstadoSolicitudHorario.Pendiente ? ("sol", "⏳ esperando respuesta")
+                : so.Estado == EstadoSolicitudHorario.Aceptada ? ("verde", "✅ aceptó")
+                : so.Estado == EstadoSolicitudHorario.Rechazada ? ("coral", "❌ no puede") : ("", "anulada");
+            <div class="d-flex gap-2 align-items-center flex-wrap py-2" style="border-top:1px solid #eef2f8">
+                <span class="au-chip @est.Item1">@est.Item2</span>
+                <span><b>@nombres.GetValueOrDefault(so.ProfesorConsultadoId, "Docente")</b> · @so.Resumen</span>
+                @if (!string.IsNullOrEmpty(so.MotivoInterno)) { <small class="text-muted">Motivo (interno): @so.MotivoInterno</small> }
+                @if (!string.IsNullOrEmpty(so.Respuesta)) { <small>Respuesta: «@so.Respuesta»</small> }
+                @if (so.Estado == EstadoSolicitudHorario.Pendiente)
+                {
+                    <form method="post" action="/Horarios/CancelarSolicitud" class="m-0 ms-auto">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@so.Id" />
+                        <button class="btn btn-outline-secondary btn-sm px-3">Cancelar</button>
+                    </form>
+                }
+            </div>
+        }
+    </div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
 @if (puede)
 {
     <p class="small text-muted">La asignatura de cada docente se toma de lo que escribiste en <a href="/Personal">Personal</a> (el departamento se completa solo). Aquí puedes ajustar el departamento y las horas de contrato; se guardan solos.</p>
@@ -113,7 +164,7 @@
                         var exc = u.HorasContrato is > 0 && h > u.HorasContrato;
                         var pctC = u.HorasContrato is > 0 ? Math.Min(100, h * 100 / u.HorasContrato.Value) : 0;
                     }
-                    <small>🗓️ @h @(u.HorasContrato is > 0 ? "de " + u.HorasContrato : "") horas @(exc ? "· ⚠️ se pasa" : "") · @(h == 0 ? "sin clases" : Confirmado(u) ? "✅ confirmado" : "⏳ por confirmar")</small>
+                    <small>🗓️ @h @(u.HorasContrato is > 0 ? "de " + u.HorasContrato : "") horas @(exc ? "· ⚠️ se pasa" : "") · @EstadoHorario(u, h)</small>
                     @if (u.HorasContrato is > 0)
                     {
                         <div class="carga"><i class="@(exc ? "exc" : "")" style="width:@pctC%"></i></div>

@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Horarios/_GrillaHorario.cshtml — grilla semanal (lunes a viernes × bloques de la jornada).
+@* Auka.Web/Views/Horarios/_GrillaHorario.cshtml — grilla semanal (lunes a viernes × bloques de la jornada).
    La usan el horario del curso (editable con permiso) y el del profesor/a (se arma solo). *@
 @model Auka.Web.Controllers.GrillaVm
 @using Auka.Application.Entities
@@ -7,6 +7,9 @@
     var colores = new[] { "#e3ebff|#1a319b", "#dff6f8|#0c6f7a", "#dcf5e8|#12744a", "#ecebff|#4b3fb8", "#fff0cc|#8a5a00", "#fde5e4|#a12d2a", "#e9f3ff|#2459b0", "#f3e8ff|#7a3db8" };
     string Color(string a) { var h = 0; foreach (var ch in a) h = (h * 31 + ch) & 0x7fffffff; return colores[h % colores.Length]; }
     var totalClases = Model.Celdas.Count;
+    // Con el curso bloqueado la grilla queda de solo lectura
+    var editable = Model.Editable && !Model.CursoBloqueado;
+    var bloqueadas = Model.Celdas.Values.Count(c => c.Bloqueada);
 }
 <style>
     .hg-wrap { overflow-x: auto; border-radius: 20px; }
@@ -28,6 +31,11 @@
     .hg tr.pausa td.p { border-radius: 12px; text-align: center; font-weight: 800; font-size: .8rem; padding: .35rem; }
     .hg tr.pausa.rec td.p { background: #fff6e0; color: #8a5a00; }
     .hg tr.pausa.alm td.p { background: #e8f8f0; color: #12744a; }
+    .hg .c .lk { position: absolute; top: 5px; right: 7px; font-size: .72rem; opacity: .85; }
+    .hg.mover .c.ed { outline: 2px dashed #1fb5c5; outline-offset: -3px; }
+    .hg .c.origen { box-shadow: 0 0 0 3px #fb8500 !important; }
+    .hg-barra { position: sticky; top: 74px; z-index: 20; display: none; align-items: center; gap: .7rem; flex-wrap: wrap; background: #fff6e0; border: 1px solid #ffd98a; color: #7a4d00; border-radius: 16px; padding: .6rem 1rem; margin-bottom: 10px; font-weight: 700; box-shadow: 0 8px 18px rgba(251,133,0,.15); }
+    .hg-barra.on { display: flex; }
     .hg-pie { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: 10px; color: var(--a-mut); font-size: .84rem; }
     @@media print {
         .au-top, .au-foot, .no-print, .au-head .acc { display: none !important; }
@@ -36,6 +44,7 @@
     }
 </style>
 
+<div class="hg-barra no-print" id="hgBarra"><span>🔁 Elige el bloque al que quieres mover <b id="hgBarraTxt"></b>. Si está ocupado, se intercambian.</span><button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="hgBarraX">Cancelar</button></div>
 <div class="au-card p-3">
     <div class="hg-wrap">
         <table class="hg">
@@ -82,8 +91,9 @@
                             if (cel != null)
                             {
                                 var col = Color(cel.Asignatura).Split('|');
-                                <td class="c llena @(Model.Editable ? "ed" : "")" style="background:@col[0];color:@col[1]"
-                                    data-dia="@dia" data-bloque="@b.Id" data-asig="@cel.Asignatura" data-prof="@cel.ProfesorId" data-sala="@cel.Sala">
+                                <td class="c llena @(editable ? "ed" : "")" style="background:@col[0];color:@col[1]"
+                                    data-dia="@dia" data-bloque="@b.Id" data-asig="@cel.Asignatura" data-prof="@cel.ProfesorId" data-sala="@cel.Sala" data-lock="@(cel.Bloqueada ? "1" : "")" data-det="@cel.Detalle">
+                                    @if (cel.Bloqueada) { <i class="lk" title="Horario del profesor/a aprobado: no se mueve">🔒</i> }
                                     <b>@cel.Asignatura</b>
                                     @if (!string.IsNullOrEmpty(cel.Detalle)) { <span>@(Model.PorProfesor ? "🏫 " : "👩‍🏫 ")@cel.Detalle</span> }
                                     @if (!string.IsNullOrEmpty(cel.Sala)) { <span>🚪 @cel.Sala</span> }
@@ -92,7 +102,7 @@
                             else
                             {
                                 var recu = dia == 5 && b.HoraInicio >= Model.ViernesSalidaColegio;
-                                <td class="c @(Model.Editable ? "ed" : "") @(recu ? "recu" : "")" data-dia="@dia" data-bloque="@b.Id" data-asig="" data-prof="" data-sala="">@if (recu) { <span class="rl">Recuperación</span> }</td>
+                                <td class="c @(editable ? "ed" : "") @(recu ? "recu" : "")" data-dia="@dia" data-bloque="@b.Id" data-asig="" data-prof="" data-sala="" data-lock="">@if (recu) { <span class="rl">Recuperación</span> }</td>
                             }
                         }
                     </tr>
@@ -103,15 +113,36 @@
     <div class="hg-pie">
         <span class="au-chip">📚 @totalClases @(totalClases == 1 ? "bloque con clase" : "bloques con clase")</span>
         <span class="au-chip sol">Viernes: @(Model.ViernesTarde ? "jornada completa (recuperación activa)" : "salida " + Model.ViernesSalida.ToString("hh\\:mm"))</span>
-        @if (Model.Editable)
+        @if (bloqueadas > 0)
         {
-            <span>Toca un bloque para asignar asignatura, profesor/a y sala.</span>
+            <span class="au-chip">🔒 @bloqueadas @(bloqueadas == 1 ? "bloque fijo" : "bloques fijos") (horario del profesor/a aprobado)</span>
+        }
+        @if (editable)
+        {
+            <span>Toca un bloque para asignar asignatura, profesor/a y sala, o para moverlo.</span>
         }
         <button type="button" class="btn btn-outline-secondary btn-sm px-3 ms-auto no-print" onclick="window.print()">🖨️ Imprimir</button>
     </div>
 </div>
 
-@if (Model.Editable)
+@if (Model.ClubesFuera.Count > 0)
+{
+    <div class="au-card p-3 mt-3">
+        <b class="d-block mb-2">🌟 Clubes y talleres <span class="text-muted fw-normal">· fuera del horario de clases</span></b>
+        <div class="d-flex flex-column gap-2">
+            @foreach (var cl in Model.ClubesFuera)
+            {
+                <a href="/Talleres/Detalle/@cl.TallerId" class="d-flex gap-3 align-items-center text-decoration-none p-2" style="border-radius:14px;background:#fff8e6;color:#7a4d00">
+                    <span class="au-chip sol" style="min-width:96px;justify-content:center">@Auka.Web.Services.Clubes.Dias[cl.Dia - 1]</span>
+                    <b style="min-width:110px">@Auka.Web.Services.Clubes.Hora(cl.Inicio)–@Auka.Web.Services.Clubes.Hora(cl.Fin)</b>
+                    <span>@cl.Club@(cl.Lugar != null ? " · 📍 " + cl.Lugar : "")@(cl.Detalle != null ? " · " + cl.Detalle : "")</span>
+                </a>
+            }
+        </div>
+    </div>
+}
+
+@if (editable)
 {
     <div class="modal fade" id="hgM" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -122,6 +153,7 @@
                 <input type="hidden" name="bloqueId" id="hgBloque" />
                 <div class="modal-header"><h5 class="modal-title fw-bold" id="hgT">Clase</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
                 <div class="modal-body">
+                    <div id="hgLock" class="alert alert-secondary py-2 small" style="display:none">🔒 Este bloque es de un profesor/a con horario aprobado: no se edita directo. Usa <b>«Mover o intercambiar»</b> y, si el otro bloque también es de alguien con horario aprobado, AUKA le pregunta antes.</div>
                     <label class="form-label">Asignatura</label>
                     <input name="asignatura" id="hgAsig" class="form-control mb-3" list="hgAsigs" maxlength="80" placeholder="Elige o escribe la asignatura" />
                     <datalist id="hgAsigs">
@@ -145,9 +177,35 @@
                     <input type="hidden" name="forzar" id="hgForzar" value="false" />
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-danger px-3 me-auto" id="hgBorrar">Dejar libre</button>
+                    <button type="button" class="btn btn-outline-danger px-3" id="hgBorrar">Dejar libre</button>
+                    <button type="button" class="btn btn-outline-primary px-3 me-auto" id="hgMover">🔁 Mover o intercambiar</button>
                     <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary px-4">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="modal fade" id="hgX" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" id="hgXF">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="cursoId" value="@Model.CursoId" />
+                <input type="hidden" name="diaOrigen" id="hgXd1" /><input type="hidden" name="bloqueOrigenId" id="hgXb1" />
+                <input type="hidden" name="diaDestino" id="hgXd2" /><input type="hidden" name="bloqueDestinoId" id="hgXb2" />
+                <div class="modal-header"><h5 class="modal-title fw-bold">🔁 Mover o intercambiar</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <div id="hgXTxt" class="mb-3"></div>
+                    <label class="form-label" for="hgXMot">Motivo <span class="text-muted fw-normal">(opcional; queda para la UTP)</span></label>
+                    <input class="form-control mb-2" name="motivo" id="hgXMot" maxlength="300" placeholder="Ej.: trámite personal, capacitación, cambio pedido por el profesor/a…" />
+                    <label class="d-flex gap-2 align-items-start small" style="cursor:pointer">
+                        <input type="checkbox" class="form-check-input mt-1" name="mostrarMotivo" value="true" />
+                        <span>Mostrar este motivo al profesor/a que se consulta. Si no lo marcas, verá «Motivos personales de un colega».</span>
+                    </label>
+                    <div id="hgXMsg" class="mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary px-4" id="hgXOk">Hacer el cambio</button>
                 </div>
             </form>
         </div>
@@ -157,13 +215,64 @@
             var dias = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
             var $ = function (i) { return document.getElementById(i); };
             var modal = function () { return bootstrap.Modal.getOrCreateInstance($('hgM')); };
+            // ---- Mover o intercambiar: primero se elige el bloque de origen (desde el modal), luego el destino
+            var origen = null;
+            var hora = function (td) { return td.parentElement.querySelector('td.h').firstChild.textContent.trim(); };
+            var salirMover = function () {
+                origen = null; document.querySelector('.hg').classList.remove('mover'); $('hgBarra').classList.remove('on');
+                document.querySelectorAll('.hg .c.origen').forEach(function (x) { x.classList.remove('origen'); });
+            };
+            $('hgBarraX').addEventListener('click', salirMover);
+            $('hgMover').addEventListener('click', function () {
+                var td = document.querySelector('.hg .c[data-dia="' + $('hgDia').value + '"][data-bloque="' + $('hgBloque').value + '"]');
+                if (!td || !td.dataset.asig) return;
+                origen = td; td.classList.add('origen');
+                document.querySelector('.hg').classList.add('mover');
+                $('hgBarraTxt').textContent = td.dataset.asig + ' (' + dias[+td.dataset.dia] + ' ' + hora(td) + ')';
+                $('hgBarra').classList.add('on');
+                modal().hide();
+            });
+            var elegirDestino = function (td) {
+                if (td === origen) { salirMover(); return; }
+                $('hgXd1').value = origen.dataset.dia; $('hgXb1').value = origen.dataset.bloque;
+                $('hgXd2').value = td.dataset.dia; $('hgXb2').value = td.dataset.bloque;
+                var a = '<b>' + esc(origen.dataset.asig) + '</b> (' + dias[+origen.dataset.dia] + ' ' + hora(origen) + ')';
+                var txt = td.dataset.asig
+                    ? '🔁 Intercambiar ' + a + ' con <b>' + esc(td.dataset.asig) + '</b>' + (td.dataset.det ? ' de ' + esc(td.dataset.det) : '') + ' (' + dias[+td.dataset.dia] + ' ' + hora(td) + ').'
+                    : '➡️ Mover ' + a + ' al ' + dias[+td.dataset.dia] + ' ' + hora(td) + ' (está libre).';
+                if (td.dataset.lock) txt += '<div class="alert alert-warning py-2 small mt-2 mb-0">🔒 El horario de ' + esc(td.dataset.det || 'ese profesor/a') + ' está aprobado: le llegará una solicitud y el cambio se hace cuando acepte.</div>';
+                $('hgXTxt').innerHTML = txt; $('hgXMsg').innerHTML = ''; $('hgXMot').value = '';
+                $('hgXOk').textContent = td.dataset.lock ? '📨 Enviar solicitud' : 'Hacer el cambio';
+                salirMover();
+                bootstrap.Modal.getOrCreateInstance($('hgX')).show();
+            };
+            $('hgXF').addEventListener('submit', function (e) {
+                e.preventDefault();
+                $('hgXMsg').innerHTML = '<div class="alert alert-info py-2 mb-0">Revisando choques…</div>';
+                fetch('/Horarios/Intercambiar', { method: 'POST', body: new FormData($('hgXF')), credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (d.ok) {
+                            $('hgXMsg').innerHTML = '<div class="alert alert-success py-2 mb-0">' + esc(d.mensaje) + '</div>';
+                            setTimeout(function () { location.reload(); }, d.pendiente ? 1800 : 600);
+                        } else $('hgXMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0">⛔ ' + esc(d.error) + '</div>';
+                    })
+                    .catch(function () { $('hgXMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0">No se pudo hacer el cambio. Revisa tu conexión.</div>'; });
+            });
+
             document.querySelectorAll('.hg .c.ed').forEach(function (td) {
                 td.addEventListener('click', function () {
+                    if (origen) { elegirDestino(td); return; }
+                    var lock = !!td.dataset.lock;
+                    $('hgLock').style.display = lock ? '' : 'none';
+                    ['hgAsig', 'hgProf', 'hgSala'].forEach(function (i) { $(i).disabled = lock; });
+                    $('hgF').querySelector('button[type=submit]').style.display = lock ? 'none' : '';
+                    $('hgMover').style.display = td.dataset.asig ? '' : 'none';
                     $('hgDia').value = td.dataset.dia; $('hgBloque').value = td.dataset.bloque;
                     $('hgAsig').value = td.dataset.asig || ''; $('hgProf').value = td.dataset.prof || ''; $('hgSala').value = td.dataset.sala || '';
                     var hora = td.parentElement.querySelector('td.h').firstChild.textContent.trim();
                     $('hgT').textContent = dias[+td.dataset.dia] + ' · ' + hora;
-                    $('hgMsg').innerHTML = ''; $('hgSug').innerHTML = ''; $('hgForzar').value = 'false'; $('hgBorrar').style.display = td.dataset.asig ? '' : 'none';
+                    $('hgMsg').innerHTML = ''; $('hgSug').innerHTML = ''; $('hgForzar').value = 'false'; $('hgBorrar').style.display = td.dataset.asig && !lock ? '' : 'none';
                     marcarOcupados(td.dataset.dia, td.dataset.bloque);
                     modal().show();
                     setTimeout(function () { $('hgAsig').focus(); }, 300);

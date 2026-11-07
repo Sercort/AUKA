@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Talleres/Crear.cshtml — crear club o taller: tipo, profesor, días y horario, cupo *@
+@* Auka.Web/Views/Talleres/Crear.cshtml — crear club o taller: tipo, profesor, días y horario, cupo *@
 @model Auka.Application.Entities.Taller
 @using Auka.Web.Controllers
 @{
@@ -76,22 +76,9 @@
         </div>
 
         <div class="au-card cc-sec">
-            <h3>3. Días, horario y cupo</h3>
-            <div class="ay">Marca los días y la hora; el texto se arma solo (también puedes escribirlo a mano).</div>
-            <div class="cc-dias" id="ccDias">
-                @foreach (var d in dias)
-                {
-                    <button type="button" data-d="@d.Item2" title="@d.Item2">@d.Item1</button>
-                }
-            </div>
-            <div class="cc-horas">
-                <span class="fw-bold">De</span><input type="time" id="ccDe" class="form-control" value="16:00" />
-                <span class="fw-bold">a</span><input type="time" id="ccA" class="form-control" value="17:30" />
-                <span class="fw-bold ms-md-3">Cupo</span>
-                <input asp-for="Cupo" type="number" min="1" max="500" class="form-control" style="max-width:110px" placeholder="Sin límite" />
-            </div>
-            <label asp-for="Horario" class="form-label mt-3">Horario que verán todos</label>
-            <input asp-for="Horario" id="ccHor" class="form-control" placeholder="Ej: Martes y jueves de 16:00 a 17:30" maxlength="160" />
+            <h3>3. Días, horario, lugar y para quiénes</h3>
+            <div class="ay">Los clubes van fuera del horario de clases. Puedes agregar varios días.</div>
+            @await Html.PartialAsync("_HorarioClub", Model)
         </div>
 
         <div class="cc-acc">
@@ -102,24 +89,8 @@
 </div>
 
 <script>
-    (function () {
-        var dias = document.getElementById('ccDias'), de = document.getElementById('ccDe'), a = document.getElementById('ccA'), hor = document.getElementById('ccHor');
-        var manual = !!hor.value;
-        var armar = function () {
-            if (manual) return;
-            var sel = Array.prototype.map.call(dias.querySelectorAll('button.on'), function (b) { return b.getAttribute('data-d'); });
-            if (!sel.length) { hor.value = ''; return; }
-            var txt = sel.length === 1 ? sel[0] : sel.slice(0, -1).join(', ') + ' y ' + sel[sel.length - 1].toLowerCase();
-            txt = txt.charAt(0) + txt.slice(1).toLowerCase();
-            hor.value = txt + ' de ' + de.value + ' a ' + a.value;
-        };
-        dias.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; b.classList.toggle('on'); manual = false; armar(); });
-        de.addEventListener('change', function () { manual = false; armar(); });
-        a.addEventListener('change', function () { manual = false; armar(); });
-        hor.addEventListener('input', function () { manual = true; });
-        // Si ninguna categoría viene marcada, marca la primera
-        if (!document.querySelector('input[name="Categoria"]:checked')) document.querySelector('input[name="Categoria"]').checked = true;
-    })();
+    // Si ninguna categoría viene marcada, marca la primera
+    if (!document.querySelector('input[name="Categoria"]:checked')) document.querySelector('input[name="Categoria"]').checked = true;
 </script>
 
 @section Scripts {

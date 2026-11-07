@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -139,6 +139,76 @@ public class AnotacionesController : Controller
 
         TempData["SuccessMessage"] = "Anotación registrada con éxito.";
         return RedirectToAction(nameof(Index), new { estudianteId });
+    }
+
+    // 3. Importar anotaciones desde Excel (CSV)
+    /// <summary>
+    /// Columnas: RUT alumno; Tipo (Positiva/Negativa); Detalle; Fecha (opcional); RUT profesor (opcional).
+    /// Se cruza por RUT. Si la misma anotación (alumno/a, tipo, detalle y día) ya existe, no se duplica.
+    /// No envía avisos a apoderados/as: es para traer el historial, no para notificar.
+    /// </summary>
+    [Authorize(Roles = "UTP,Director,SuperAdmin")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(6_000_000)]
+    public async Task<IActionResult> Importar(IFormFile? archivo)
+    {
+        if (archivo == null || archivo.Length == 0) { TempData["ErrorMessage"] = "Elige el archivo CSV."; return RedirectToAction(nameof(Index)); }
+        var pl = await Auka.Web.Services.Csv.LeerAsync(archivo);
+        int iRut = pl.Col("rut alumno", "rut estudiante", "rut"), iTipo = pl.Col("tipo"), iDet = pl.Col("detalle", "descripcion", "anotacion", "observacion"),
+            iFec = pl.Col("fecha"), iProf = pl.Col("rut profesor", "rut docente", "rut funcionario");
+        if (iRut < 0 || iTipo < 0 || iDet < 0) { TempData["ErrorMessage"] = "Faltan columnas. Usa la plantilla: RUT alumno, Tipo y Detalle."; return RedirectToAction(nameof(Index)); }
+        if (pl.Filas.Count > 20000) { TempData["ErrorMessage"] = "Máximo 20.000 anotaciones por archivo."; return RedirectToAction(nameof(Index)); }
+
+        _ = int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var yo);
+        _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var colegioId);
+        var anio = DateTime.Now.Year;
+        var estudiantes = await _context.Estudiantes.Include(e => e.Usuario).Include(e => e.Curso)
+            .Where(e => e.Usuario != null && e.Usuario.Activo && e.Curso != null && e.Curso.AnioAcademico == anio).ToListAsync();
+        var porRut = estudiantes.GroupBy(e => Auka.Web.Services.Rut.Normalizar(e.Usuario!.Rut)).ToDictionary(g => g.Key, g => g.First());
+        var personal = (await _context.Usuarios.AsNoTracking()
+                .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol != RolUsuario.Estudiante && u.Rol != RolUsuario.Apoderado)
+                .Select(u => new { u.Id, u.Rut }).ToListAsync())
+            .GroupBy(u => Auka.Web.Services.Rut.Normalizar(u.Rut)).ToDictionary(g => g.Key, g => g.First().Id);
+
+        var ids = estudiantes.Select(e => e.Id).ToList();
+        var ya = (await _context.Anotaciones.AsNoTracking().Where(a => ids.Contains(a.EstudianteId))
+                .Select(a => new { a.EstudianteId, a.Tipo, a.Detalle, a.Fecha }).ToListAsync())
+            .Select(a => (a.EstudianteId, a.Tipo, Auka.Web.Services.Csv.Clave(a.Detalle), a.Fecha.Date)).ToHashSet();
+
+        var errores = new List<string>();
+        int nuevas = 0, repetidas = 0;
+        for (int i = 0; i < pl.Filas.Count; i++)
+        {
+            var f = pl.Filas[i];
+            var fila = i + 2;
+            string C(int k) => Auka.Web.Services.Csv.Planilla.Celda(f, k);
+            if (C(iRut).Length == 0 && C(iDet).Length == 0) continue;
+            if (!Auka.Web.Services.Rut.TryValidar(C(iRut), out var rut, out _)) { errores.Add($"Fila {fila}: RUT no válido ({C(iRut)})."); continue; }
+            if (!porRut.TryGetValue(rut, out var est)) { errores.Add($"Fila {fila}: no hay alumno/a con RUT {C(iRut)} este año."); continue; }
+            var t = Auka.Web.Services.Csv.Clave(C(iTipo));
+            TipoAnotacion tipo;
+            if (t.StartsWith("pos") || t == "+" || t == "p") tipo = TipoAnotacion.Positiva;
+            else if (t.StartsWith("neg") || t == "-" || t == "n") tipo = TipoAnotacion.Negativa;
+            else { errores.Add($"Fila {fila}: el tipo debe ser Positiva o Negativa ({C(iTipo)})."); continue; }
+            var detalle = C(iDet);
+            if (detalle.Length == 0) { errores.Add($"Fila {fila}: falta el detalle."); continue; }
+            if (detalle.Length > 1000) detalle = detalle[..1000];
+            var fecha = (iFec >= 0 ? Auka.Web.Services.Csv.Fecha(C(iFec)) : null) ?? DateTime.UtcNow;
+            var clave = (est.Id, tipo, Auka.Web.Services.Csv.Clave(detalle), fecha.Date);
+            if (!ya.Add(clave)) { repetidas++; continue; }
+
+            var autor = yo;
+            if (iProf >= 0 && Auka.Web.Services.Rut.TryValidar(C(iProf), out var rp, out _) && personal.TryGetValue(rp, out var idProf)) autor = idProf;
+            _context.Anotaciones.Add(new Anotacion { EstudianteId = est.Id, DocenteId = autor, Tipo = tipo, Detalle = detalle, Fecha = fecha });
+            nuevas++;
+            if (nuevas % 1000 == 0) await _context.SaveChangesAsync();
+        }
+        await _context.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = $"📥 Anotaciones importadas: {nuevas} nuevas" + (repetidas > 0 ? $", {repetidas} ya estaban (no se duplicaron)" : "") + ".";
+        if (errores.Count > 0) TempData["ErrorMessage"] = $"{errores.Count} {(errores.Count == 1 ? "fila no se importó" : "filas no se importaron")}: " + string.Join(" ", errores.Take(8)) + (errores.Count > 8 ? " …" : "");
+        return RedirectToAction(nameof(Index));
     }
 }
 

@@ -193,3 +193,11 @@ body.au-app::after { width: 460px; height: 460px; left: -170px; bottom: -170px; 
     .au-head .acc { margin-left: 0; }
     .au-idea span { display: none; }
 }
+
+/* Aviso de período de matrícula abierto (arriba de cada pantalla, para quienes pueden matricular) */
+.au-matricula { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; background: linear-gradient(120deg, #fff6e0, #ffe9c2); border: 1px solid #ffd98a; border-radius: 18px; padding: .75rem 1rem; margin-bottom: 16px; color: #7a4d00; box-shadow: 0 6px 16px rgba(251,133,0,.12); }
+.au-matricula .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 1.3rem; background: #fff; }
+.au-matricula b { display: block; font-weight: 900; }
+.au-matricula small { font-weight: 700; opacity: .9; }
+.au-matricula a { margin-left: auto; background: var(--a-grad-sun); color: #fff !important; font-weight: 800; text-decoration: none; padding: .5rem 1.1rem; border-radius: 999px; box-shadow: 0 6px 14px rgba(251,133,0,.25); }
+.au-matricula a:hover { filter: brightness(1.05); }

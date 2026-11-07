@@ -1,4 +1,4 @@
-﻿namespace Auka.Application.Entities;
+namespace Auka.Application.Entities;
 
 public class Curso
 {
@@ -16,6 +16,8 @@ public class Curso
     // Viernes propio del curso (null = como el colegio). Ej: 3º Básico A sale a las 15:30 por recuperación de Matemática.
     public TimeSpan? ViernesSalida { get; set; }
     public bool? ViernesTarde { get; set; }
+    // Horario del curso bloqueado por la UTP: el automático no lo toca y no se edita hasta desbloquearlo
+    public bool HorarioBloqueado { get; set; }
 
     public ICollection<Estudiante> Estudiantes { get; set; } = new List<Estudiante>();
 }

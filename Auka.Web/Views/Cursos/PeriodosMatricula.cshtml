@@ -1,0 +1,183 @@
+@* Auka.Web/Views/Cursos/PeriodosMatricula.cshtml — abrir y cerrar la matrícula de cada año y elegir quién matricula *@
+@model List<Auka.Web.Services.Matriculas.Periodo>
+@using Auka.Web.Services
+@{
+    ViewData["Title"] = "Períodos de matrícula";
+    var actual = DateTime.Now.Year;
+    var avance = ViewBag.Avance as Dictionary<int, (int Matriculados, int Cupos)> ?? new();
+    var sugerido = Enumerable.Range(actual, 3).FirstOrDefault(a => !Model.Any(p => p.Anio == a && Matriculas.Estado(p) == "abierta"), actual + 1);
+    if (sugerido == actual && DateTime.Now.Month >= 6) { sugerido = actual + 1; }
+    string Chip(string e) => e switch { "abierta" => "verde", "programada" => "teal", "terminada" => "sol", _ => "coral" };
+    string Texto(string e) => e switch { "abierta" => "🟢 Abierta", "programada" => "⏳ Programada", "terminada" => "⌛ Terminó la fecha", _ => "🔒 Cerrada" };
+}
+<style>
+    .pm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 22px; }
+    .pm { padding: 20px; display: flex; flex-direction: column; gap: .7rem; }
+    .pm h3 { font-size: 1.25rem; font-weight: 900; color: var(--a-navy); margin: 0; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+    .pm .fe { color: var(--a-mut); font-weight: 700; font-size: .9rem; }
+    .pm .quien { display: flex; gap: .35rem; flex-wrap: wrap; }
+    .pm .barra { height: 10px; border-radius: 999px; background: #eef3ff; overflow: hidden; }
+    .pm .barra span { display: block; height: 100%; background: var(--a-grad); border-radius: 999px; }
+    .pm .pie { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: auto; }
+    .pm-form { padding: 22px; }
+    .pm-form h4 { font-weight: 900; color: var(--a-navy); font-size: 1.1rem; }
+    .pm-roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+    .pm-roles label { display: flex; gap: .6rem; align-items: flex-start; border: 1.5px solid var(--a-line); border-radius: 14px; padding: .7rem .9rem; cursor: pointer; transition: border-color .2s, background .2s; }
+    .pm-roles label:has(input:checked) { border-color: var(--a-teal); background: #f0fbfc; }
+    .pm-roles small { display: block; color: var(--a-mut); font-weight: 600; }
+    .pm-anios { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .pm-anios label { border: 1.5px solid var(--a-line); border-radius: 999px; padding: .45rem 1rem; font-weight: 800; cursor: pointer; }
+    .pm-anios label:has(input:checked) { background: var(--a-grad); color: #fff; border-color: transparent; }
+    .pm-anios input { display: none; }
+</style>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<div class="au-head sol">
+    <div class="ico">🗓️</div>
+    <div class="txt">
+        <h2>Períodos de matrícula</h2>
+        <p>Abre la matrícula de un año, elige hasta cuándo y quiénes pueden matricular. Al cerrarla, el botón desaparece para ellos.</p>
+    </div>
+    <div class="acc">
+        <a asp-action="Matricular" class="blanco">📝 Ir a matricular</a>
+    </div>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="au-card p-3 mb-3 d-flex gap-3 align-items-center">
+        <span style="font-size:1.8rem">💡</span>
+        <div><b>Aún no hay períodos creados.</b> Por ahora matricula la administración (UTP, director/a y administrador): el año actual siempre y, desde septiembre, también el año siguiente. Si abres un período, tú decides las fechas y quiénes más matriculan.</div>
+    </div>
+}
+else
+{
+    <div class="pm-grid">
+        @foreach (var p in Model.OrderByDescending(x => x.Anio))
+        {
+            var e = Matriculas.Estado(p);
+            var av = avance.TryGetValue(p.Anio, out var x) ? x : (Matriculados: 0, Cupos: 0);
+            var pct = av.Cupos > 0 ? Math.Min(100, av.Matriculados * 100 / av.Cupos) : 0;
+            <div class="au-card pm">
+                <h3>📝 Matrícula @p.Anio <span class="au-chip @Chip(e)">@Texto(e)</span></h3>
+                <div class="fe">Desde el @p.Desde.ToString("dd-MM-yyyy") @(p.Hasta != null ? "hasta el " + p.Hasta.Value.ToString("dd-MM-yyyy") : "· sin fecha de término")</div>
+                <div>
+                    <small class="text-muted fw-bold">Pueden matricular:</small>
+                    <div class="quien mt-1">
+                        <span class="au-chip violeta">Administrador/a</span>
+                        @foreach (var r in p.Roles)
+                        {
+                            <span class="au-chip">@Matriculas.NombreRol(r)</span>
+                        }
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between"><small class="fw-bold">@av.Matriculados matriculados/as</small><small class="text-muted fw-bold">@(av.Cupos > 0 ? av.Cupos + " cupos en sus cursos" : "aún sin cursos")</small></div>
+                    <div class="barra mt-1"><span style="width:@(pct)%"></span></div>
+                </div>
+                @if (!string.IsNullOrEmpty(p.CambioPor))
+                {
+                    <small class="text-muted">Último cambio: @p.CambioPor · @p.CambioUtc.ToLocalTime().ToString("dd-MM-yyyy HH:mm")</small>
+                }
+                <div class="pie">
+                    @if (e == "abierta" || e == "programada")
+                    {
+                        <form asp-action="CerrarMatricula" method="post" class="m-0" data-c="¿Cerrar la matrícula @p.Anio? Ya no aparecerá para matricular." onsubmit="return confirm(this.dataset.c);">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="anio" value="@p.Anio" />
+                            <button class="btn btn-danger btn-sm px-3">🔒 Cerrar matrícula @p.Anio</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form asp-action="CerrarMatricula" method="post" class="m-0">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="anio" value="@p.Anio" />
+                            <input type="hidden" name="reabrir" value="true" />
+                            <button class="btn btn-success btn-sm px-3">🔓 Abrir de nuevo</button>
+                        </form>
+                    }
+                    <button type="button" class="btn btn-outline-primary btn-sm px-3" data-editar="@p.Anio" data-desde="@p.Desde.ToString("yyyy-MM-dd")" data-hasta="@(p.Hasta?.ToString("yyyy-MM-dd"))" data-roles="@string.Join(",", p.Roles)">✏️ Cambiar fechas o personas</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<form asp-action="AbrirMatricula" method="post" class="au-card pm-form" id="pmForm">
+    @Html.AntiForgeryToken()
+    <h4 id="pmTitulo">➕ Abrir un período de matrícula</h4>
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <label class="form-label fw-bold">Año escolar</label>
+            <div class="pm-anios">
+                @for (var a = actual; a <= actual + 2; a++)
+                {
+                    <label><input type="radio" name="anio" value="@a" checked="@(a == sugerido)" /> Matrícula @a @(a == actual ? "(año actual)" : "")</label>
+                }
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <label class="form-label fw-bold" for="pmDesde">Desde</label>
+            <input type="date" class="form-control" name="desde" id="pmDesde" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <label class="form-label fw-bold" for="pmHasta">Hasta <small class="text-muted">(opcional)</small></label>
+            <input type="date" class="form-control" name="hasta" id="pmHasta" />
+        </div>
+        <div class="col-12">
+            <label class="form-label fw-bold mb-1">¿Quiénes pueden matricular?</label>
+            <p class="text-muted small mb-2">El administrador/a siempre puede. Marca a quiénes más se les abre la matrícula: les llega un aviso y les aparece el botón "Matricular" mientras esté abierta.</p>
+            <div class="pm-roles">
+                @foreach (var r in Matriculas.Roles)
+                {
+                    <label>
+                        <input type="checkbox" class="form-check-input mt-1" name="roles" value="@r.Clave" checked="@(r.Clave == "UTP")" />
+                        <span><b>@r.Nombre</b>@if (!string.IsNullOrEmpty(r.Ayuda)) {<small>@r.Ayuda</small>}</span>
+                    </label>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="d-flex gap-2 justify-content-end mt-3">
+        <button type="reset" class="btn btn-outline-secondary px-4" id="pmLimpiar">Limpiar</button>
+        <button type="submit" class="btn btn-primary px-4" id="pmBoton">📝 Abrir matrícula</button>
+    </div>
+</form>
+
+<script>
+    (function () {
+        var f = document.getElementById('pmForm');
+        function boton() {
+            var a = f.querySelector('input[name=anio]:checked');
+            document.getElementById('pmBoton').textContent = '📝 Abrir matrícula ' + (a ? a.value : '');
+        }
+        f.querySelectorAll('input[name=anio]').forEach(function (r) { r.addEventListener('change', boton); });
+        boton();
+        // "Cambiar fechas o personas": carga ese período en el formulario
+        document.querySelectorAll('[data-editar]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var anio = b.dataset.editar, roles = (b.dataset.roles || '').split(',');
+                var r = f.querySelector('input[name=anio][value="' + anio + '"]');
+                if (r) r.checked = true;
+                document.getElementById('pmDesde').value = b.dataset.desde || '';
+                document.getElementById('pmHasta').value = b.dataset.hasta || '';
+                f.querySelectorAll('input[name=roles]').forEach(function (c) { c.checked = roles.indexOf(c.value) >= 0; });
+                document.getElementById('pmTitulo').textContent = '✏️ Cambiar matrícula ' + anio;
+                document.getElementById('pmBoton').textContent = '💾 Guardar matrícula ' + anio;
+                f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
+    })();
+</script>

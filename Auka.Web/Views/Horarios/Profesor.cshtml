@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Horarios/Profesor.cshtml — horario de un profesor/a (se arma solo desde los horarios de los cursos) *@
+@* Auka.Web/Views/Horarios/Profesor.cshtml — horario de un profesor/a (se arma solo desde los horarios de los cursos) *@
 @model Auka.Web.Controllers.GrillaVm
 @{
     ViewData["Title"] = "Horario " + Model.Titulo;
@@ -8,6 +8,10 @@
     <div class="txt"><h2>@Model.Titulo</h2><p>@Model.Subtitulo</p></div>
     <div class="acc"><a asp-action="Profesores">Volver al personal</a></div>
 </div>
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
@@ -16,31 +20,210 @@
     var confirmado = Model.ConfirmadoUtc != null && (Model.UltimoCambioUtc == null || Model.ConfirmadoUtc >= Model.UltimoCambioUtc);
     var cambio = Model.ConfirmadoUtc != null && !confirmado;
     var exceso = Model.HorasContrato is > 0 && Model.Horas > Model.HorasContrato;
+    var pendientes = Model.Solicitudes.Where(x => x.Estado == Auka.Application.Entities.EstadoSolicitudHorario.Pendiente).ToList();
+    var respondidas = Model.Solicitudes.Where(x => x.Estado != Auka.Application.Entities.EstadoSolicitudHorario.Pendiente).ToList();
+    var sugerencias = new[] { "Tengo otro compromiso a esa hora", "Es mi hora administrativa / de planificación", "Choca con otra actividad del colegio", "Motivos personales" };
 }
-<div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
-    @if (confirmado)
-    {
-        <span class="au-chip verde">✅ Horario confirmado el @Model.ConfirmadoUtc!.Value.ToLocalTime().ToString("dd-MM-yyyy")</span>
-    }
-    else if (cambio)
-    {
-        <span class="au-chip sol">🔄 Cambió después de su confirmación: falta confirmar de nuevo</span>
-    }
-    else if (Model.Horas > 0)
-    {
-        <span class="au-chip sol">⏳ Pendiente de confirmación del profesor/a</span>
-    }
+<style>
+    .pf-pasos { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .pf-paso { display: flex; align-items: center; gap: .45rem; padding: .45rem .85rem; border-radius: 999px; background: #f1f4f9; color: var(--a-mut); font-weight: 800; font-size: .85rem; }
+    .pf-paso.ok { background: #dcf5e8; color: #12744a; }
+    .pf-paso.no { background: #fde5e4; color: #a12d2a; }
+    .pf-sol { padding: 16px 18px; margin-bottom: 12px; border-left: 5px solid #fb8500 !important; }
+    .pf-sol h4 { font-size: 1rem; font-weight: 900; color: var(--a-navy); margin: 0 0 .3rem; }
+    .pf-sug { display: flex; gap: .35rem; flex-wrap: wrap; margin: .4rem 0; }
+    .pf-sug button { border: 1.5px solid var(--a-line); background: #fff; border-radius: 999px; padding: .25rem .7rem; font-size: .78rem; font-weight: 700; color: var(--a-ink); }
+    .pf-sug button:hover { border-color: var(--a-teal); background: #f0fbfc; }
+</style>
+
+@* Estado del acuerdo: 1) el docente confirma, 2) la UTP aprueba, 3) queda bloqueado *@
+<div class="pf-pasos">
+    <span class="pf-paso @(confirmado ? "ok" : Model.Observacion != null ? "no" : "")">@(confirmado ? "✅" : Model.Observacion != null ? "✋" : "1") Profesor/a @(confirmado ? "de acuerdo" : Model.Observacion != null ? "no está de acuerdo" : cambio ? "debe confirmar de nuevo" : "por confirmar")</span>
+    <span class="pf-paso @(Model.ProfesorBloqueado ? "ok" : "")">@(Model.ProfesorBloqueado ? "✅" : "2") UTP @(Model.ProfesorBloqueado ? "aprobó" : "por aprobar")</span>
+    <span class="pf-paso @(Model.ProfesorBloqueado ? "ok" : "")">@(Model.ProfesorBloqueado ? "🔒 Horario fijo" : "🔓 Aún se puede mover")</span>
     @if (Model.HorasContrato is > 0)
     {
         <span class="au-chip @(exceso ? "coral" : "")">@(exceso ? "⚠️" : "⏱️") @Model.Horas de @Model.HorasContrato horas de contrato</span>
     }
-    @if (Model.EsPropio && Model.Horas > 0 && !confirmado)
-    {
-        <form method="post" action="/Horarios/ConfirmarHorario" class="m-0 ms-auto">
-            @Html.AntiForgeryToken()
-            <button class="btn btn-success px-4">✅ Estoy de acuerdo con mi horario</button>
-        </form>
-    }
 </div>
-<p class="small text-muted mb-2">Se completa solo: cada vez que la UTP asigna a este profesor/a en el horario de un curso, aparece aquí. Si algo no te calza, conversa con la UTP antes de confirmar.</p>
+
+@if (Model.Observacion != null)
+{
+    <div class="alert alert-warning mb-3"><b>@(Model.ProfesorBloqueado ? "📝 Solicitud de cambio:" : "✋ Lo que le complica:")</b> «@Model.Observacion»</div>
+}
+
+@* El docente: estoy / no estoy de acuerdo *@
+@if (Model.EsPropio && Model.Horas > 0 && !Model.ProfesorBloqueado)
+{
+    <div class="au-card p-3 mb-3 d-flex gap-2 flex-wrap align-items-center">
+        <b class="me-2">¿Estás de acuerdo con tu horario?</b>
+        @if (!confirmado)
+        {
+            <form method="post" action="/Horarios/ConfirmarHorario" class="m-0">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-success px-4">✅ Sí, estoy de acuerdo</button>
+            </form>
+        }
+        <button type="button" class="btn btn-outline-danger px-4" data-bs-toggle="collapse" data-bs-target="#pfNo">✋ No estoy de acuerdo</button>
+        <form method="post" action="/Horarios/NoDeAcuerdo" class="collapse w-100 mt-2" id="pfNo">
+            @Html.AntiForgeryToken()
+            <label class="form-label" for="pfMot">Cuéntale a la UTP qué no te calza</label>
+            <div class="pf-sug" data-para="pfMot">
+                <button type="button">El lunes a primera hora tengo un trámite</button>
+                <button type="button">Tengo muchas horas seguidas un mismo día</button>
+                <button type="button">Necesito un bloque libre para planificar</button>
+                <button type="button">Choca con otro trabajo</button>
+            </div>
+            <textarea class="form-control mb-2" name="motivo" id="pfMot" rows="2" maxlength="500" required minlength="5" placeholder="Ej.: el jueves a las 8:00 no puedo porque…"></textarea>
+            <button class="btn btn-danger px-4">Enviar a la UTP</button>
+        </form>
+    </div>
+}
+
+@* Docente con horario aprobado: no lo cambia él; le pide el cambio a la UTP *@
+@if (Model.EsPropio && Model.ProfesorBloqueado)
+{
+    <div class="au-card p-3 mb-3">
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <span>🔒 Tu horario está aprobado por la UTP. Si necesitas cambiar un bloque, pídelo aquí.</span>
+            <button type="button" class="btn btn-outline-primary px-4 ms-auto" data-bs-toggle="collapse" data-bs-target="#pfCambio">📝 Solicitar cambio de horario</button>
+        </div>
+        <form method="post" action="/Horarios/SolicitarCambio" class="collapse mt-3" id="pfCambio">
+            @Html.AntiForgeryToken()
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label class="form-label" for="pfBloque">¿Qué bloque quieres cambiar?</label>
+                    <select class="form-select" name="bloque" id="pfBloque" required>
+                        <option value="">Elige el bloque</option>
+                        @foreach (var mb in Model.MisBloques)
+                        {
+                            <option value="@mb">@mb</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="pfPref">¿A qué día u hora te acomoda? <span class="text-muted fw-normal">(opcional)</span></label>
+                    <input class="form-control" name="prefiere" id="pfPref" maxlength="120" placeholder="Ej.: jueves a las 10:00, o cualquier día en la tarde" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="pfMotC">Motivo</label>
+                    <div class="pf-sug" data-para="pfMotC">
+                        <button type="button">Trámite personal</button>
+                        <button type="button">Tema familiar</button>
+                        <button type="button">Capacitación o estudio</button>
+                        <button type="button">Choca con otro trabajo</button>
+                    </div>
+                    <input class="form-control" name="motivo" id="pfMotC" maxlength="300" required placeholder="Cuéntale a la UTP por qué lo necesitas" />
+                </div>
+            </div>
+            <button class="btn btn-primary px-4 mt-2">📨 Enviar a la UTP</button>
+        </form>
+    </div>
+}
+
+@* La UTP: solicitud pendiente del docente *@
+@if (Model.PuedeAprobar && !Model.EsPropio && Model.ProfesorBloqueado && Model.Observacion != null)
+{
+    <form method="post" action="/Horarios/ResolverSolicitudDocente" class="au-card p-3 mb-3">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="profesorId" value="@Model.ProfesorId" />
+        <b class="d-block mb-1">📝 Pidió un cambio. ¿Qué le respondes?</b>
+        <small class="text-muted d-block mb-2">Si se puede: usa «Mover o intercambiar» en el horario del curso (si choca con otro profesor/a con horario aprobado, se le pregunta), o desbloquea su horario. Después dale por resuelta la solicitud.</small>
+        <div class="d-flex gap-2 flex-wrap">
+            <input class="form-control" style="flex:1;min-width:240px" name="respuesta" maxlength="300" placeholder="Ej.: Listo, quedó el jueves 10:00 / No es posible porque…" />
+            <button class="btn btn-success px-4">Responder y dar por resuelta</button>
+        </div>
+    </form>
+}
+
+@* La UTP: aprobar y bloquear / desbloquear *@
+@if (Model.PuedeAprobar && !Model.EsPropio && Model.Horas > 0)
+{
+    <div class="au-card p-3 mb-3 d-flex gap-2 flex-wrap align-items-center">
+        @if (Model.ProfesorBloqueado)
+        {
+            <span>🔒 Aprobado el @Model.AprobadoUtc?.ToLocalTime().ToString("dd-MM-yyyy"). El automático no lo mueve; para cambiar un bloque usa «Mover o intercambiar» en el horario del curso (se le pregunta antes).</span>
+            <form method="post" action="/Horarios/AprobarHorario" class="m-0 ms-auto" data-c="¿Desbloquear el horario? Se podrá modificar y tendrá que confirmarlo de nuevo." onsubmit="return confirm(this.dataset.c);">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="profesorId" value="@Model.ProfesorId" />
+                <input type="hidden" name="desbloquear" value="true" />
+                <button class="btn btn-outline-secondary px-4">🔓 Desbloquear</button>
+            </form>
+        }
+        else if (confirmado)
+        {
+            <span>El profesor/a ya está de acuerdo. Si tú también, apruébalo y queda fijo.</span>
+            <form method="post" action="/Horarios/AprobarHorario" class="m-0 ms-auto">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="profesorId" value="@Model.ProfesorId" />
+                <button class="btn btn-success px-4">🔒 Aprobar y bloquear</button>
+            </form>
+        }
+        else
+        {
+            <span class="text-muted">⏳ Se podrá aprobar y bloquear cuando el profesor/a confirme que está de acuerdo.</span>
+        }
+    </div>
+}
+
+@* Solicitudes de cambio que le hicieron *@
+@foreach (var sol in pendientes)
+{
+    <div class="au-card pf-sol">
+        <h4>🔁 La UTP te pregunta si puedes hacer este cambio</h4>
+        <div class="mb-1"><b>@sol.Resumen</b></div>
+        <div class="text-muted small mb-2">Motivo: @sol.MotivoMostrado · @sol.CreadaUtc.ToLocalTime().ToString("dd-MM HH:mm")</div>
+        @if (Model.EsPropio)
+        {
+            <div class="d-flex gap-2 flex-wrap">
+                <form method="post" action="/Horarios/ResponderSolicitud" class="m-0">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@sol.Id" />
+                    <input type="hidden" name="acepta" value="true" />
+                    <button class="btn btn-success px-4">✅ Sí, puedo</button>
+                </form>
+                <button type="button" class="btn btn-outline-danger px-4" data-bs-toggle="collapse" data-bs-target="#pfR@(sol.Id)">No puedo</button>
+            </div>
+            <form method="post" action="/Horarios/ResponderSolicitud" class="collapse mt-2" id="pfR@(sol.Id)">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@sol.Id" />
+                <input type="hidden" name="acepta" value="false" />
+                <div class="pf-sug" data-para="pfT@(sol.Id)">
+                    @foreach (var sg in sugerencias)
+                    {
+                        <button type="button">@sg</button>
+                    }
+                </div>
+                <input class="form-control mb-2" name="respuesta" id="pfT@(sol.Id)" maxlength="300" required placeholder="¿Por qué no puedes? (elige una opción o escribe la tuya)" />
+                <button class="btn btn-danger px-4">Enviar respuesta</button>
+            </form>
+        }
+        else
+        {
+            <span class="au-chip sol">⏳ Esperando su respuesta</span>
+        }
+    </div>
+}
+@if (respondidas.Count > 0)
+{
+    <details class="mb-3">
+        <summary class="small fw-bold text-muted">Solicitudes respondidas (últimos 30 días)</summary>
+        <ul class="small mt-2">
+            @foreach (var sol in respondidas)
+            {
+                <li>@sol.Resumen · <b>@(sol.Estado == Auka.Application.Entities.EstadoSolicitudHorario.Aceptada ? "✅ aceptada" : sol.Estado == Auka.Application.Entities.EstadoSolicitudHorario.Rechazada ? "❌ no pudo" : "anulada")</b>@(sol.Respuesta != null ? " · «" + sol.Respuesta + "»" : "")</li>
+            }
+        </ul>
+    </details>
+}
+<script>
+    // Sugerencias: al tocar una, se escribe en la casilla
+    document.querySelectorAll('.pf-sug').forEach(function (g) {
+        g.addEventListener('click', function (e) {
+            var b = e.target.closest('button'); if (!b) return;
+            var t = document.getElementById(g.dataset.para); if (t) { t.value = b.textContent.trim(); t.focus(); }
+        });
+    });
+</script>
+<p class="small text-muted mb-2">Se completa solo: cada vez que la UTP asigna a este profesor/a en el horario de un curso, aparece aquí. Si algo no te calza, usa «No estoy de acuerdo» y la UTP lo revisa. Cuando los dos están de acuerdo, el horario queda fijo 🔒.</p>
 @await Html.PartialAsync("_GrillaHorario", Model)

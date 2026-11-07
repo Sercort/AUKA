@@ -311,6 +311,107 @@ public class CursosController : Controller
         return View("Claves", lista);
     }
 
+    // ---------------------------------------------------------------- Períodos de matrícula
+    /// <summary>La UTP, el director/a o el administrador abren y cierran la matrícula de cada año y eligen quién matricula.</summary>
+    [Authorize(Roles = "SuperAdmin,Director,UTP")]
+    [HttpGet]
+    public async Task<IActionResult> PeriodosMatricula()
+    {
+        var periodos = await Matriculas.CargarAsync(_context, User);
+        var colegioId = ColegioActual();
+        var anios = periodos.Select(p => p.Anio).ToList();
+        // Cuántos alumnos/as van matriculados en cada año con período (y cupos totales de sus cursos)
+        var cursos = await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && anios.Contains(c.AnioAcademico) && c.Nombre != "Pacientes")
+            .Select(c => new { c.AnioAcademico, c.CapacidadMaxima, Alumnos = c.Estudiantes.Count }).ToListAsync();
+        ViewBag.Avance = cursos.GroupBy(c => c.AnioAcademico).ToDictionary(g => g.Key, g => (Matriculados: g.Sum(x => x.Alumnos), Cupos: g.Sum(x => x.CapacidadMaxima)));
+        return View(periodos);
+    }
+
+    [Authorize(Roles = "SuperAdmin,Director,UTP")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AbrirMatricula(int anio, DateOnly? desde, DateOnly? hasta, string[]? roles)
+    {
+        var actual = DateTime.Now.Year;
+        if (anio < actual || anio > actual + 2) { TempData["Error"] = "Elige el año actual o uno de los dos siguientes."; return RedirectToAction(nameof(PeriodosMatricula)); }
+        var d = desde ?? Matriculas.Hoy;
+        if (hasta != null && hasta < d) { TempData["Error"] = "La fecha de término no puede ser antes del inicio."; return RedirectToAction(nameof(PeriodosMatricula)); }
+        var elegidos = (roles ?? Array.Empty<string>()).Where(r => Matriculas.Roles.Any(x => x.Clave == r)).Distinct().ToList();
+
+        var colegioId = ColegioActual();
+        var col = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+        if (col == null) return NotFound();
+        var lista = Matriculas.Leer(col.PeriodosMatricula);
+        var p = lista.FirstOrDefault(x => x.Anio == anio);
+        var nuevo = p == null;
+        if (p == null) { p = new Matriculas.Periodo { Anio = anio }; lista.Add(p); }
+        var antes = p.Roles.ToList();
+        p.Desde = d; p.Hasta = hasta; p.Roles = elegidos; p.Cerrado = false;
+        p.CambioPor = User.Identity?.Name; p.CambioUtc = DateTime.UtcNow;
+        col.PeriodosMatricula = Matriculas.Escribir(lista);
+        await _context.SaveChangesAsync();
+
+        // Aviso en la campana a quienes ahora pueden matricular (solo si el período ya está abierto)
+        var avisados = 0;
+        if (Matriculas.Abierto(p)) avisados = await AvisarMatriculaAsync(colegioId, p, nuevo ? new List<string>() : antes);
+
+        TempData["SuccessMessage"] = $"📝 Matrícula {anio} {(Matriculas.Estado(p) == "programada" ? "programada desde el " + d.ToString("dd-MM-yyyy") : "abierta")}" +
+            (hasta != null ? $" hasta el {hasta:dd-MM-yyyy}" : "") + "." + (avisados > 0 ? $" Se avisó a {avisados} {(avisados == 1 ? "persona" : "personas")}." : "");
+        return RedirectToAction(nameof(PeriodosMatricula));
+    }
+
+    [Authorize(Roles = "SuperAdmin,Director,UTP")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CerrarMatricula(int anio, bool reabrir = false)
+    {
+        var colegioId = ColegioActual();
+        var col = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+        if (col == null) return NotFound();
+        var lista = Matriculas.Leer(col.PeriodosMatricula);
+        var p = lista.FirstOrDefault(x => x.Anio == anio);
+        if (p == null) return RedirectToAction(nameof(PeriodosMatricula));
+        p.Cerrado = !reabrir;
+        if (reabrir)
+        {
+            if (p.Hasta != null && p.Hasta < Matriculas.Hoy) p.Hasta = null;   // reabrir sin fecha de término
+            if (p.Desde > Matriculas.Hoy) p.Desde = Matriculas.Hoy;
+        }
+        p.CambioPor = User.Identity?.Name; p.CambioUtc = DateTime.UtcNow;
+        col.PeriodosMatricula = Matriculas.Escribir(lista);
+        await _context.SaveChangesAsync();
+        if (reabrir) await AvisarMatriculaAsync(colegioId, p, new List<string>());
+        TempData["SuccessMessage"] = reabrir ? $"📝 Matrícula {anio} abierta de nuevo." : $"🔒 Matrícula {anio} cerrada. Ya no aparece para matricular (el administrador sí puede).";
+        return RedirectToAction(nameof(PeriodosMatricula));
+    }
+
+    /// <summary>Notificación en la campana para quienes pueden matricular en el período (sin repetir a quienes ya podían).</summary>
+    private async Task<int> AvisarMatriculaAsync(int colegioId, Matriculas.Periodo p, List<string> yaAvisados)
+    {
+        var nuevos = p.Roles.Except(yaAvisados).ToList();
+        if (nuevos.Count == 0) return 0;
+        var actual = DateTime.Now.Year;
+        var jefes = await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.ProfesorJefeId != null && (c.AnioAcademico == actual || c.AnioAcademico == p.Anio))
+            .Select(c => c.ProfesorJefeId!.Value).Distinct().ToListAsync();
+        var personas = await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.Activo &&
+                ((nuevos.Contains("UTP") && u.Rol == RolUsuario.UTP) ||
+                 (nuevos.Contains("Director") && u.Rol == RolUsuario.Director) ||
+                 (nuevos.Contains("Orientadora") && u.Rol == RolUsuario.Orientadora) ||
+                 (nuevos.Contains("Docente") && u.Rol == RolUsuario.Docente) ||
+                 (nuevos.Contains("ProfesorJefe") && jefes.Contains(u.Id)) ||
+                 (nuevos.Contains("InspectorGeneral") && u.Rol == RolUsuario.Inspector && u.EsInspectorGeneral)))
+            .Select(u => u.Id).Distinct().ToListAsync();
+        foreach (var id in personas)
+            _context.Notificaciones.Add(new Notificacion
+            {
+                ColegioId = colegioId, UsuarioId = id, Titulo = $"📝 Matrícula {p.Anio} abierta",
+                Mensaje = $"Ya puedes matricular alumnos/as para el año escolar {p.Anio}" + (p.Hasta != null ? $" hasta el {p.Hasta:dd-MM-yyyy}." : "."),
+                Enlace = "/Cursos/Matricular", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo
+            });
+        await _context.SaveChangesAsync();
+        return personas.Count;
+    }
+
     /// <summary>
     /// Corrige duplicados del año actual: cursos repetidos (mismo nivel y letra) se juntan en uno,
     /// y alumnos/as o apoderados/as repetidos (mismo RUT) se dejan en una sola cuenta.
@@ -605,10 +706,17 @@ public class CursosController : Controller
     }
 
     // 4. Formulario de Matrícula (GET)
-    [Authorize(Roles = "UTP,Director,SuperAdmin")]
+    //    Matricula la administración y, durante un período de matrícula abierto, las personas que eligió la UTP/administración.
+    [Authorize(Roles = "SuperAdmin,Director,UTP,Docente,Orientadora,Inspector")]
     [HttpGet]
     public async Task<IActionResult> Matricular()
     {
+        var aniosPermitidos = await Matriculas.AniosQuePuedeAsync(_context, User);
+        if (aniosPermitidos.Count == 0)
+        {
+            TempData["Error"] = "📝 La matrícula no está abierta para ti en este momento.";
+            return RedirectToAction("Index", "Home");
+        }
         var colegioIdClaim = User.FindFirst("ColegioId")?.Value;
         int.TryParse(colegioIdClaim, out int colegioId);
 
@@ -623,15 +731,15 @@ public class CursosController : Controller
         todos.AddRange(nivelesEnBD.Where(n => OrdenNivel(n) < 0 && !todos.Any(t => Normal(t) == Normal(n))));
 
         ViewBag.Niveles = new SelectList(todos);
-        // Desde septiembre se puede matricular también para el año siguiente
-        var hoy = DateTime.Now;
-        ViewBag.AniosMatricula = hoy.Month >= 9 ? new[] { hoy.Year, hoy.Year + 1 } : new[] { hoy.Year };
+        // Años que esta persona puede matricular hoy (año actual y/o períodos abiertos, ej. Matrícula 2027)
+        ViewBag.AniosMatricula = aniosPermitidos.ToArray();
+        ViewBag.PeriodosAbiertos = (await Matriculas.CargarAsync(_context, User)).Where(Matriculas.Abierto).ToList();
         ViewBag.Especialidades = await EspecialidadesAsync(colegioId);
         return View();
     }
 
     // 5a. Revisión en vivo al escribir un RUT en la matrícula: ¿ya existe el alumno o el apoderado en este colegio?
-    [Authorize(Roles = "UTP,Director,SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin,Director,UTP,Docente,Orientadora,Inspector")]
     [HttpGet]
     public async Task<IActionResult> BuscarPersona(string rut, string tipo)
     {
@@ -799,7 +907,7 @@ public class CursosController : Controller
     //    - Si el alumno ya existe en el colegio (mismo RUT), se usa su cuenta y se actualiza el curso.
     //    - Si el apoderado ya existe (mismo RUT), se le suma este alumno: queda con todos sus hijos.
     //    - Si no existen, se crean sus cuentas. Al apoderado con correo real le llega un enlace para crear su contraseña.
-    [Authorize(Roles = "UTP,Director,SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin,Director,UTP,Docente,Orientadora,Inspector")]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Matricular(
@@ -812,6 +920,8 @@ public class CursosController : Controller
         [FromServices] IAccesoService acceso)
     {
         var colegioId = ColegioActual();
+        var aniosPermitidos = await Matriculas.AniosQuePuedeAsync(_context, User);
+        if (aniosPermitidos.Count == 0) { TempData["Error"] = "📝 La matrícula no está abierta para ti en este momento."; return RedirectToAction("Index", "Home"); }
         if (!Rut.TryValidar(rut, out var rutEstNorm, out var rutEstFmt)) { TempData["Error"] = "El RUT del alumno no es válido."; return RedirectToAction(nameof(Matricular)); }
         if (!Rut.TryValidar(rutApoderado, out var rutApoNorm, out var rutApoFmt)) { TempData["Error"] = "El RUT del apoderado no es válido."; return RedirectToAction(nameof(Matricular)); }
         if (rutEstNorm == rutApoNorm) { TempData["Error"] = "El alumno y el apoderado no pueden tener el mismo RUT."; return RedirectToAction(nameof(Matricular)); }
@@ -823,8 +933,9 @@ public class CursosController : Controller
         {
             // A) Curso: el del nivel elegido con menos alumnos (o se crea)
             var nivelLimpio = string.IsNullOrWhiteSpace(nivel) ? "General" : nivel.Trim();
-            var anio = DateTime.Now.Year;
-            if (anioEscolar == anio + 1 && DateTime.Now.Month >= 9) anio = anioEscolar.Value;   // matrícula para el año siguiente
+            // Año escolar: el elegido, solo si esta persona puede matricular ese año (año actual o un período abierto)
+            var anio = anioEscolar is int ae && aniosPermitidos.Contains(ae) ? ae
+                : aniosPermitidos.Contains(DateTime.Now.Year) ? DateTime.Now.Year : aniosPermitidos[0];
             // Mismo nivel aunque esté escrito distinto ("5° Básico" = "5º Básico")
             var delNivel = (await _context.Cursos.Include(c => c.Estudiantes)
                     .Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio).ToListAsync())

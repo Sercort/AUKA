@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Talleres/Index.cshtml — clubes y talleres del colegio (ACLE) *@
+@* Auka.Web/Views/Talleres/Index.cshtml — clubes y talleres del colegio (ACLE) *@
 @model IEnumerable<Auka.Application.Entities.Taller>
 @using Auka.Web.Controllers
 @{
@@ -9,6 +9,10 @@
     var lista = Model.ToList();
     var categoriasUsadas = lista.Select(t => TalleresController.Cat(t.Categoria)).DistinctBy(c => c.Clave).ToList();
     var totalInscritos = lista.Sum(t => t.Inscripciones.Count);
+    var logrosDe = ViewBag.Logros as Dictionary<int, List<Auka.Application.Entities.LogroTaller>> ?? new();
+    int interesados = ViewBag.Interesados ?? 0;
+    var misAlumnos = ViewBag.MisAlumnos as List<Auka.Web.Controllers.OpcionVm> ?? new();
+    var verInteres = User.IsInRole("Estudiante") || User.IsInRole("Apoderado");
 }
 <style>
     .cl-res { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -34,6 +38,10 @@
     .cl-mio { position: absolute; top: 12px; right: 12px; }
 </style>
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
 @if (TempData["SuccessMessage"] != null)
 {
     <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
@@ -48,9 +56,17 @@
         <h2>Clubes y talleres</h2>
         <p>Actividades deportivas, artísticas, científicas y culturales del colegio.</p>
     </div>
+    @if (verInteres && misAlumnos.Count > 0)
+    {
+        <div class="acc"><button type="button" class="blanco" data-bs-toggle="modal" data-bs-target="#mInteres">🙋 Me interesa un club</button></div>
+    }
     @if (puedeCrear)
     {
-        <div class="acc"><a asp-action="Crear" class="blanco">➕ Crear club o taller</a></div>
+        <div class="acc">
+            <a asp-action="Interesados">🙋 Interesados@(interesados > 0 ? " (" + interesados + ")" : "")</a>
+            <button type="button" data-bs-toggle="modal" data-bs-target="#mImpClub">📥 Importar planillas</button>
+            <a asp-action="Crear" class="blanco">➕ Crear club o taller</a>
+        </div>
     }
 </div>
 
@@ -111,6 +127,14 @@ else
                 <div class="cl-info">
                     <span>👩‍🏫 <b>@profe</b></span>
                     <span>🗓️ @(string.IsNullOrWhiteSpace(t.Horario) ? "Horario por definir" : t.Horario)</span>
+                    @if (!string.IsNullOrEmpty(t.Lugar)) { <span>📍 @t.Lugar</span> }
+                    @{ var nv = Auka.Web.Services.Clubes.LeerNiveles(t.Niveles); }
+                    @if (nv.Count > 0) { <span>🎯 @string.Join(" · ", nv.Select(Auka.Web.Services.Clubes.NombreTramo))</span> }
+                    @if (logrosDe.TryGetValue(t.Id, out var lg))
+                    {
+                        var gan = lg.Where(x => Auka.Web.Services.Clubes.Resultado(x.Resultado).Gana).ToList();
+                        if (gan.Count > 0) { <span>@string.Join("  ", gan.GroupBy(x => x.Resultado).Select(g => Auka.Web.Services.Clubes.Resultado(g.Key).Icono + " " + g.Count()))</span> }
+                    }
                 </div>
                 <div class="cl-pie">
                     <span class="au-chip sol">🙋 @n @(t.Cupo is > 0 ? "de " + t.Cupo : (n == 1 ? "integrante" : "integrantes"))</span>
@@ -136,3 +160,105 @@ else
         });
     })();
 </script>
+
+@if (puedeCrear)
+{
+    <div class="modal fade" id="mImpClub" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title fw-bold">📥 Importar clubes e inscripciones</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <p class="small text-muted">Guarda cada planilla de Excel como <b>CSV</b> (punto y coma). Primero los clubes y después las inscripciones. AUKA revisa los choques: si un club topa con las clases del profesor/a, con otro club en el mismo lugar, o un alumno/a con sus clases, no se carga esa fila y te dice por qué.</p>
+                    <form asp-action="ImportarClubes" method="post" enctype="multipart/form-data" class="au-card p-3 mb-3" onsubmit="var b=this.querySelector('button.btn-primary'); if(b.disabled) return false; b.disabled=true; b.textContent='Importando…'; return true;">
+                        @Html.AntiForgeryToken()
+                        <b class="d-block mb-1">1. Clubes y sus horarios</b>
+                        <small class="text-muted d-block mb-2">Una fila por cada día del club (ej. fútbol lunes y miércoles = 2 filas). Si el club ya existe, se actualiza su horario.</small>
+                        <div class="d-flex gap-2 flex-wrap align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm px-3" data-plantilla="clubes">📄 Plantilla</button>
+                            <input type="file" name="archivo" accept=".csv" class="form-control" style="flex:1;min-width:220px" required />
+                            <button class="btn btn-primary px-4">Importar clubes</button>
+                        </div>
+                    </form>
+                    <form asp-action="ImportarInscripciones" method="post" enctype="multipart/form-data" class="au-card p-3" onsubmit="var b=this.querySelector('button.btn-primary'); if(b.disabled) return false; b.disabled=true; b.textContent='Importando…'; return true;">
+                        @Html.AntiForgeryToken()
+                        <b class="d-block mb-1">2. Inscripciones (quién va a cada club)</b>
+                        <small class="text-muted d-block mb-2">Una fila por alumno/a y club. Se revisa el nivel, el cupo y que no choque con sus clases ni con sus otros clubes.</small>
+                        <div class="d-flex gap-2 flex-wrap align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm px-3" data-plantilla="inscripciones">📄 Plantilla</button>
+                            <input type="file" name="archivo" accept=".csv" class="form-control" style="flex:1;min-width:220px" required />
+                            <button class="btn btn-primary px-4">Importar inscripciones</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('[data-plantilla]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var clubes = b.dataset.plantilla === 'clubes';
+                var csv = clubes
+                    ? '\ufeffClub;Categoría;RUT profesor;Día;Hora inicio;Hora fin;Lugar;Cupo;Niveles;Fecha inicio;Fecha fin;Descripción\r\n' +
+                      'Fútbol infantil;Deportivo;12.345.678-5;Lunes;16:00;17:30;Cancha;25;1º a 4º básico;02-03-2026;27-11-2026;Fútbol para los más chicos\r\n' +
+                      'Fútbol infantil;Deportivo;12.345.678-5;Miércoles;16:00;17:30;Cancha;25;1º a 4º básico;02-03-2026;27-11-2026;\r\n'
+                    : '\ufeffRUT alumno;Club\r\n24.123.456-8;Fútbol infantil\r\n';
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+                a.download = clubes ? 'plantilla_clubes_auka.csv' : 'plantilla_inscripciones_auka.csv';
+                document.body.appendChild(a); a.click(); a.remove();
+            });
+        });
+    </script>
+}
+
+@if (verInteres && misAlumnos.Count > 0)
+{
+    <div class="modal fade" id="mInteres" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" asp-action="MeInteresa" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h5 class="modal-title fw-bold">🙋 Me interesa un club</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <p class="small text-muted">¿No hay cupo, no es para tu curso o el club que quieres no existe? Déjalo aquí: le llega a la UTP y, si se juntan suficientes interesados/as, se puede abrir un grupo nuevo.</p>
+                    @if (misAlumnos.Count > 1)
+                    {
+                        <label class="form-label">¿Para quién?</label>
+                        <select class="form-select mb-3" name="estudianteId">
+                            @foreach (var a in misAlumnos)
+                            {
+                                <option value="@a.Id">@a.Nombre</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <input type="hidden" name="estudianteId" value="@misAlumnos[0].Id" />
+                    }
+                    <label class="form-label">Club</label>
+                    <select class="form-select mb-3" name="tallerId" id="miClub">
+                        @foreach (var t in lista)
+                        {
+                            <option value="@t.Id">@TalleresController.Cat(t.Categoria).Icono @t.Nombre</option>
+                        }
+                        <option value="">✨ Otro club que todavía no existe</option>
+                    </select>
+                    <div id="miNuevo" style="display:none">
+                        <label class="form-label">¿De qué tipo?</label>
+                        <select class="form-select mb-3" name="categoria">
+                            @foreach (var c in TalleresController.Categorias)
+                            {
+                                <option value="@c.Clave">@c.Icono @c.Clave</option>
+                            }
+                        </select>
+                    </div>
+                    <label class="form-label">Comentario <span class="text-muted fw-normal">(opcional)</span></label>
+                    <input class="form-control" name="comentario" maxlength="300" placeholder="Ej: me gustaría un taller de cómic / quiero entrar a vóleibol" />
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-warning px-4">Enviar a la UTP</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('miClub').addEventListener('change', function () { document.getElementById('miNuevo').style.display = this.value ? 'none' : ''; });
+    </script>
+}

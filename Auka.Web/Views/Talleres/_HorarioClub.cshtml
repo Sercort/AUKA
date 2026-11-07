@@ -1,0 +1,100 @@
+@* Auka.Web/Views/Talleres/_HorarioClub.cshtml — días y horas del club, lugar, para quiénes, temporada y cupo.
+   Lo usan "Crear club" y "Editar horario" en la ficha del club. Los nombres de los campos los leen los dos formularios. *@
+@model Auka.Application.Entities.Taller
+@using Auka.Web.Services
+@{
+    var sesiones = Model.Sesiones.OrderBy(s => s.Dia).ThenBy(s => s.HoraInicio).ToList();
+    var niveles = Clubes.LeerNiveles(Model.Niveles);
+    var lugares = ViewBag.Lugares as List<string> ?? new List<string>();
+}
+<style>
+    .hc-ses { display: flex; flex-direction: column; gap: .5rem; }
+    .hc-fila { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; background: #f7f9fd; border-radius: 14px; padding: .5rem .6rem; }
+    .hc-fila select { max-width: 150px; }
+    .hc-fila input[type=time] { max-width: 130px; }
+    .hc-fila .x { border: 0; background: transparent; color: #b03a37; font-weight: 900; font-size: 1.1rem; margin-left: auto; }
+    .hc-niv { display: flex; gap: .45rem; flex-wrap: wrap; }
+    .hc-niv label { border: 1.5px solid var(--a-line); border-radius: 999px; padding: .35rem .8rem; font-weight: 700; font-size: .85rem; cursor: pointer; }
+    .hc-niv label:has(input:checked) { background: var(--a-grad-sun); color: #fff; border-color: transparent; }
+    .hc-niv input { display: none; }
+</style>
+<label class="form-label fw-bold mb-1">Días y horas <span class="text-muted fw-normal">(fuera del horario de clases)</span></label>
+<div class="hc-ses" id="hcSes">
+    @foreach (var s in sesiones)
+    {
+        <div class="hc-fila">
+            <select name="sesDia" class="form-select form-select-sm" aria-label="Día">
+                @for (var d = 1; d <= 6; d++)
+                {
+                    <option value="@d" selected="@(s.Dia == d)">@Clubes.Dias[d - 1]</option>
+                }
+            </select>
+            <span>de</span><input type="time" name="sesIni" class="form-control form-control-sm" value="@Clubes.Hora(s.HoraInicio)" aria-label="Inicio" />
+            <span>a</span><input type="time" name="sesFin" class="form-control form-control-sm" value="@Clubes.Hora(s.HoraFin)" aria-label="Término" />
+            <button type="button" class="x" title="Quitar este día" aria-label="Quitar">✕</button>
+        </div>
+    }
+</div>
+<template id="hcTpl">
+    <div class="hc-fila">
+        <select name="sesDia" class="form-select form-select-sm" aria-label="Día">
+            @for (var d = 1; d <= 6; d++)
+            {
+                <option value="@d">@Clubes.Dias[d - 1]</option>
+            }
+        </select>
+        <span>de</span><input type="time" name="sesIni" class="form-control form-control-sm" value="16:00" aria-label="Inicio" />
+        <span>a</span><input type="time" name="sesFin" class="form-control form-control-sm" value="17:30" aria-label="Término" />
+        <button type="button" class="x" title="Quitar este día" aria-label="Quitar">✕</button>
+    </div>
+</template>
+<button type="button" class="btn btn-outline-primary btn-sm px-3 mt-2" id="hcMas">➕ Agregar día</button>
+<small class="text-muted d-block mt-1">AUKA revisa que no choque con las clases del profesor/a, con otro club en el mismo lugar ni con otro club del mismo profesor/a.</small>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6">
+        <label class="form-label fw-bold" for="hcLugar">Lugar</label>
+        <input class="form-control" name="Lugar" id="hcLugar" value="@Model.Lugar" maxlength="80" list="hcLugares" placeholder="Ej: Cancha, Gimnasio, Sala de música" />
+        <datalist id="hcLugares">
+            @foreach (var l in lugares)
+            {
+                <option value="@l"></option>
+            }
+        </datalist>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label fw-bold" for="hcCupo">Cupo máximo y mínimo</label>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <input class="form-control" type="number" min="1" max="500" name="Cupo" id="hcCupo" value="@Model.Cupo" placeholder="Máximo" style="max-width:120px" title="Máximo de integrantes" />
+            <span class="text-muted small">mínimo</span>
+            <input class="form-control" type="number" min="1" max="500" name="CupoMinimo" value="@Model.CupoMinimo" placeholder="Mínimo" style="max-width:110px" title="Mínimo para funcionar o abrir un grupo nuevo" />
+        </div>
+    </div>
+    <div class="col-12">
+        <label class="form-label fw-bold mb-1">¿Para quiénes es?</label>
+        <div class="hc-niv">
+            @foreach (var t in Clubes.Tramos)
+            {
+                <label><input type="checkbox" name="niveles" value="@t.Clave" checked="@niveles.Contains(t.Clave)" /> @t.Nombre</label>
+            }
+        </div>
+        <small class="text-muted">Sin marcar = para todos. Ej.: fútbol de chicos (1º a 4º) y fútbol de grandes (5º a 8º) como clubes distintos.</small>
+    </div>
+    <div class="col-sm-6">
+        <label class="form-label fw-bold" for="hcIni">Desde <span class="text-muted fw-normal">(opcional)</span></label>
+        <input class="form-control" type="date" name="FechaInicio" id="hcIni" value="@Model.FechaInicio?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-sm-6">
+        <label class="form-label fw-bold" for="hcFin">Hasta <span class="text-muted fw-normal">(opcional)</span></label>
+        <input class="form-control" type="date" name="FechaFin" id="hcFin" value="@Model.FechaFin?.ToString("yyyy-MM-dd")" />
+    </div>
+</div>
+<script>
+    (function () {
+        var cont = document.getElementById('hcSes'), tpl = document.getElementById('hcTpl');
+        var agregar = function () { cont.appendChild(tpl.content.cloneNode(true)); };
+        document.getElementById('hcMas').addEventListener('click', agregar);
+        cont.addEventListener('click', function (e) { var b = e.target.closest('.x'); if (b) b.closest('.hc-fila').remove(); });
+        if (!cont.children.length) agregar();
+    })();
+</script>

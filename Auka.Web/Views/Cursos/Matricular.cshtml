@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Cursos/Matricular.cshtml — matrícula con revisión automática de alumno y apoderado.
+@* Auka.Web/Views/Cursos/Matricular.cshtml — matrícula con revisión automática de alumno y apoderado.
    Renovación: con el RUT aparecen su curso anterior, el nivel siguiente y su apoderado.
    Traslado: colegio de origen y documentos. 3º y 4º medio: especialidad (se van guardando). *@
 @using Auka.Web.Controllers
@@ -51,8 +51,18 @@
             <h2>Matrícula</h2>
             <p>Escribe el RUT y AUKA revisa sola si el alumno/a o el apoderado/a ya están en el colegio.</p>
         </div>
-        <div class="acc"><a asp-action="Index">Volver a cursos</a></div>
+        <div class="acc">
+            @if (Auka.Web.Services.Matriculas.EsGestor(User))
+            {
+                <a asp-action="PeriodosMatricula" class="blanco">🗓️ Períodos de matrícula</a>
+            }
+            <a asp-action="Index">🏫 Cursos</a>
+        </div>
     </div>
+    @foreach (var per in ViewBag.PeriodosAbiertos as List<Auka.Web.Services.Matriculas.Periodo> ?? new List<Auka.Web.Services.Matriculas.Periodo>())
+    {
+        <div class="alert alert-info d-flex gap-2 align-items-center mb-3"><span style="font-size:1.3rem">📝</span><div><b>Matrícula @per.Anio abierta</b>@(per.Hasta != null ? " hasta el " + per.Hasta.Value.ToString("dd-MM-yyyy") : "").</div></div>
+    }
 
     <form asp-action="Matricular" method="post" id="fMat">
         @Html.AntiForgeryToken()
@@ -89,14 +99,20 @@
             <h3><span class="mt-num">3</span> Curso</h3>
             <div class="ayuda">Si el nivel tiene varios cursos (A, B, C), AUKA lo deja en el que tiene menos alumnos/as. De kínder a 6º básico, todo lo recibe su apoderado/a.</div>
             <div class="row g-3">
-                @if ((ViewBag.AniosMatricula as int[] ?? Array.Empty<int>()).Length > 1)
+                @{ var aniosMat = ViewBag.AniosMatricula as int[] ?? new[] { DateTime.Now.Year }; }
+                @if (aniosMat.Length == 1)
+                {
+                    <input type="hidden" name="anioEscolar" value="@aniosMat[0]" />
+                    <div class="col-12"><span class="au-chip teal" style="font-size:.9rem;padding:.45rem .9rem">📅 Año escolar @aniosMat[0]</span></div>
+                }
+                else
                 {
                     <div class="col-12">
                         <label class="form-label">Año escolar</label>
                         <div class="d-flex gap-2 flex-wrap">
-                            @foreach (var an in (int[])ViewBag.AniosMatricula)
+                            @foreach (var an in aniosMat)
                             {
-                                <label class="au-chip" style="cursor:pointer;font-size:.9rem;padding:.45rem .9rem"><input type="radio" name="anioEscolar" value="@an" checked="@(an == DateTime.Now.Year)" class="form-check-input m-0 me-1" /> @an @(an == DateTime.Now.Year ? "(actual)" : "(próximo año)")</label>
+                                <label class="au-chip" style="cursor:pointer;font-size:.9rem;padding:.45rem .9rem"><input type="radio" name="anioEscolar" value="@an" checked="@(an == aniosMat[0])" class="form-check-input m-0 me-1" /> @an @(an == DateTime.Now.Year ? "(actual)" : an == DateTime.Now.Year + 1 ? "(próximo año)" : "")</label>
                             }
                         </div>
                     </div>

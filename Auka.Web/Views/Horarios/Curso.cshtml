@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Horarios/Curso.cshtml — horario semanal de un curso *@
+@* Auka.Web/Views/Horarios/Curso.cshtml — horario semanal de un curso *@
 @model Auka.Web.Controllers.GrillaVm
 @{
     ViewData["Title"] = "Horario " + Model.Titulo;
@@ -17,6 +17,10 @@
 @if (!Model.Editable && !User.IsInRole("Estudiante") && !User.IsInRole("Apoderado"))
 {
     <p class="small text-muted mb-2">👀 Solo lectura: lo arma la UTP (o quien el administrador autorizó).</p>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
 }
 @if (TempData["SuccessMessage"] != null)
 {
@@ -42,20 +46,43 @@
         <small class="text-muted d-block mt-2">Ej: 3º Básico A recupera Matemática y sale a las 15:30. Al guardar, los bloques del viernes hasta esa hora quedan abiertos (en amarillo, «Recuperación») para asignar la asignatura, el profesor/a y la sala.</small>
     </form>
 }
+@if (Model.CursoBloqueado)
+{
+    <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3"><span style="font-size:1.3rem">🔒</span><div><b>Horario bloqueado.</b> Está acordado y no se mueve: ni el automático ni los cambios a mano lo tocan.</div></div>
+}
 @if (Model.Editable)
 {
-    <div class="d-flex gap-2 flex-wrap mb-3">
-        <form method="post" action="/Horarios/GenerarHorario" class="m-0" data-c="¿Completar los bloques vacíos de este curso automáticamente?" onsubmit="return confirm(this.dataset.c);">
+    <div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
+        @if (!Model.CursoBloqueado)
+        {
+            <form method="post" action="/Horarios/GenerarHorario" class="m-0" data-c="¿Llenar los bloques vacíos de este curso con su plan de estudio? Lo que ya está puesto no se cambia." onsubmit="return confirm(this.dataset.c);">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="cursoId" value="@Model.CursoId" />
+                <button class="btn btn-warning btn-sm px-3" title="Solo llena lo vacío">🪄 Completar vacíos</button>
+            </form>
+            <form method="post" action="/Horarios/GenerarHorario" class="m-0" data-c="¿Armar de nuevo este horario? Se rehace todo menos los bloques de docentes con horario aprobado (🔒), que se quedan donde están." onsubmit="return confirm(this.dataset.c);">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="cursoId" value="@Model.CursoId" />
+                <input type="hidden" name="rehacer" value="true" />
+                <button class="btn btn-outline-primary btn-sm px-3" title="Rehace lo que no está bloqueado">🔄 Rehacer lo no bloqueado</button>
+            </form>
+        }
+@if (User.IsInRole("UTP"))
+        {
+                <form method="post" action="/Horarios/BloquearCurso" class="m-0 ms-auto">
             @Html.AntiForgeryToken()
             <input type="hidden" name="cursoId" value="@Model.CursoId" />
-            <button class="btn btn-warning btn-sm px-3">🪄 Completar automáticamente</button>
+            <input type="hidden" name="bloquear" value="@(Model.CursoBloqueado ? "false" : "true")" />
+            @if (Model.CursoBloqueado)
+            {
+                <button class="btn btn-outline-secondary btn-sm px-3">🔓 Desbloquear horario del curso</button>
+            }
+            else
+            {
+                <button class="btn btn-secondary btn-sm px-3" title="Cuando el horario ya está acordado">🔒 Bloquear horario del curso</button>
+            }
         </form>
-        <form method="post" action="/Horarios/GenerarHorario" class="m-0" data-c="¿Borrar el horario de este curso y armarlo de nuevo automáticamente?" onsubmit="return confirm(this.dataset.c);">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="cursoId" value="@Model.CursoId" />
-            <input type="hidden" name="rehacer" value="true" />
-            <button class="btn btn-outline-danger btn-sm px-3">↻ Rehacer desde cero</button>
-        </form>
+        }
     </div>
 }
 @await Html.PartialAsync("_GrillaHorario", Model)

@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
 using Auka.Web.Services;
@@ -205,6 +205,17 @@ public class HorariosController : Controller
 
         var clases = await _context.ClasesHorario.AsNoTracking().Include(c => c.Profesor).Where(c => c.CursoId == id).ToListAsync();
         var vm = await ArmarGrillaAsync(colegioId, clases, porProfesor: false);
+        vm.CursoBloqueado = curso.HorarioBloqueado;
+        // Alumno/a o apoderado/a: sus clubes aparecen aparte, fuera del horario de clases
+        if (User.IsInRole("Estudiante") || User.IsInRole("Apoderado"))
+        {
+            var yo = UsuarioId();
+            var ids = User.IsInRole("Estudiante")
+                ? await _context.Estudiantes.Where(e => e.UsuarioId == yo && e.CursoId == id).Select(e => e.Id).ToListAsync()
+                : await _context.EstudiantesApoderados.Where(x => x.Apoderado != null && x.Apoderado.UsuarioId == yo && x.Estudiante != null && x.Estudiante.CursoId == id)
+                    .Select(x => x.EstudianteId).ToListAsync();
+            vm.ClubesFuera = await Auka.Web.Services.Clubes.DeAlumnosAsync(_context, colegioId, ids, conNombre: User.IsInRole("Apoderado") && ids.Count > 1);
+        }
         vm.Titulo = $"{curso.Nombre} {curso.Letra}".Trim();
         vm.Subtitulo = curso.ProfesorJefe != null ? $"Profesor/a jefe: {curso.ProfesorJefe.Nombre} {curso.ProfesorJefe.Apellido}" : "Horario semanal del curso";
         vm.CursoId = id;
@@ -256,8 +267,18 @@ public class HorariosController : Controller
         if (dia == 5 && !tarde && bloque.HoraInicio >= salida)
             return Json(new { ok = false, error = $"Este curso sale el viernes a las {salida:hh\\:mm}. Cambia «Viernes de este curso» para recuperar clases." });
 
+        if (curso.HorarioBloqueado)
+            return Json(new { ok = false, error = "🔒 El horario de este curso está bloqueado. Desbloquéalo arriba para hacer cambios." });
+
         var clase = await _context.ClasesHorario.FirstOrDefaultAsync(c => c.CursoId == cursoId && c.Dia == dia && c.BloqueJornadaId == bloqueId);
         var profAnterior = clase?.ProfesorId;
+        // Bloque de un docente con horario aprobado y bloqueado: no se toca directo (se pide intercambio o se desbloquea)
+        if (profAnterior != null)
+        {
+            var dueño = await _context.Usuarios.AsNoTracking().Where(u => u.Id == profAnterior && u.HorarioBloqueado).Select(u => u.Nombre + " " + u.Apellido).FirstOrDefaultAsync();
+            if (dueño != null)
+                return Json(new { ok = false, error = $"🔒 Este bloque es de {dueño} y su horario ya está confirmado y bloqueado. Usa «Mover o intercambiar» para pedirle el cambio, o desbloquea su horario en Horarios del personal." });
+        }
         asignatura = (asignatura ?? "").Trim();
         if (asignatura.Length == 0)
         {
@@ -281,6 +302,8 @@ public class HorariosController : Controller
         {
             prof = await _context.Usuarios.AsNoTracking().FirstOrDefaultAsync(u => u.Id == profesorId && u.ColegioId == colegioId && u.Activo);
             if (prof == null) return Json(new { ok = false, error = "Profesor/a no válido." });
+            if (prof.HorarioBloqueado && prof.Id != profAnterior)
+                return Json(new { ok = false, error = $"🔒 {prof.Nombre} {prof.Apellido} ya confirmó su horario y está bloqueado: no se le pueden sumar clases sin desbloquearlo antes (Horarios del personal)." });
         }
         else profesorId = null;
 
@@ -482,8 +505,12 @@ public class HorariosController : Controller
         if (o >= 2 && o <= 7) return new() { ("Lenguaje y Comunicación", 8), ("Matemática", 6), ("Historia, Geografía y Cs. Sociales", 3), ("Ciencias Naturales", 3), ("Inglés", 2), ("Educación Física y Salud", 4), ("Artes Visuales", 2), ("Música", 2), ("Tecnología", 1), ("Religión", 2), ("Orientación", 1) };
         if (o == 8 || o == 9) return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 6), ("Historia, Geografía y Cs. Sociales", 4), ("Ciencias Naturales", 4), ("Inglés", 3), ("Educación Física y Salud", 2), ("Artes Visuales", 2), ("Música", 2), ("Tecnología", 1), ("Religión", 2), ("Orientación", 1), ("Consejo de Curso", 1) };
         if (o == 10 || o == 11) return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 7), ("Historia, Geografía y Cs. Sociales", 4), ("Biología", 2), ("Química", 2), ("Física", 2), ("Inglés", 4), ("Educación Física y Salud", 2), ("Artes Visuales", 2), ("Tecnología", 2), ("Orientación", 1), ("Consejo de Curso", 1) };
+        // 3º y 4º medio TP: primero la formación general (ramos comunes) y al final la especialidad,
+        // para que si la jornada no alcanza, lo que se recorte sean horas de especialidad y no los ramos básicos.
         if (o >= 12 && !string.IsNullOrWhiteSpace(especialidad))
-            return new() { ($"Especialidad TP - {especialidad}", 14), ("Lenguaje y Comunicación", 3), ("Matemática", 3), ("Inglés", 2), ("Educación Ciudadana", 2), ("Filosofía", 2), ("Educación Física y Salud", 2), ("Orientación", 1), ("Consejo de Curso", 1) };
+            return new() { ("Lenguaje y Comunicación", 3), ("Matemática", 3), ("Inglés", 2), ("Educación Ciudadana", 2), ("Filosofía", 2),
+                           ("Ciencias para la Ciudadanía", 2), ("Historia, Geografía y Cs. Sociales", 2), ("Educación Física y Salud", 2),
+                           ("Orientación", 1), ("Consejo de Curso", 1), ($"Especialidad TP - {especialidad}", 18) };
         if (o >= 12) return new() { ("Lenguaje y Comunicación", 3), ("Matemática", 3), ("Educación Ciudadana", 2), ("Filosofía", 2), ("Ciencias para la Ciudadanía", 2), ("Inglés", 2), ("Educación Física y Salud", 2), ("Biología", 3), ("Química", 3), ("Física", 3), ("Historia, Geografía y Cs. Sociales", 3), ("Orientación", 1), ("Consejo de Curso", 1) };
         return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 6), ("Orientación", 1) };
     }
@@ -506,10 +533,15 @@ public class HorariosController : Controller
         var cursos = await _context.Cursos.Include(c => c.Estudiantes)
             .Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio && c.Nombre != "Pacientes" && (cursoId == null || c.Id == cursoId))
             .ToListAsync();
-        cursos = cursos.OrderBy(c => Niveles.Orden(c.Nombre)).ThenBy(c => c.Letra).ToList();
-        if (cursoId != null && rehacer)
+        var cursosBloqueados = cursos.Count(c => c.HorarioBloqueado);
+        cursos = cursos.Where(c => !c.HorarioBloqueado).OrderBy(c => Niveles.Orden(c.Nombre)).ThenBy(c => c.Letra).ToList();
+        // Docentes con horario aprobado y bloqueado: sus clases no se mueven y no se les suman horas
+        var profBloqueados = (await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.HorarioBloqueado).Select(u => u.Id).ToListAsync()).ToHashSet();
+        if (cursoId != null && rehacer && cursos.Count > 0)
         {
-            _context.ClasesHorario.RemoveRange(await _context.ClasesHorario.Where(c => c.CursoId == cursoId).ToListAsync());
+            // Rehacer: se borra lo que no está bloqueado; los bloques de docentes bloqueados se quedan donde están
+            _context.ClasesHorario.RemoveRange(await _context.ClasesHorario
+                .Where(c => c.CursoId == cursoId && (c.ProfesorId == null || !profBloqueados.Contains(c.ProfesorId.Value))).ToListAsync());
             await _context.SaveChangesAsync();
         }
 
@@ -519,7 +551,7 @@ public class HorariosController : Controller
         var carga = existentes.Where(c => c.ProfesorId != null).GroupBy(c => c.ProfesorId!.Value).ToDictionary(g => g.Key, g => g.Count());
 
         var docentes = await _context.Usuarios.AsNoTracking()
-            .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente)
+            .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente && !u.HorarioBloqueado)
             .Select(u => new { u.Id, u.Asignaturas, u.Departamento, u.HorasContrato }).ToListAsync();
         int Tope(int id) { var h = docentes.FirstOrDefault(d => d.Id == id)?.HorasContrato ?? 0; return h > 0 ? h : 38; }
 
@@ -538,11 +570,15 @@ public class HorariosController : Controller
             var especialidad = curso.Estudiantes.Where(e => !string.IsNullOrEmpty(e.Especialidad)).GroupBy(e => e.Especialidad!).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault();
             var porDia = new Dictionary<(string, int), int>();   // cuántas horas de cada asignatura hay ya ese día (para repartir)
 
-            foreach (var (asig, horas) in PlanDe(curso.Nombre, especialidad))
+            // Lo que ya está puesto cuenta: si un bloqueado ya hace 3 horas de Matemática, solo faltan las demás
+            var yaTiene = existentes.Where(c => c.CursoId == curso.Id).GroupBy(c => c.Asignatura.Trim().ToLower()).ToDictionary(g => g.Key, g => g.Count());
+            foreach (var (asig, horasPlan) in PlanDe(curso.Nombre, especialidad))
             {
+                var horas = Math.Max(0, horasPlan - yaTiene.GetValueOrDefault(asig.ToLower()));
+                if (horas == 0) continue;
                 // Profesor/a para esta asignatura en este curso (el mismo para todas sus horas, si se puede)
                 List<int> candidatos;
-                if (EsDeJefatura(asig)) candidatos = curso.ProfesorJefeId != null ? new List<int> { curso.ProfesorJefeId.Value } : new List<int>();
+                if (EsDeJefatura(asig)) candidatos = curso.ProfesorJefeId != null && !profBloqueados.Contains(curso.ProfesorJefeId.Value) ? new List<int> { curso.ProfesorJefeId.Value } : new List<int>();
                 else
                 {
                     var depto = DeptoDe(asig);
@@ -589,6 +625,8 @@ public class HorariosController : Controller
         var msg = $"🪄 Borrador listo: {asignados} bloques asignados en {cursos.Count} {(cursos.Count == 1 ? "curso" : "cursos")}.";
         if (sinProfesor > 0) msg += $" {sinProfesor} quedaron sin profesor/a (falta personal o asignatura en Personal): " + string.Join(", ", faltan.OrderByDescending(x => x.Value).Take(6).Select(x => $"{x.Key} ({x.Value})")) + ".";
         if (sinEspacio > 0) msg += $" {sinEspacio} horas no cupieron en la jornada.";
+        if (cursosBloqueados > 0) msg += $" {cursosBloqueados} {(cursosBloqueados == 1 ? "curso bloqueado no se tocó" : "cursos bloqueados no se tocaron")}.";
+        if (profBloqueados.Count > 0) msg += " Los bloques de docentes con horario aprobado (🔒) se respetaron.";
         msg += " Revísalo y ajústalo tocando cada bloque.";
         TempData["SuccessMessage"] = msg;
         return cursoId != null ? Redirect($"/Horarios/Curso/{cursoId}") : RedirectToAction(nameof(Index));
@@ -629,6 +667,15 @@ public class HorariosController : Controller
         ViewBag.Ciclos = cursosProf.GroupBy(x => x.P).ToDictionary(g => g.Key, g => g.Select(x => Niveles.Ciclo(x.Nombre)).Distinct().ToList());
         ViewBag.UltimoCambio = cursosProf.GroupBy(x => x.P).ToDictionary(g => g.Key, g => g.Max(x => x.ModificadaUtc));
         ViewBag.PuedeEditar = await PuedeEditarAsync();
+        if (ViewBag.PuedeEditar == true)
+        {
+            var sols = await _context.SolicitudesCambioHorario.AsNoTracking()
+                .Where(x => x.Estado == EstadoSolicitudHorario.Pendiente || x.RespondidaUtc >= DateTime.UtcNow.AddDays(-7))
+                .OrderBy(x => x.Estado).ThenByDescending(x => x.CreadaUtc).Take(20).ToListAsync();
+            ViewBag.Solicitudes = sols;
+            var nombres = personal.ToDictionary(p => p.Id, p => p.Nombre + " " + p.Apellido);
+            ViewBag.Nombres = nombres;
+        }
         return View(personal);
     }
 
@@ -667,9 +714,304 @@ public class HorariosController : Controller
         var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == UsuarioId());
         if (u == null) return NotFound();
         u.HorarioConfirmadoUtc = DateTime.UtcNow;
+        u.HorarioObservacion = null;
         await _context.SaveChangesAsync();
-        TempData["SuccessMessage"] = "¡Gracias! Quedó registrado que estás de acuerdo con tu horario.";
+        await AvisarUtpAsync(u.ColegioId, "✅ Horario confirmado", $"{u.Nombre} {u.Apellido} está de acuerdo con su horario. Apruébalo para dejarlo bloqueado 🔒.", $"/Horarios/Profesor/{u.Id}");
+        TempData["SuccessMessage"] = "¡Gracias! Quedó registrado que estás de acuerdo con tu horario. La UTP lo revisará para dejarlo fijo.";
         return RedirectToAction(nameof(Profesor), new { id = u.Id });
+    }
+
+    /// <summary>El docente no está de acuerdo: deja lo que le complica y le llega a la UTP.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> NoDeAcuerdo(string? motivo)
+    {
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == UsuarioId());
+        if (u == null) return NotFound();
+        motivo = (motivo ?? "").Trim();
+        if (motivo.Length < 5) { TempData["Error"] = "Cuéntale a la UTP qué no te calza (por ejemplo: «el jueves a las 8:00 tengo un trámite»)."; return RedirectToAction(nameof(Profesor), new { id = u.Id }); }
+        u.HorarioObservacion = motivo.Length > 500 ? motivo[..500] : motivo;
+        u.HorarioConfirmadoUtc = null;
+        u.HorarioBloqueado = false;
+        u.HorarioAprobadoUtc = null;
+        await _context.SaveChangesAsync();
+        await AvisarUtpAsync(u.ColegioId, "✋ Un docente no está de acuerdo con su horario", $"{u.Nombre} {u.Apellido}: «{u.HorarioObservacion}»", $"/Horarios/Profesor/{u.Id}");
+        TempData["SuccessMessage"] = "Listo: la UTP recibió tu comentario y revisará tu horario.";
+        return RedirectToAction(nameof(Profesor), new { id = u.Id });
+    }
+
+    /// <summary>
+    /// Docente con horario aprobado (bloqueado): pide un cambio a la UTP. Elige el bloque, a qué día/hora le acomoda y el motivo.
+    /// No desbloquea nada: la UTP revisa si se puede y, si corresponde, desbloquea o hace el intercambio.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SolicitarCambio(string? bloque, string? prefiere, string? motivo)
+    {
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == UsuarioId());
+        if (u == null) return NotFound();
+        motivo = (motivo ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(bloque) || motivo.Length < 3)
+        {
+            TempData["Error"] = "Elige el bloque que quieres cambiar y cuéntale a la UTP el motivo.";
+            return RedirectToAction(nameof(Profesor), new { id = u.Id });
+        }
+        var texto = $"Pide cambiar: {bloque.Trim()}" + (string.IsNullOrWhiteSpace(prefiere) ? "" : $" · Le acomoda: {prefiere.Trim()}") + $" · Motivo: {motivo}";
+        u.HorarioObservacion = texto.Length > 500 ? texto[..500] : texto;
+        await _context.SaveChangesAsync();
+        await AvisarUtpAsync(u.ColegioId, "📝 Solicitud de cambio de horario", $"{u.Nombre} {u.Apellido}: {u.HorarioObservacion}", $"/Horarios/Profesor/{u.Id}");
+        TempData["SuccessMessage"] = "📨 Tu solicitud llegó a la UTP. Tu horario sigue igual hasta que la UTP lo revise.";
+        return RedirectToAction(nameof(Profesor), new { id = u.Id });
+    }
+
+    /// <summary>La UTP da por resuelta la solicitud del docente (con o sin cambio).</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResolverSolicitudDocente(int profesorId, string? respuesta)
+    {
+        if (!User.IsInRole("UTP")) return RedirectToAction("AccesoDenegado", "Account");
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == profesorId && x.ColegioId == ColegioId());
+        if (u == null) return NotFound();
+        u.HorarioObservacion = null;
+        _context.Notificaciones.Add(new Notificacion
+        {
+            ColegioId = u.ColegioId, UsuarioId = u.Id, Titulo = "🗓️ La UTP respondió tu solicitud de horario",
+            Mensaje = string.IsNullOrWhiteSpace(respuesta) ? "Tu solicitud fue revisada." : respuesta.Trim()[..Math.Min(respuesta.Trim().Length, 300)],
+            Enlace = $"/Horarios/Profesor/{u.Id}", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo
+        });
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = "Respuesta enviada al profesor/a.";
+        return RedirectToAction(nameof(Profesor), new { id = profesorId });
+    }
+
+    /// <summary>La UTP aprueba el horario confirmado por el docente (queda bloqueado) o lo desbloquea.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AprobarHorario(int profesorId, bool desbloquear = false)
+    {
+        // Bloquear y desbloquear horarios es solo de la UTP
+        if (!User.IsInRole("UTP")) return RedirectToAction("AccesoDenegado", "Account");
+        var colegioId = ColegioId();
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == profesorId && x.ColegioId == colegioId);
+        if (u == null) return NotFound();
+        if (desbloquear)
+        {
+            u.HorarioBloqueado = false;
+            u.HorarioAprobadoUtc = null;
+            TempData["SuccessMessage"] = $"🔓 Horario de {u.Nombre} {u.Apellido} desbloqueado: ya se puede modificar. Cuando esté listo, que lo confirme de nuevo.";
+        }
+        else
+        {
+            var ultimo = await _context.ClasesHorario.Where(c => c.ProfesorId == profesorId).MaxAsync(c => (DateTime?)c.ModificadaUtc);
+            if (u.HorarioConfirmadoUtc == null || (ultimo != null && u.HorarioConfirmadoUtc < ultimo))
+            {
+                TempData["Error"] = $"{u.Nombre} {u.Apellido} aún no confirma su horario (o cambió después de confirmarlo). Se bloquea cuando están de acuerdo los dos.";
+                return RedirectToAction(nameof(Profesor), new { id = profesorId });
+            }
+            u.HorarioBloqueado = true;
+            u.HorarioAprobadoUtc = DateTime.UtcNow;
+            _context.Notificaciones.Add(new Notificacion
+            {
+                ColegioId = colegioId, UsuarioId = u.Id, Titulo = "🔒 Tu horario quedó aprobado",
+                Mensaje = "La UTP aprobó tu horario: queda fijo. Si necesitas un cambio, conversa con la UTP.",
+                Enlace = $"/Horarios/Profesor/{u.Id}", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo
+            });
+            TempData["SuccessMessage"] = $"🔒 Horario de {u.Nombre} {u.Apellido} aprobado y bloqueado. El automático ya no lo mueve.";
+        }
+        await _context.SaveChangesAsync();
+        return RedirectToAction(nameof(Profesor), new { id = profesorId });
+    }
+
+    /// <summary>Bloquea o desbloquea el horario completo de un curso.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BloquearCurso(int cursoId, bool bloquear)
+    {
+        if (!User.IsInRole("UTP")) return RedirectToAction("AccesoDenegado", "Account");
+        var curso = await _context.Cursos.FirstOrDefaultAsync(c => c.Id == cursoId);
+        if (curso == null) return NotFound();
+        curso.HorarioBloqueado = bloquear;
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = bloquear ? $"🔒 Horario de {curso.Nombre} {curso.Letra} bloqueado: ya no se mueve." : $"🔓 Horario de {curso.Nombre} {curso.Letra} desbloqueado.";
+        return Redirect($"/Horarios/Curso/{cursoId}");
+    }
+
+    // ---------------------------------------------------------------- Mover o intercambiar bloques
+    private string Cuando(int dia, BloqueJornada? b) => $"{Dias[dia - 1][..3].ToLower()} {b?.HoraInicio.ToString("hh\\:mm")}";
+
+    /// <summary>¿Está libre este docente en ese día y bloque (sin contar las clases indicadas)?</summary>
+    private Task<bool> LibreAsync(int? profesorId, int dia, int bloqueId, params int[] excepto) =>
+        profesorId == null ? Task.FromResult(true)
+        : _context.ClasesHorario.AllAsync(c => !(c.ProfesorId == profesorId && c.Dia == dia && c.BloqueJornadaId == bloqueId && !excepto.Contains(c.Id)));
+
+    /// <summary>Aplica el movimiento: A pasa al destino; si había una clase B ahí, B pasa al lugar de A.</summary>
+    private async Task AplicarMovimientoAsync(ClaseHorario a, ClaseHorario? b, int diaDestino, int bloqueDestinoId)
+    {
+        var (diaA, bloqueA) = (a.Dia, a.BloqueJornadaId);
+        if (b == null)
+        {
+            a.Dia = diaDestino; a.BloqueJornadaId = bloqueDestinoId; a.ModificadaUtc = DateTime.UtcNow;
+        }
+        else
+        {
+            // Se intercambia el contenido (cada fila queda en su bloque): evita choques con el índice de curso/día/bloque
+            (a.Asignatura, b.Asignatura) = (b.Asignatura, a.Asignatura);
+            (a.ProfesorId, b.ProfesorId) = (b.ProfesorId, a.ProfesorId);
+            (a.Sala, b.Sala) = (b.Sala, a.Sala);
+            a.ModificadaUtc = b.ModificadaUtc = DateTime.UtcNow;
+        }
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// La UTP mueve una clase a otro bloque del mismo curso (o la intercambia con la que está ahí).
+    /// Si la otra clase es de un docente con horario bloqueado, no se cambia directo: se le envía una solicitud
+    /// y el cambio se hace solo cuando acepta. El docente ve el motivo real o solo «motivos personales», según elija la UTP.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Intercambiar(int cursoId, int diaOrigen, int bloqueOrigenId, int diaDestino, int bloqueDestinoId, string? motivo, bool mostrarMotivo = false)
+    {
+        if (!await PuedeEditarAsync()) return Json(new { ok = false, error = "No tienes permiso para modificar horarios." });
+        var colegioId = ColegioId();
+        var curso = await _context.Cursos.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cursoId);
+        if (curso == null) return Json(new { ok = false, error = "Curso no encontrado." });
+        if (curso.HorarioBloqueado) return Json(new { ok = false, error = "🔒 El horario de este curso está bloqueado. Desbloquéalo para hacer cambios." });
+        if (diaOrigen == diaDestino && bloqueOrigenId == bloqueDestinoId) return Json(new { ok = false, error = "Elige un bloque distinto." });
+        var bloques = await JornadaAsync(colegioId);
+        var bDest = bloques.FirstOrDefault(b => b.Id == bloqueDestinoId);
+        var bOrig = bloques.FirstOrDefault(b => b.Id == bloqueOrigenId);
+        if (bDest == null || bDest.Tipo != TipoBloque.Clase || diaDestino < 1 || diaDestino > 5) return Json(new { ok = false, error = "Ese bloque no es de clases." });
+        var (salida, tarde) = ViernesDe(curso, await ViernesAsync(colegioId));
+        if (diaDestino == 5 && !tarde && bDest.HoraInicio >= salida) return Json(new { ok = false, error = $"El viernes este curso sale a las {salida:hh\\:mm}." });
+
+        var a = await _context.ClasesHorario.Include(c => c.Profesor).FirstOrDefaultAsync(c => c.CursoId == cursoId && c.Dia == diaOrigen && c.BloqueJornadaId == bloqueOrigenId);
+        if (a == null) return Json(new { ok = false, error = "No hay clase en el bloque de origen." });
+        var b = await _context.ClasesHorario.Include(c => c.Profesor).FirstOrDefaultAsync(c => c.CursoId == cursoId && c.Dia == diaDestino && c.BloqueJornadaId == bloqueDestinoId);
+
+        // Sin choques: A debe estar libre en el destino y B (si existe) en el origen, en sus otros cursos
+        if (!await LibreAsync(a.ProfesorId, diaDestino, bloqueDestinoId, a.Id, b?.Id ?? 0))
+            return Json(new { ok = false, error = $"{a.Profesor?.Nombre} {a.Profesor?.Apellido} ya tiene clase en otro curso el {Cuando(diaDestino, bDest)}." });
+        if (b != null && !await LibreAsync(b.ProfesorId, diaOrigen, bloqueOrigenId, a.Id, b.Id))
+            return Json(new { ok = false, error = $"{b.Profesor?.Nombre} {b.Profesor?.Apellido} ya tiene clase en otro curso el {Cuando(diaOrigen, bOrig)}." });
+
+        var resumen = $"{a.Asignatura} ({Cuando(diaOrigen, bOrig)})" + (b != null ? $" ↔ {b.Asignatura} ({Cuando(diaDestino, bDest)})" : $" → {Cuando(diaDestino, bDest)}") + $" · {curso.Nombre} {curso.Letra}".TrimEnd();
+        motivo = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim()[..Math.Min(motivo.Trim().Length, 300)];
+
+        // La otra clase es de un docente con horario bloqueado (y distinto al de A): se le pide permiso
+        if (b?.Profesor != null && b.Profesor.HorarioBloqueado && b.ProfesorId != a.ProfesorId)
+        {
+            if (await _context.SolicitudesCambioHorario.AnyAsync(x => x.Estado == EstadoSolicitudHorario.Pendiente && (x.ClaseAId == a.Id || x.ClaseBId == b.Id)))
+                return Json(new { ok = false, error = "Ya hay una solicitud pendiente para este bloque. Espera la respuesta o cancélala en Horarios del personal." });
+            var sol = new SolicitudCambioHorario
+            {
+                ColegioId = colegioId, CursoId = cursoId, ClaseAId = a.Id, ClaseBId = b.Id, DiaDestino = diaDestino, BloqueDestinoId = bloqueDestinoId,
+                ProfesorConsultadoId = b.ProfesorId!.Value, SolicitanteId = UsuarioId(), Resumen = resumen,
+                MotivoMostrado = mostrarMotivo && motivo != null ? motivo : "Motivos personales de un colega",
+                MotivoInterno = motivo
+            };
+            _context.SolicitudesCambioHorario.Add(sol);
+            _context.Notificaciones.Add(new Notificacion
+            {
+                ColegioId = colegioId, UsuarioId = b.ProfesorId.Value, Titulo = "🔁 ¿Puedes cambiar un bloque de tu horario?",
+                Mensaje = $"La UTP te pide: {resumen}. Motivo: {sol.MotivoMostrado}. Responde si puedes o no.",
+                Enlace = $"/Horarios/Profesor/{b.ProfesorId}", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo
+            });
+            await _context.SaveChangesAsync();
+            return Json(new { ok = true, pendiente = true, mensaje = $"📨 Se le preguntó a {b.Profesor.Nombre} {b.Profesor.Apellido} (su horario está bloqueado). El cambio se hace solo cuando acepte." });
+        }
+
+        await AplicarMovimientoAsync(a, b, diaDestino, bloqueDestinoId);
+        // A cada docente afectado le llega el aviso (y su horario vuelve a quedar por confirmar)
+        foreach (var pid in new[] { a.ProfesorId, b?.ProfesorId }.Where(x => x != null).Distinct())
+        {
+            if (pid == UsuarioId()) continue;
+            _context.Notificaciones.Add(new Notificacion
+            {
+                ColegioId = colegioId, UsuarioId = pid!.Value, Titulo = "🔁 Cambio en tu horario",
+                Mensaje = $"La UTP movió: {resumen}." + (motivo != null && mostrarMotivo ? $" Motivo: {motivo}." : ""),
+                Enlace = $"/Horarios/Profesor/{pid}", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo
+            });
+        }
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true, mensaje = "✅ Cambio hecho." });
+    }
+
+    /// <summary>El docente consultado acepta o rechaza el cambio (si rechaza, dice por qué).</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResponderSolicitud(int id, bool acepta, string? respuesta)
+    {
+        var yo = UsuarioId();
+        var sol = await _context.SolicitudesCambioHorario.FirstOrDefaultAsync(x => x.Id == id && x.ProfesorConsultadoId == yo && x.Estado == EstadoSolicitudHorario.Pendiente);
+        if (sol == null) { TempData["Error"] = "Esa solicitud ya no está pendiente."; return RedirectToAction(nameof(Profesor), new { id = yo }); }
+        respuesta = string.IsNullOrWhiteSpace(respuesta) ? null : respuesta.Trim()[..Math.Min(respuesta.Trim().Length, 300)];
+        string aviso;
+        if (acepta)
+        {
+            var a = await _context.ClasesHorario.FirstOrDefaultAsync(c => c.Id == sol.ClaseAId);
+            var b = sol.ClaseBId != null ? await _context.ClasesHorario.FirstOrDefaultAsync(c => c.Id == sol.ClaseBId) : null;
+            // Revisión de último minuto: que nada haya cambiado y que nadie quede en dos cursos a la vez
+            var ok = a != null && (sol.ClaseBId == null || b != null)
+                && await LibreAsync(a.ProfesorId, sol.DiaDestino, sol.BloqueDestinoId, a.Id, b?.Id ?? 0)
+                && (b == null || await LibreAsync(b.ProfesorId, a.Dia, a.BloqueJornadaId, a.Id, b.Id));
+            if (!ok)
+            {
+                sol.Estado = EstadoSolicitudHorario.Cancelada;
+                sol.Respuesta = "El horario cambió mientras tanto: ya no se puede hacer este cambio.";
+                sol.RespondidaUtc = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                TempData["Error"] = "Gracias, pero el horario cambió mientras tanto y ya no se puede hacer este cambio. La UTP fue avisada.";
+                aviso = $"No se pudo aplicar «{sol.Resumen}»: el horario cambió antes de la respuesta.";
+            }
+            else
+            {
+                await AplicarMovimientoAsync(a!, b, sol.DiaDestino, sol.BloqueDestinoId);
+                sol.Estado = EstadoSolicitudHorario.Aceptada;
+                sol.Respuesta = respuesta;
+                sol.RespondidaUtc = DateTime.UtcNow;
+                // Con el cambio aceptado, su horario sigue aprobado (lo aceptó él/ella)
+                var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == yo);
+                if (u != null && u.HorarioBloqueado) { u.HorarioConfirmadoUtc = DateTime.UtcNow; u.HorarioAprobadoUtc = DateTime.UtcNow; }
+                TempData["SuccessMessage"] = "✅ ¡Gracias! El cambio ya quedó en tu horario.";
+                aviso = $"{User.Identity?.Name} aceptó: {sol.Resumen}. Ya quedó en el horario.";
+            }
+        }
+        else
+        {
+            if (respuesta == null) { TempData["Error"] = "Cuéntale a la UTP por qué no puedes (puedes elegir una de las opciones)."; return RedirectToAction(nameof(Profesor), new { id = yo }); }
+            sol.Estado = EstadoSolicitudHorario.Rechazada;
+            sol.Respuesta = respuesta;
+            sol.RespondidaUtc = DateTime.UtcNow;
+            TempData["SuccessMessage"] = "Listo: la UTP recibió tu respuesta.";
+            aviso = $"{User.Identity?.Name} no puede: {sol.Resumen}. Motivo: {respuesta}";
+        }
+        _context.Notificaciones.Add(new Notificacion
+        {
+            ColegioId = sol.ColegioId, UsuarioId = sol.SolicitanteId, Titulo = acepta && sol.Estado == EstadoSolicitudHorario.Aceptada ? "✅ Cambio de horario aceptado" : "🔁 Respuesta a tu solicitud de horario",
+            Mensaje = aviso, Enlace = $"/Horarios/Curso/{sol.CursoId}", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo
+        });
+        await _context.SaveChangesAsync();
+        return RedirectToAction(nameof(Profesor), new { id = yo });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelarSolicitud(int id)
+    {
+        if (!await PuedeEditarAsync()) return RedirectToAction("AccesoDenegado", "Account");
+        var sol = await _context.SolicitudesCambioHorario.FirstOrDefaultAsync(x => x.Id == id && x.Estado == EstadoSolicitudHorario.Pendiente);
+        if (sol != null) { sol.Estado = EstadoSolicitudHorario.Cancelada; sol.RespondidaUtc = DateTime.UtcNow; await _context.SaveChangesAsync(); }
+        TempData["SuccessMessage"] = "Solicitud cancelada.";
+        return RedirectToAction(nameof(Profesores));
+    }
+
+    private async Task AvisarUtpAsync(int colegioId, string titulo, string mensaje, string enlace)
+    {
+        var utps = await _context.Usuarios.Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.UTP).Select(u => u.Id).ToListAsync();
+        foreach (var id in utps)
+            _context.Notificaciones.Add(new Notificacion { ColegioId = colegioId, UsuarioId = id, Titulo = titulo, Mensaje = mensaje, Enlace = enlace, CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo });
+        await _context.SaveChangesAsync();
     }
 
     [HttpGet]
@@ -690,6 +1032,20 @@ public class HorariosController : Controller
         vm.Horas = clases.Count;
         vm.ConfirmadoUtc = u.HorarioConfirmadoUtc;
         vm.UltimoCambioUtc = clases.Count == 0 ? null : clases.Max(c => c.ModificadaUtc);
+        vm.ProfesorBloqueado = u.HorarioBloqueado;
+        vm.AprobadoUtc = u.HorarioAprobadoUtc;
+        vm.Observacion = u.HorarioObservacion;
+        vm.PuedeAprobar = User.IsInRole("UTP");
+        // Clubes a su cargo (van fuera del horario de clases)
+        vm.ClubesFuera = await Auka.Web.Services.Clubes.DelDocenteAsync(_context, colegioId, id);
+        vm.MisBloques = vm.EsPropio
+            ? clases.OrderBy(c => c.Dia).ThenBy(c => vm.Bloques.FindIndex(b => b.Id == c.BloqueJornadaId))
+                .Select(c => $"{Dias[c.Dia - 1]} {vm.Bloques.FirstOrDefault(b => b.Id == c.BloqueJornadaId)?.HoraInicio.ToString("hh\\:mm")} · {c.Asignatura} · {c.Curso?.Nombre} {c.Curso?.Letra}".Trim()).ToList()
+            : new();
+        // Solicitudes de cambio que le hicieron a este docente (pendientes arriba)
+        vm.Solicitudes = await _context.SolicitudesCambioHorario.AsNoTracking()
+            .Where(x => x.ProfesorConsultadoId == id && (x.Estado == EstadoSolicitudHorario.Pendiente || x.CreadaUtc >= DateTime.UtcNow.AddDays(-30)))
+            .OrderBy(x => x.Estado).ThenByDescending(x => x.CreadaUtc).Take(10).ToListAsync();
         return View("Profesor", vm);
     }
 
@@ -734,15 +1090,17 @@ public class HorariosController : Controller
             ViernesTarde = tarde,
             PorProfesor = porProfesor
         };
+        var profIds = clases.Where(c => c.ProfesorId != null).Select(c => c.ProfesorId!.Value).Distinct().ToList();
+        var bloqueados = (await _context.Usuarios.AsNoTracking().Where(u => profIds.Contains(u.Id) && u.HorarioBloqueado).Select(u => u.Id).ToListAsync()).ToHashSet();
         foreach (var c in clases)
             vm.Celdas[(c.Dia, c.BloqueJornadaId)] = new CeldaVm(c.Asignatura,
                 porProfesor ? $"{c.Curso?.Nombre} {c.Curso?.Letra}".Trim() : (c.Profesor != null ? $"{c.Profesor.Nombre} {c.Profesor.Apellido}" : null),
-                c.Sala, c.ProfesorId);
+                c.Sala, c.ProfesorId, c.ProfesorId != null && bloqueados.Contains(c.ProfesorId.Value));
         return vm;
     }
 }
 
-public record CeldaVm(string Asignatura, string? Detalle, string? Sala, int? ProfesorId);
+public record CeldaVm(string Asignatura, string? Detalle, string? Sala, int? ProfesorId, bool Bloqueada = false);
 
 public class GrillaVm
 {
@@ -769,4 +1127,14 @@ public class GrillaVm
     public int Horas { get; set; }
     public DateTime? ConfirmadoUtc { get; set; }
     public DateTime? UltimoCambioUtc { get; set; }
+    // Bloqueo y acuerdos
+    public bool CursoBloqueado { get; set; }
+    public bool ProfesorBloqueado { get; set; }
+    public DateTime? AprobadoUtc { get; set; }
+    public string? Observacion { get; set; }
+    public bool PuedeAprobar { get; set; }
+    public List<string> MisBloques { get; set; } = new();
+    // Clubes y talleres (fuera del horario de clases)
+    public List<Auka.Web.Services.Clubes.FilaClub> ClubesFuera { get; set; } = new();
+    public List<SolicitudCambioHorario> Solicitudes { get; set; } = new();
 }
