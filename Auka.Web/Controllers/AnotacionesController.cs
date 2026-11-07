@@ -19,7 +19,7 @@ public class AnotacionesController : Controller
 
     // 1. Vista de Anotaciones con Privacidad Garantizada
     [Authorize(Roles = "SuperAdmin,Director,UTP,Docente,Inspector,Estudiante,Apoderado")]
-    public async Task<IActionResult> Index(int? estudianteId)
+    public async Task<IActionResult> Index(int? estudianteId, int? cursoId)
     {
         var rol = User.FindFirst(ClaimTypes.Role)?.Value;
         var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -74,16 +74,32 @@ public class AnotacionesController : Controller
             return View("GestionAnotaciones", anotacionesEstudiante);
         }
 
-        // D) Si NO ha seleccionado estudiante, listamos ordenando por la entidad Usuario
-        var estudiantes = await _context.Estudiantes
-            .AsNoTracking()
-            .Include(e => e.Usuario)
-            .Include(e => e.Curso)
-            .OrderBy(e => e.Usuario != null ? e.Usuario.Apellido : "")
-            .ThenBy(e => e.Usuario != null ? e.Usuario.Nombre : "")
-            .ToListAsync();
+        // D) Sin alumno elegido: primero se elige el curso; luego, los alumnos/as de ese curso
+        var anio = DateTime.Now.Year;
+        var desdeAnio = new DateTime(anio, 1, 1, 0, 0, 0, DateTimeKind.Utc);   // se cuentan las del año escolar
+        if (cursoId == null)
+        {
+            _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var colAl);
+            ViewBag.Estados = await Auka.Web.Services.Alertas.EstadoCursosAsync(_context, colAl);
+            var cursos = await _context.Cursos.AsNoTracking()
+                .Where(c => c.Nombre != "Pacientes" && c.AnioAcademico == anio)
+                .Select(c => new CursoAnotVm(c.Id, c.Nombre, c.Letra, c.Estudiantes.Count,
+                    _context.Anotaciones.Count(a => a.Estudiante != null && a.Estudiante.CursoId == c.Id && a.Tipo == TipoAnotacion.Positiva && a.Fecha >= desdeAnio),
+                    _context.Anotaciones.Count(a => a.Estudiante != null && a.Estudiante.CursoId == c.Id && a.Tipo == TipoAnotacion.Negativa && a.Fecha >= desdeAnio)))
+                .ToListAsync();
+            return View("SeleccionarCurso", cursos.OrderBy(c => c.Nombre).ThenBy(c => c.Letra).ToList());
+        }
 
-        return View("SeleccionarEstudiante", estudiantes);
+        var curso = await _context.Cursos.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cursoId);
+        if (curso == null) return RedirectToAction(nameof(Index));
+        var alumnos = await _context.Estudiantes.AsNoTracking()
+            .Where(e => e.CursoId == cursoId && e.Usuario != null)
+            .Select(e => new AlumnoAnotVm(e.Id, e.Usuario!.Nombre, e.Usuario.Apellido, e.Usuario.Rut,
+                _context.Anotaciones.Count(a => a.EstudianteId == e.Id && a.Tipo == TipoAnotacion.Positiva && a.Fecha >= desdeAnio),
+                _context.Anotaciones.Count(a => a.EstudianteId == e.Id && a.Tipo == TipoAnotacion.Negativa && a.Fecha >= desdeAnio)))
+            .ToListAsync();
+        ViewBag.Curso = curso;
+        return View("SeleccionarEstudiante", alumnos.OrderBy(a => a.Apellido).ThenBy(a => a.Nombre).ToList());
     }
 
     // 2. Crear Anotación
@@ -114,7 +130,17 @@ public class AnotacionesController : Controller
         _context.Anotaciones.Add(nuevaAnotacion);
         await _context.SaveChangesAsync();
 
+        // Alertas: curso en alerta o alumno/a con 3 negativas → aviso en la campana (una vez por período)
+        if (tipo == TipoAnotacion.Negativa)
+        {
+            try { await Auka.Web.Services.Alertas.RevisarTrasAnotacionAsync(_context, estudianteId); }
+            catch { /* el aviso nunca debe impedir registrar la anotación */ }
+        }
+
         TempData["SuccessMessage"] = "Anotación registrada con éxito.";
         return RedirectToAction(nameof(Index), new { estudianteId });
     }
 }
+
+public record CursoAnotVm(int Id, string Nombre, string Letra, int Alumnos, int Positivas30, int Negativas30);
+public record AlumnoAnotVm(int Id, string Nombre, string Apellido, string Rut, int Positivas, int Negativas);

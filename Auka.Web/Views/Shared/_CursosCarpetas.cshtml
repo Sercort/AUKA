@@ -1,0 +1,178 @@
+﻿@* Auka.Web/Views/Shared/_CursosCarpetas.cshtml
+   Cursos como carpetas: primero el nivel (1º Básico, 2º Básico...), y al abrirlo sus cursos (A, B, C...).
+   Lo usan Cursos, Anotaciones y Horarios. Los niveles y letras salen solos de los cursos que tenga el colegio. *@
+@model Auka.Web.Models.CarpetasVm
+@using Auka.Web.Services
+@{
+    var tonos = new[] { "t1", "t2", "t3", "t4", "t5", "t6" };
+    var ciclos = Model.Cursos
+        .GroupBy(c => Niveles.Ciclo(c.Nivel))
+        .OrderBy(g => Niveles.OrdenCiclo(g.Key))
+        .Select(g => new
+        {
+            Ciclo = g.Key,
+            Niveles = g.GroupBy(c => Niveles.Normal(c.Nivel))
+                .Select(n => new { Nombre = n.First().Nivel, Cursos = n.OrderBy(c => c.Letra).ToList() })
+                .OrderBy(n => Niveles.Orden(n.Nombre)).ThenBy(n => n.Nombre).ToList()
+        }).ToList();
+    var t = 0;
+    var idx = 0;
+}
+<style>
+    .cf-ciclo { display: flex; align-items: center; gap: .6rem; margin: 22px 0 12px; }
+    .cf-ciclo h3 { font-size: 1.05rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .cf-ciclo::after { content: ""; flex: 1; height: 1px; background: var(--a-line); }
+    .cf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 18px 14px; }
+    .cf-fo { position: relative; border: 0; text-align: left; color: #fff; border-radius: 6px 20px 20px 20px; padding: 18px 16px 14px; min-height: 118px; display: flex; flex-direction: column; margin-top: 10px; box-shadow: 0 8px 18px rgba(20,35,58,.12); transition: transform .2s, box-shadow .2s; cursor: pointer; }
+    .cf-fo::before { content: ""; position: absolute; left: 0; top: -10px; width: 46%; height: 14px; border-radius: 8px 12px 0 0; background: inherit; filter: brightness(.9); }
+    .cf-fo:hover { transform: translateY(-3px); box-shadow: 0 16px 30px rgba(20,35,58,.2); }
+    .cf-fo.on { box-shadow: 0 0 0 4px #fff, 0 0 0 7px var(--a-teal), 0 16px 30px rgba(20,35,58,.2); }
+    .cf-fo .ic { font-size: 1.35rem; line-height: 1; }
+    .cf-fo b { font-size: 1.1rem; font-weight: 900; margin-top: .35rem; }
+    .cf-fo small { opacity: .9; font-size: .8rem; }
+    .cf-fo .an { display: flex; gap: .35rem; margin-top: .45rem; }
+    .cf-fo .an span { background: rgba(255,255,255,.92); border-radius: 999px; padding: .15rem .55rem; font-size: .74rem; font-weight: 900; }
+    .cf-fo .an .p { color: #12744a; } .cf-fo .an .n { color: #a12d2a; }
+    .cf-fo .dot { position: absolute; top: 10px; right: 12px; background: #fff; border-radius: 999px; padding: .1rem .5rem; font-size: .72rem; font-weight: 900; box-shadow: 0 4px 10px rgba(0,0,0,.15); }
+    .cf-fo .dot.alerta { color: #a12d2a; } .cf-fo .dot.destacado { color: #12744a; }
+    .cf-cu .est { position: relative; z-index: 1; align-self: flex-start; margin-top: .35rem; background: #fff; border-radius: 999px; padding: .15rem .6rem; font-size: .72rem; font-weight: 900; }
+    .cf-cu .est.alerta { color: #a12d2a; } .cf-cu .est.atencion { color: #b45d00; } .cf-cu .est.destacado { color: #12744a; }
+    .cf-cu.alerta { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #ef6f6c; }
+    .cf-fo .le { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: auto; padding-top: .6rem; }
+    .cf-fo .le span { background: rgba(255,255,255,.92); color: var(--a-navy); font-weight: 900; font-size: .75rem; min-width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; padding: 0 .3rem; }
+    .cf-panel { display: none; margin-top: 16px; background: #fff; border: 1px solid var(--a-line); border-radius: 22px; padding: 18px; box-shadow: var(--a-sombra); }
+    .cf-panel.on { display: block; animation: cfAbre .25s ease both; }
+    @@keyframes cfAbre { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+    .cf-panel-h { display: flex; align-items: center; gap: .6rem; margin-bottom: 14px; flex-wrap: wrap; }
+    .cf-panel-h h4 { font-size: 1.05rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .cf-panel-h .x { margin-left: auto; border: 0; background: var(--a-bg); border-radius: 999px; padding: .35rem .8rem; font-weight: 800; color: var(--a-mut); }
+    .cf-cursos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .cf-cu { border-radius: 18px; padding: 16px; color: #fff; text-decoration: none; position: relative; overflow: hidden; min-height: 132px; display: flex; flex-direction: column; transition: transform .2s, box-shadow .2s; }
+    .cf-cu:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(20,35,58,.18); color: #fff; }
+    .cf-cu::after { content: ""; position: absolute; right: -30px; bottom: -40px; width: 110px; height: 110px; border-radius: 50%; background: rgba(255,255,255,.14); }
+    .cf-cu .letra { font-size: 1.9rem; font-weight: 900; line-height: 1; }
+    .cf-cu .lin { font-size: .8rem; opacity: .92; margin-top: .2rem; position: relative; }
+    .cf-cu .pie { margin-top: auto; display: flex; justify-content: space-between; align-items: end; font-size: .78rem; position: relative; gap: .3rem; flex-wrap: wrap; }
+    .cf-cu .pie b { font-size: 1.3rem; line-height: 1; }
+    .cf-cu .et { background: rgba(255,255,255,.92); border-radius: 999px; padding: .15rem .55rem; font-weight: 800; font-size: .74rem; color: var(--a-navy); }
+    .cf-cu .cap { height: 5px; border-radius: 9px; background: rgba(255,255,255,.25); margin-top: .5rem; overflow: hidden; position: relative; }
+    .cf-cu .cap i { display: block; height: 100%; background: #fff; border-radius: 9px; }
+    .cf-nuevo { border: 2px dashed #cfd9e8; border-radius: 18px; min-height: 132px; display: grid; place-items: center; text-align: center; color: var(--a-mut); font-weight: 800; background: #f8fbff; width: 100%; transition: all .2s; }
+    .cf-nuevo:hover { border-color: var(--a-teal); color: var(--a-navy); background: #eefbfc; }
+    .cf-nuevo span { display: block; font-size: 1.6rem; }
+    .t1 { background: linear-gradient(135deg, #1a319b, #2459b0); } .t2 { background: linear-gradient(135deg, #2459b0, #1fb5c5); }
+    .t3 { background: linear-gradient(135deg, #0f8a99, #2bb673); } .t4 { background: linear-gradient(135deg, #4b3fb8, #7c6cf0); }
+    .t5 { background: linear-gradient(135deg, #e08a00, #fb8500); } .t6 { background: linear-gradient(135deg, #d9534f, #ef8f6c); }
+</style>
+
+<div class="cf" data-clave="@Model.Clave">
+    @foreach (var ci in ciclos)
+    {
+        var panelId = "cfp-" + Model.Clave + "-" + idx++;
+        <div class="cf-ciclo"><h3>@ci.Ciclo</h3><span class="au-chip">@ci.Niveles.Count @(ci.Niveles.Count == 1 ? "nivel" : "niveles") · @ci.Niveles.Sum(n => n.Cursos.Count) cursos</span></div>
+        <div class="cf-grid">
+            @foreach (var n in ci.Niveles)
+            {
+                var tono = tonos[t++ % tonos.Length];
+                var tplId = "cft-" + Model.Clave + "-" + t;
+                <button type="button" class="cf-fo @tono" data-panel="@panelId" data-tpl="@tplId" data-nivel="@n.Nombre" aria-expanded="false">
+                    <span class="ic">📁</span>
+                    @if (n.Cursos.Any(c => c.Estado == "alerta"))
+                    {
+                        <span class="dot alerta">🔴 @n.Cursos.Count(c => c.Estado == "alerta") en alerta</span>
+                    }
+                    else if (n.Cursos.Any(c => c.Estado == "destacado"))
+                    {
+                        <span class="dot destacado">⭐ destacado</span>
+                    }
+                    <b>@n.Nombre</b>
+                    <small>@n.Cursos.Count @(n.Cursos.Count == 1 ? "curso" : "cursos") · @n.Cursos.Sum(c => c.Alumnos) alumnos/as</small>
+                    @if (n.Cursos.Any(c => c.Positivas != null || c.Negativas != null))
+                    {
+                        <span class="an"><span class="p">👍 @n.Cursos.Sum(c => c.Positivas ?? 0)</span><span class="n">⚠️ @n.Cursos.Sum(c => c.Negativas ?? 0)</span></span>
+                    }
+                    <span class="le">
+                        @foreach (var c in n.Cursos)
+                        {
+                            <span>@(string.IsNullOrWhiteSpace(c.Letra) ? "•" : c.Letra)</span>
+                        }
+                    </span>
+                </button>
+                <template id="@tplId">
+                    <div class="cf-panel-h">
+                        <span style="font-size:1.3rem">📂</span>
+                        <h4>@n.Nombre</h4>
+                        <span class="au-chip">@n.Cursos.Count @(n.Cursos.Count == 1 ? "curso" : "cursos")</span>
+                        <button type="button" class="x" data-cerrar>Cerrar ✕</button>
+                    </div>
+                    <div class="cf-cursos">
+                        @foreach (var c in n.Cursos)
+                        {
+                            var pct = c.Capacidad > 0 ? Math.Min(100, c.Alumnos * 100 / c.Capacidad) : 0;
+                            <a class="cf-cu @tono @(c.Estado == "alerta" ? "alerta" : "")" href="@c.Url" title="@c.EstadoTexto">
+                                <span class="letra">@(string.IsNullOrWhiteSpace(c.Letra) ? n.Nombre : c.Letra)</span>
+                                @if (c.Estado != null)
+                                {
+                                    <span class="est @c.Estado">@(c.Estado == "alerta" ? "🔴 En alerta" : c.Estado == "atencion" ? "🟠 Atención" : "⭐ Destacado")</span>
+                                }
+                                <span class="lin">@(n.Nombre + " " + c.Letra + (string.IsNullOrEmpty(c.Linea) ? "" : " · " + c.Linea))</span>
+                                <span class="pie">
+                                    <span><b>@c.Alumnos</b> alumnos/as</span>
+                                    @if (!string.IsNullOrEmpty(c.Etiqueta1) || !string.IsNullOrEmpty(c.Etiqueta2))
+                                    {
+                                        <span>
+                                            @if (!string.IsNullOrEmpty(c.Etiqueta1)) { <span class="et">@c.Etiqueta1</span> }
+                                            @if (!string.IsNullOrEmpty(c.Etiqueta2)) { <span class="et">@c.Etiqueta2</span> }
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>cupo @c.Capacidad</span>
+                                    }
+                                </span>
+                                <span class="cap"><i style="width:@pct%"></i></span>
+                            </a>
+                        }
+                        @if (Model.PuedeAgregar)
+                        {
+                            <form asp-controller="Cursos" asp-action="AgregarLetra" method="post" class="m-0" data-c="¿Crear un nuevo curso de @n.Nombre?" onsubmit="return confirm(this.dataset.c);">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="nivel" value="@n.Nombre" />
+                                <button type="submit" class="cf-nuevo"><div><span>➕</span>Agregar curso<br /><small class="fw-normal">siguiente letra</small></div></button>
+                            </form>
+                        }
+                    </div>
+                </template>
+            }
+        </div>
+        <div class="cf-panel" id="@panelId"></div>
+    }
+</div>
+
+<script>
+    (function () {
+        var raiz = document.currentScript.previousElementSibling;
+        if (!raiz || !raiz.classList.contains('cf')) return;
+        var clave = 'auka-carpeta-' + raiz.getAttribute('data-clave');
+        var abrir = function (b, recordar) {
+            var panel = document.getElementById(b.getAttribute('data-panel'));
+            var yaAbierta = b.classList.contains('on');
+            raiz.querySelectorAll('.cf-fo[data-panel="' + b.getAttribute('data-panel') + '"]').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-expanded', 'false'); });
+            if (yaAbierta) { panel.classList.remove('on'); panel.innerHTML = ''; guardar(''); return; }
+            panel.innerHTML = document.getElementById(b.getAttribute('data-tpl')).innerHTML;
+            panel.classList.add('on'); b.classList.add('on'); b.setAttribute('aria-expanded', 'true');
+            if (recordar) guardar(b.getAttribute('data-nivel'));
+        };
+        var guardar = function (v) { try { sessionStorage.setItem(clave, v); } catch (e) { } };
+        raiz.addEventListener('click', function (e) {
+            var cerrar = e.target.closest('[data-cerrar]');
+            if (cerrar) { var p = cerrar.closest('.cf-panel'); var b = raiz.querySelector('.cf-fo.on[data-panel="' + p.id + '"]'); if (b) abrir(b, true); return; }
+            var b = e.target.closest('.cf-fo'); if (b) abrir(b, true);
+        });
+        // Abre la carpeta pedida (?abrir=) o la última que se abrió en esta pantalla
+        var pedido = new URLSearchParams(location.search).get('abrir'), ultimo = '';
+        try { ultimo = sessionStorage.getItem(clave) || ''; } catch (e) { }
+        var objetivo = pedido || ultimo;
+        if (objetivo) raiz.querySelectorAll('.cf-fo').forEach(function (b) { if (b.getAttribute('data-nivel') === objetivo) abrir(b, false); });
+    })();
+</script>

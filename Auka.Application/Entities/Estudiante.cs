@@ -38,6 +38,19 @@ public class Estudiante
     public TipoMatricula TipoMatricula { get; set; } = TipoMatricula.Nuevo;
     public DateTime FechaMatricula { get; set; } = DateTime.UtcNow;
 
+    // Especialidad técnico-profesional (3° y 4° medio TP). Vacío en científico-humanista y en los demás cursos.
+    public string? Especialidad { get; set; }
+
+    // ---- Traslado desde otro colegio (lo revisa la UTP) ----
+    public string? ColegioOrigen { get; set; }
+    public string? RbdOrigen { get; set; }          // RBD: número único que el Mineduc da a cada colegio
+    public string? ComunaOrigen { get; set; }
+    public DateOnly? FechaTraslado { get; set; }
+    public string? MotivoTraslado { get; set; }
+    public bool NecesidadesEducativas { get; set; } = false;   // viene con PIE o necesidades educativas especiales
+    // Documentos que aún no entrega, separados por "|" (certificado de notas, informe de personalidad...). Vacío = todo entregado.
+    public string? DocumentosPendientes { get; set; }
+
     // Campos para el registro de reasignación
     public bool FueCambiadoPorExcepcion { get; set; } = false;
     public string? MotivoCambioExcepcion { get; set; }

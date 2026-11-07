@@ -1,53 +1,57 @@
-﻿@model IEnumerable<Auka.Application.Entities.Curso>
-
+﻿@* Auka.Web/Views/Horarios/Index.cshtml — horarios por curso y por profesor *@
+@model IEnumerable<Auka.Application.Entities.Curso>
 @{
-    ViewData["Title"] = "Gestión de Horarios";
+    ViewData["Title"] = "Horarios";
+    var puedeEditar = ViewBag.PuedeEditar == true;
+    var verProfes = User.IsInRole("SuperAdmin") || User.IsInRole("Director") || User.IsInRole("UTP") || User.IsInRole("Docente") || User.IsInRole("Inspector") || User.IsInRole("Orientadora");
+    var tonos = new[] { "#1a319b", "#2459b0", "#1fb5c5", "#2bb673", "#6c5ce7", "#fb8500" };
+    var i = 0;
 }
+<style>
+    .ho-tabs { display: flex; gap: .5rem; margin-bottom: 16px; flex-wrap: wrap; }
+    .ho-tabs a { padding: .55rem 1.1rem; border-radius: 999px; font-weight: 800; text-decoration: none; background: #fff; border: 1.5px solid var(--a-line); color: var(--a-mut); }
+    .ho-tabs a.on { background: var(--a-grad); color: #fff; border-color: transparent; box-shadow: 0 6px 14px rgba(36,89,176,.25); }
+    .ho-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    .ho { background: #fff; border: 1px solid var(--a-line); border-radius: 20px; box-shadow: var(--a-sombra); padding: 16px 18px; text-decoration: none; color: var(--a-ink); display: flex; gap: .85rem; align-items: center; transition: transform .2s, box-shadow .2s; }
+    .ho:hover { transform: translateY(-3px); box-shadow: var(--a-sombra-hover); color: var(--a-ink); }
+    .ho .b { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; color: #fff; font-weight: 900; font-size: 1.05rem; flex-shrink: 0; }
+    .ho h4 { font-size: 1rem; font-weight: 900; margin: 0; }
+    .ho small { color: var(--a-mut); }
+    .ho .ir { margin-left: auto; color: var(--a-blue); font-weight: 800; }
+</style>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold text-primary mb-1">⏰ Horario de Clases por Curso</h2>
-            <p class="text-muted mb-0">Selecciona un curso para configurar o consultar su matriz horaria semanal.</p>
-        </div>
-        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">
-            Volver al Panel
-        </a>
-    </div>
-
-    <div class="row g-4">
-        @if (!Model.Any())
-        {
-            <div class="col-12 text-center py-5">
-                <p class="text-muted fs-5">No hay cursos registrados para gestionar horarios.</p>
-            </div>
-        }
-        else
-        {
-            @foreach (var curso in Model)
-            {
-                <div class="col-md-4">
-                    <div class="card h-100 shadow-sm border-0 rounded-3">
-                        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center py-3">
-                            <h5 class="mb-0 fw-bold">@curso.Nombre "@curso.Letra"</h5>
-                            <span class="badge bg-light text-dark fw-bold">@curso.AnioAcademico</span>
-                        </div>
-                        <div class="card-body d-flex flex-column justify-content-between">
-                            <div>
-                                <p class="text-muted mb-2">
-                                    👨‍🏫 <strong>Profesor Jefe:</strong>
-                                    @(curso.ProfesorJefe != null ? $"{curso.ProfesorJefe.Nombre} {curso.ProfesorJefe.Apellido}" : "Sin asignar")
-                                </p>
-                            </div>
-                            <div class="text-end mt-3">
-                                <a asp-controller="Horarios" asp-action="Curso" asp-route-id="@curso.Id" class="btn btn-outline-secondary rounded-pill btn-sm px-3 fw-bold">
-                                    Configurar Horario ➔
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
+<div class="au-head verde">
+    <div class="ico">🗓️</div>
+    <div class="txt">
+        <h2>Horarios</h2>
+        <p>@(puedeEditar ? "Elige un curso para armar o revisar su horario semanal." : "Elige un curso para ver su horario semanal.")</p>
     </div>
 </div>
+
+<div class="ho-tabs">
+    <a class="on" asp-action="Index">🏫 Por curso</a>
+    @if (verProfes)
+    {
+        <a asp-action="Profesores">👩‍🏫 Por profesor/a</a>
+    }
+    <a asp-action="Jornada">⏰ Jornada y viernes</a>
+    @if (!puedeEditar)
+    {
+        <span class="au-chip align-self-center">👀 Solo lectura · los arma la UTP</span>
+    }
+</div>
+
+@if (!Model.Any())
+{
+    <div class="au-card au-vacio"><span class="e">🗓️</span><b>Aún no hay cursos.</b><p class="mb-0">Se crean al matricular el primer alumno/a de cada nivel.</p></div>
+}
+else
+{
+    var carpetas = new Auka.Web.Models.CarpetasVm
+    {
+        Clave = "horarios",
+        Cursos = Model.Select(c => new Auka.Web.Models.CarpetaCurso(c.Id, c.Nombre, c.Letra, "/Horarios/Curso/" + c.Id,
+            c.Estudiantes.Count, c.CapacidadMaxima, c.ProfesorJefe != null ? $"{c.ProfesorJefe.Nombre} {c.ProfesorJefe.Apellido}" : "sin prof. jefe", "🗓️ Ver horario")).ToList()
+    };
+    @await Html.PartialAsync("_CursosCarpetas", carpetas)
+}

@@ -1,101 +1,219 @@
-﻿@* Auka.Web/Views/Shared/_Layout.cshtml : layout del Plan Premium. Cambios: selector de módulo y campana de avisos. *@
+﻿@* Auka.Web/Views/Shared/_Layout.cshtml : diseño del Plan Premium (colegios).
+   Logo y lema de AUKA, menú por rol, UN solo buscador (arriba, sirve para todo) y botón de sugerencias.
+   El estilo de todos los módulos está en wwwroot/css/auka-app.css. *@
+@{
+    var autenticado = User.Identity?.IsAuthenticated == true;
+    var rolL = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    var ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var accion = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+    Func<string, string, string> on = (c, a) =>
+        string.Equals(ctrl, c, StringComparison.OrdinalIgnoreCase) && (a == "" || string.Equals(accion, a, StringComparison.OrdinalIgnoreCase)) ? "on" : "";
+    var esStaff = rolL is "SuperAdmin" or "Director" or "UTP" or "Docente" or "Inspector" or "Orientadora" or "Psicologo" or "Psicopedagogo" or "TrabajadorSocial";
+    var esGestion = rolL is "SuperAdmin" or "Director" or "UTP";
+    var nombreRol = rolL switch
+    {
+        "SuperAdmin" => "Administrador/a", "Director" => "Director/a", "UTP" => "Jefe/a UTP", "Docente" => "Profesor/a",
+        "Inspector" => "Inspectoría", "Orientadora" => "Orientador/a", "Psicologo" => "Psicólogo/a", "Psicopedagogo" => "Psicopedagogo/a",
+        "TrabajadorSocial" => "Trabajador/a social", "Apoderado" => "Apoderado/a", "Estudiante" => "Estudiante", _ => rolL
+    };
+    var nombreUsuario = User.Identity?.Name ?? "";
+    var iniciales = string.Concat(nombreUsuario.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpper(p[0])));
+    var colegioNombre = User.FindFirst("ColegioNombre")?.Value ?? "";
+}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - AUKA Plataforma Escolar</title>
+    <title>@ViewData["Title"] · AUKA</title>
+    <link rel="icon" type="image/png" href="~/img/auka-icono.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@@400;600;700;800;900&display=swap" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/Auka.Web.styles.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/auka-app.css" asp-append-version="true" />
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom box-shadow mb-3 py-2">
-            <div class="container-fluid">
-                <a class="navbar-brand fw-bold text-primary fs-4" asp-area="" asp-controller="Home" asp-action="Index">AUKA</a>
+<body class="au-app">
+    <header class="au-top">
+        <span class="au-progreso" id="auProg" aria-hidden="true"></span>
+        <div class="wrap">
+            <a class="au-brand" asp-controller="Home" asp-action="Index" title="Inicio">
+                <img src="~/img/auka-icono.png" alt="AUKA" />
+                <span><b>AUKA</b><small>Acompañar sin dejar a nadie atrás</small></span>
+            </a>
 
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
+            @if (autenticado)
+            {
+                <form class="au-search" asp-controller="Busqueda" asp-action="Index" method="get" role="search">
+                    <span class="lupa">🔍</span>
+                    <input type="search" name="query" value="@(ctrl == "Busqueda" ? Context.Request.Query["query"].ToString() : "")"
+                           placeholder="Busca un alumno, RUT, curso o profesor" aria-label="Buscar en AUKA" required />
+                    <button type="submit">Buscar</button>
+                </form>
 
-                <div class="navbar-collapse collapse d-lg-inline-flex justify-content-between align-items-center">
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark fw-semibold" asp-area="" asp-controller="Home" asp-action="Index">Inicio</a>
-                        </li>
-                    </ul>
-
-                    @if (User.Identity != null && User.Identity.IsAuthenticated)
-                    {
-                        <!-- BARRA DE BÚSQUEDA GLOBAL -->
-                        <form asp-controller="Busqueda" asp-action="Index" method="get" class="d-flex my-2 my-lg-0 col-12 col-lg-5 mx-lg-auto">
-                            <div class="input-group">
-                                <input type="text" name="query" class="form-control rounded-start-pill ps-3 border-end-0" placeholder="🔍 Buscar estudiante, RUT, curso, profesor..." required />
-                                <button type="submit" class="btn btn-primary rounded-end-pill px-4">
-                                    Buscar
-                                </button>
-                            </div>
-                        </form>
-
-                        <!-- MENÚ DESPLEGABLE DE USUARIO -->
-                        <div class="d-flex align-items-center gap-3 mt-2 mt-lg-0">
-                            @await Html.PartialAsync("_SelectorModulo")
-                            @if (User.FindFirst("PlanPsicosocial")?.Value == "true" && (User.IsInRole("Docente") || User.IsInRole("Estudiante") || User.IsInRole("Apoderado")))
-                            {
-                                @await Html.PartialAsync("_Campana")
-                            }
-                            <div class="dropdown">
-                                <button class="btn btn-light dropdown-toggle rounded-pill px-3 py-2 fw-bold text-dark d-flex align-items-center gap-2 border shadow-sm" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <span class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 14px;">
-                                        👤
-                                    </span>
-                                    <span>@User.Identity.Name</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2" aria-labelledby="userMenu">
-                                    <li class="px-3 py-2 border-bottom">
-                                        <small class="text-muted d-block">Sesión activa como:</small>
-                                        <strong class="text-primary">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</strong>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" asp-controller="Account" asp-action="CambiarPassword">
-                                            <span>🔑</span> Cambiar Contraseña
-                                        </a>
-                                    </li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li>
-                                        <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="dropdown-item py-2 text-danger d-flex align-items-center gap-2 fw-bold">
-                                                <span>🚪</span> Cerrar Sesión
-                                            </button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    }
+                <div class="au-right">
+                    @await Html.PartialAsync("_SelectorModulo")
+                    @* Campana de avisos: citaciones, alertas de convivencia, etc. *@
+                    @await Html.PartialAsync("_Campana")
+                    <button type="button" class="au-idea" data-bs-toggle="modal" data-bs-target="#auIdea" title="Envíanos una idea para mejorar AUKA">💡 <span>Sugerencias</span></button>
+                    <div class="dropdown au-user">
+                        <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="au-avatar">@iniciales</span>
+                            <span class="d-none d-md-inline">@nombreUsuario</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end mt-2">
+                            <li class="px-3 py-2">
+                                <span class="au-rol">@nombreRol.ToUpper()</span>
+                                @if (!string.IsNullOrEmpty(colegioNombre))
+                                {
+                                    <div class="small text-muted mt-1">@colegioNombre</div>
+                                }
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" asp-controller="Account" asp-action="CambiarPassword">🔑 Cambiar contraseña</a></li>
+                            <li><a class="dropdown-item" asp-controller="Legal" asp-action="Privacidad">🛡️ Privacidad</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form asp-controller="Account" asp-action="Logout" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="dropdown-item text-danger fw-bold">🚪 Cerrar sesión</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
-            </div>
-        </nav>
+
+                <nav class="au-links" aria-label="Menú principal">
+                    <a class="@on("Home", "")" asp-controller="Home" asp-action="Index">🏠 Inicio</a>
+                    @if (esStaff)
+                    {
+                        <a class="@(on("Cursos", "Index") + on("Cursos", "Alumnos"))" asp-controller="Cursos" asp-action="Index">🏫 Cursos</a>
+                    }
+                    @if (esGestion)
+                    {
+                        <a class="@on("Cursos", "Matricular")" asp-controller="Cursos" asp-action="Matricular">📝 Matrícula</a>
+                    }
+                    <a class="@on("Talleres", "")" asp-controller="Talleres" asp-action="Index">🌟 Clubes</a>
+                    <a class="@on("Horarios", "")" asp-controller="Horarios" asp-action="Index">🗓️ Horarios</a>
+                    @if (esGestion)
+                    {
+                        <a class="@on("Personal", "")" asp-controller="Personal" asp-action="Index">👥 Personal</a>
+                    }
+                </nav>
+            }
+        </div>
     </header>
 
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
+    <main role="main" class="au-main">
+        @RenderBody()
+    </main>
 
-    <footer class="border-top footer text-muted py-3">
-        <div class="container text-center">
-            &copy; 2026 - AUKA | Plataforma de Gestión Escolar
+    <footer class="au-foot">
+        <div class="wrap">
+            <img src="~/img/auka-icono.png" alt="" />
+            <span><span class="lema">AUKA · Acompañar sin dejar a nadie atrás</span> · &copy; @DateTime.Now.Year</span>
+            @if (autenticado)
+            {
+                <a href="#" class="ms-auto" data-bs-toggle="modal" data-bs-target="#auIdea">💡 ¿Tienes una idea para AUKA? Cuéntanos</a>
+            }
         </div>
     </footer>
+
+    @if (autenticado)
+    {
+        <!-- Buzón de sugerencias: llega al panel del equipo AUKA -->
+        <div class="modal fade" id="auIdea" tabindex="-1" aria-labelledby="auIdeaT" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="au-head sol m-0" style="border-radius:0;box-shadow:none">
+                        <div class="ico">💡</div>
+                        <div class="txt"><h2 id="auIdeaT" style="font-size:1.25rem">Tu idea mejora AUKA</h2><p>Cuéntanos qué te gustaría que hiciera la plataforma. Lo leemos todo.</p></div>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form id="auIdeaF">
+                            @Html.AntiForgeryToken()
+                            <label class="form-label">¿Sobre qué es?</label>
+                            <select name="tema" class="form-select mb-3">
+                                <option>Una función nueva</option><option>Algo que se puede mejorar</option><option>Algo no funciona bien</option><option>Diseño</option><option>Otro</option>
+                            </select>
+                            <label class="form-label">Tu sugerencia</label>
+                            <textarea name="mensaje" class="form-control" rows="4" maxlength="1500" required placeholder="Ej: me gustaría que el apoderado pudiera justificar una inasistencia desde su celular"></textarea>
+                            <div id="auIdeaM" class="mt-3"></div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="submit" form="auIdeaF" class="btn btn-warning px-4">Enviar idea</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    @if (autenticado)
+    {
+        <script>
+            (function () {
+                var f = document.getElementById('auIdeaF'), m = document.getElementById('auIdeaM');
+                if (!f) return;
+                f.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    m.innerHTML = '<div class="alert alert-info py-2 mb-0">Enviando…</div>';
+                    fetch('/Contacto/Sugerencia', { method: 'POST', body: new FormData(f), credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (d) {
+                            if (d.ok) { f.reset(); m.innerHTML = '<div class="alert alert-success py-2 mb-0">¡Gracias! Tu idea llegó al equipo AUKA.</div>'; }
+                            else { m.innerHTML = '<div class="alert alert-danger py-2 mb-0">' + (d.error || 'No se pudo enviar.') + '</div>'; }
+                        })
+                        .catch(function () { m.innerHTML = '<div class="alert alert-danger py-2 mb-0">No se pudo enviar. Revisa tu conexión.</div>'; });
+                });
+            })();
+        </script>
+    }
+    <script>
+        // Franja de colores: completa arriba; al bajar se llena con el avance de la página y al subir se vacía
+        (function () {
+            var bar = document.getElementById('auProg'); if (!bar) return;
+            var pend = false;
+            var pintar = function () {
+                pend = false;
+                var max = document.documentElement.scrollHeight - window.innerHeight;
+                var y = window.scrollY || document.documentElement.scrollTop;
+                var p = max <= 0 || y <= 0 ? 1 : Math.min(1, y / max);
+                bar.style.clipPath = 'inset(0 ' + ((1 - p) * 100).toFixed(2) + '% 0 0)';
+            };
+            window.addEventListener('scroll', function () { if (!pend) { pend = true; requestAnimationFrame(pintar); } }, { passive: true });
+            window.addEventListener('resize', pintar);
+            pintar();
+
+            // Al abrir otra página, enviar un formulario o guardar algo, la franja se mueve como "cargando"
+            var cargas = 0;
+            var cargando = function (si) { bar.classList.toggle('cargando', si); };
+            document.addEventListener('click', function (e) {
+                var a = e.target.closest('a[href]');
+                if (!a || e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || a.target === '_blank' || a.hasAttribute('download')) return;
+                var h = a.getAttribute('href');
+                if (!h || h.charAt(0) === '#' || /^(mailto|tel|javascript):/i.test(h) || a.hasAttribute('data-bs-toggle')) return;
+                if (a.origin !== location.origin) return;
+                cargando(true);
+            });
+            document.addEventListener('submit', function (e) { setTimeout(function () { if (!e.defaultPrevented) cargando(true); }, 0); });
+            window.addEventListener('pageshow', function () { cargas = 0; cargando(false); });
+            // También mientras se guarda o se busca algo sin cambiar de página
+            if (window.fetch) {
+                var f0 = window.fetch;
+                window.fetch = function (u) {
+                    if (String(u && u.url || u).indexOf('/Notificaciones/') >= 0) return f0.apply(this, arguments);   // la campana consulta sola: no anima
+                    cargas++; cargando(true);
+                    return f0.apply(this, arguments).finally(function () { cargas = Math.max(0, cargas - 1); if (!cargas) cargando(false); });
+                };
+            }
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

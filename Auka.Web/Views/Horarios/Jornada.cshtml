@@ -1,0 +1,168 @@
+﻿@* Auka.Web/Views/Horarios/Jornada.cshtml — jornada del colegio: entrada, bloques, recreos, almuerzo y salida del viernes *@
+@model List<Auka.Application.Entities.BloqueJornada>
+@using Auka.Application.Entities
+@{
+    ViewData["Title"] = "Jornada del colegio";
+    var puede = ViewBag.PuedeEditar == true;
+    TimeSpan salida = ViewBag.ViernesSalida;
+    bool tarde = ViewBag.ViernesTarde == true;
+    int conClases = ViewBag.ConClases ?? 0;
+    var entrada = Model.FirstOrDefault()?.HoraInicio ?? new TimeSpan(8, 0, 0);
+    var minBloque = (int)(Model.FirstOrDefault(b => b.Tipo == TipoBloque.Clase) is { } p ? (p.HoraFin - p.HoraInicio).TotalMinutes : 45);
+}
+<style>
+    .jo-grid { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: start; }
+    .jo-gen { display: flex; gap: .8rem; flex-wrap: wrap; align-items: end; padding: 16px 18px; margin-bottom: 14px; }
+    .jo-gen label { font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--a-mut); display: block; margin-bottom: .2rem; }
+    .jo-gen input { max-width: 130px; }
+    .jo-tab { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+    .jo-tab td { padding: .2rem .35rem; vertical-align: middle; }
+    .jo-tab tr.f td:first-child { width: 70px; font-weight: 900; color: var(--a-navy); text-align: center; }
+    .jo-tab tr.rec td { background: #fff6e0; } .jo-tab tr.alm td { background: #e8f8f0; }
+    .jo-tab tr td:first-child { border-radius: 12px 0 0 12px; } .jo-tab tr td:last-child { border-radius: 0 12px 12px 0; }
+    .jo-tab input[type=time] { max-width: 130px; }
+    .jo-tab select { max-width: 160px; }
+    .jo-quitar { border: 0; background: none; color: #a12d2a; font-weight: 900; font-size: 1.1rem; }
+    .jo-add { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 8px; }
+    .jo-vie { padding: 18px; }
+    .jo-vie h3 { font-size: 1rem; font-weight: 900; color: var(--a-navy); }
+    .jo-sw { display: flex; gap: .7rem; align-items: flex-start; padding: .8rem; border-radius: 14px; background: #f6f9fd; margin-top: 12px; cursor: pointer; }
+    .jo-sw input { width: 20px; height: 20px; margin-top: .15rem; accent-color: var(--a-green); }
+    @@media (max-width: 960px) { .jo-grid { grid-template-columns: 1fr; } }
+</style>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button></div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+
+<div class="au-head verde">
+    <div class="ico">⏰</div>
+    <div class="txt"><h2>Jornada del colegio</h2><p>Hora de entrada, bloques, recreos, almuerzo y salida del viernes. Es la base de todos los horarios.</p></div>
+    <div class="acc"><a asp-action="Index">Volver a horarios</a></div>
+</div>
+
+<form asp-action="GuardarJornada" method="post" id="joF">
+    @Html.AntiForgeryToken()
+    <div class="jo-grid">
+        <div>
+            @if (puede)
+            {
+                <div class="au-card jo-gen">
+                    <div><label>Hora de entrada</label><input type="time" id="joEnt" class="form-control" value="@entrada.ToString("hh\\:mm")" /></div>
+                    <div><label>Minutos por bloque</label><input type="number" id="joMin" class="form-control" min="20" max="120" value="@minBloque" /></div>
+                    <button type="button" class="btn btn-outline-primary px-3" id="joRecalc">↻ Recalcular horas</button>
+                    <small class="text-muted" style="flex-basis:100%">Recalcula todas las horas desde la entrada, manteniendo el orden y la duración de recreos y almuerzo.</small>
+                </div>
+            }
+            <div class="au-card p-3">
+                <table class="jo-tab">
+                    <tbody id="joFilas">
+                        @foreach (var b in Model)
+                        {
+                            <tr class="f @(b.Tipo == TipoBloque.Recreo ? "rec" : b.Tipo == TipoBloque.Almuerzo ? "alm" : "")">
+                                <td class="n"></td>
+                                <td><input type="time" name="inicio" class="form-control" value="@b.HoraInicio.ToString("hh\\:mm")" required disabled="@(!puede)" /></td>
+                                <td>a</td>
+                                <td><input type="time" name="fin" class="form-control" value="@b.HoraFin.ToString("hh\\:mm")" required disabled="@(!puede)" /></td>
+                                <td>
+                                    <select name="tipo" class="form-select" disabled="@(!puede)">
+                                        <option value="0" selected="@(b.Tipo == TipoBloque.Clase)">📚 Clase</option>
+                                        <option value="1" selected="@(b.Tipo == TipoBloque.Recreo)">☕ Recreo</option>
+                                        <option value="2" selected="@(b.Tipo == TipoBloque.Almuerzo)">🍽️ Almuerzo</option>
+                                    </select>
+                                </td>
+                                <td>@if (puede) { <button type="button" class="jo-quitar" title="Quitar">✕</button> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (puede)
+                {
+                    <div class="jo-add">
+                        <button type="button" class="btn btn-outline-primary btn-sm px-3" data-add="0">+ Bloque de clase</button>
+                        <button type="button" class="btn btn-outline-warning btn-sm px-3" data-add="1">+ Recreo</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-add="2">+ Almuerzo</button>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="au-card jo-vie">
+            <h3>📅 Viernes</h3>
+            <label class="form-label">Hora de salida</label>
+            <input type="time" name="viernesSalida" class="form-control" value="@salida.ToString("hh\\:mm")" disabled="@(!puede)" />
+            <label class="jo-sw">
+                <input type="checkbox" name="viernesTarde" value="true" checked="@tarde" disabled="@(!puede)" />
+                <span><b>Activar la tarde del viernes</b><br /><small class="text-muted">Para recuperar clases. Mientras está apagado, los bloques después de la salida quedan bloqueados en todos los horarios.</small></span>
+            </label>
+            @if (conClases > 0)
+            {
+                <p class="small text-muted mt-3 mb-0">Hay @conClases clases asignadas. Si cambias las horas se mantienen en su bloque; si quitas bloques, sus clases se borran.</p>
+            }
+            @if (puede)
+            {
+                <button type="submit" class="btn btn-primary w-100 mt-3">Guardar jornada</button>
+            }
+            else
+            {
+                <p class="small text-muted mt-3 mb-0">👀 Solo lectura: la jornada la configura la UTP o el administrador/a.</p>
+            }
+        </div>
+    </div>
+</form>
+
+@if (puede)
+{
+    <script>
+        (function () {
+            var filas = document.getElementById('joFilas');
+            var aMin = function (t) { var p = (t || '00:00').split(':'); return (+p[0]) * 60 + (+p[1]); };
+            var aHora = function (m) { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+            var numerar = function () {
+                var n = 0;
+                filas.querySelectorAll('tr').forEach(function (tr) {
+                    var t = tr.querySelector('select').value;
+                    tr.className = 'f ' + (t === '1' ? 'rec' : t === '2' ? 'alm' : '');
+                    tr.querySelector('td.n').textContent = t === '0' ? 'B' + (++n) : (t === '1' ? '☕' : '🍽️');
+                });
+            };
+            var nueva = function (tipo) {
+                var ult = filas.querySelector('tr:last-child');
+                var ini = ult ? ult.querySelector('input[name=fin]').value : document.getElementById('joEnt').value;
+                var dur = tipo === '0' ? (+document.getElementById('joMin').value || 45) : (tipo === '1' ? 15 : 45);
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td class="n"></td><td><input type="time" name="inicio" class="form-control" required></td><td>a</td>' +
+                    '<td><input type="time" name="fin" class="form-control" required></td><td><select name="tipo" class="form-select">' +
+                    '<option value="0">📚 Clase</option><option value="1">☕ Recreo</option><option value="2">🍽️ Almuerzo</option></select></td>' +
+                    '<td><button type="button" class="jo-quitar" title="Quitar">✕</button></td>';
+                tr.querySelector('input[name=inicio]').value = ini;
+                tr.querySelector('input[name=fin]').value = aHora(aMin(ini) + dur);
+                tr.querySelector('select').value = tipo;
+                filas.appendChild(tr); numerar();
+            };
+            document.querySelectorAll('[data-add]').forEach(function (b) { b.addEventListener('click', function () { nueva(b.dataset.add); }); });
+            filas.addEventListener('click', function (e) { var q = e.target.closest('.jo-quitar'); if (q) { q.closest('tr').remove(); numerar(); } });
+            filas.addEventListener('change', function (e) { if (e.target.tagName === 'SELECT') numerar(); });
+            document.getElementById('joRecalc').addEventListener('click', function () {
+                var t = aMin(document.getElementById('joEnt').value), dur = +document.getElementById('joMin').value || 45;
+                filas.querySelectorAll('tr').forEach(function (tr) {
+                    var tipo = tr.querySelector('select').value, i = tr.querySelector('input[name=inicio]'), f = tr.querySelector('input[name=fin]');
+                    var d = tipo === '0' ? dur : Math.max(5, aMin(f.value) - aMin(i.value));
+                    i.value = aHora(t); f.value = aHora(t + d); t += d;
+                });
+            });
+            numerar();
+        })();
+    </script>
+}
+else
+{
+    <script>
+        (function () { var n = 0; document.querySelectorAll('#joFilas tr').forEach(function (tr) { var t = tr.querySelector('select').value; tr.querySelector('td.n').textContent = t === '0' ? 'B' + (++n) : (t === '1' ? '☕' : '🍽️'); }); })();
+    </script>
+}

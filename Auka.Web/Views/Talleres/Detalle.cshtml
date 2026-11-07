@@ -1,0 +1,183 @@
+﻿@* Auka.Web/Views/Talleres/Detalle.cshtml — ficha del club: datos, integrantes e inscripción *@
+@model Auka.Application.Entities.Taller
+@using Auka.Web.Controllers
+@{
+    var cat = TalleresController.Cat(Model.Categoria);
+    ViewData["Title"] = Model.Nombre;
+    var puede = ViewBag.PuedeInscribir == true;
+    var ve = ViewBag.VeIntegrantes == true;
+    var integrantes = ViewBag.Integrantes as List<IntegranteVm> ?? new();
+    var cursos = ViewBag.Cursos as List<OpcionVm> ?? new();
+    var porCurso = integrantes.GroupBy(i => string.IsNullOrEmpty(i.Curso) ? "Sin curso" : i.Curso).OrderBy(g => g.Key).ToList();
+    var profe = Model.Docente != null ? $"{Model.Docente.Nombre} {Model.Docente.Apellido}" : (Model.DocenteCargo ?? "Sin profesor/a asignado");
+    var lleno = Model.Cupo is > 0 && integrantes.Count >= Model.Cupo;
+    var colores = new[] { "#fb8500", "#ffb703", "#2bb673", "#1fb5c5", "#2459b0", "#6c5ce7", "#ef6f6c" };
+}
+<style>
+    .ta-grid { display: grid; grid-template-columns: 320px 1fr; gap: 18px; align-items: start; }
+    .ta-datos { padding: 20px; }
+    .ta-datos .fila { display: flex; gap: .7rem; padding: .65rem 0; border-bottom: 1px solid #eef2f8; }
+    .ta-datos .fila:last-child { border-bottom: 0; }
+    .ta-datos .fila span:first-child { font-size: 1.2rem; }
+    .ta-datos small { display: block; font-size: .7rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--a-mut); }
+    .ta-int { padding: 20px; }
+    .ta-int h3 { font-size: 1.1rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .ta-buscar { position: relative; flex: 1; min-width: 220px; }
+    .ta-inscribir { display: flex; gap: .6rem; flex-wrap: wrap; margin: 14px 0 6px; }
+    .ta-inscribir select { max-width: 220px; border-radius: 999px !important; font-weight: 700; }
+    .ta-curso { display: flex; align-items: center; gap: .5rem; margin: 16px 0 4px; }
+    .ta-curso h4 { font-size: .9rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .ta-curso::after { content: ""; flex: 1; height: 1px; background: var(--a-line); }
+    .ta-todos { display: flex; justify-content: space-between; align-items: center; padding: .55rem .85rem; background: #fff8e8; font-size: .86rem; font-weight: 700; }
+    .ta-buscar input { border-radius: 999px !important; padding-left: 2.3rem !important; }
+    .ta-buscar .lupa { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); opacity: .55; }
+    .ta-res { border: 1px solid var(--a-line); border-radius: 16px; overflow: hidden; display: none; margin-bottom: 12px; }
+    .ta-res.on { display: block; }
+    .ta-op { display: flex; align-items: center; gap: .7rem; padding: .6rem .85rem; border-bottom: 1px solid #eef2f8; }
+    .ta-op:last-child { border-bottom: 0; }
+    .ta-op .d { flex: 1; min-width: 0; }
+    .ta-op small { color: var(--a-mut); }
+    .ta-al { display: flex; align-items: center; gap: .8rem; padding: .7rem .4rem; border-bottom: 1px solid #eef2f8; }
+    .ta-al:last-child { border-bottom: 0; }
+    .ta-av { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; color: #fff; font-weight: 900; flex-shrink: 0; }
+    .ta-al .d { flex: 1; min-width: 0; }
+    .ta-al small { color: var(--a-mut); }
+    @@media (max-width: 900px) { .ta-grid { grid-template-columns: 1fr; } }
+</style>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<div class="au-head sol">
+    <div class="ico">@cat.Icono</div>
+    <div class="txt">
+        <h2>@Model.Nombre</h2>
+        <p>@cat.Clave · @profe</p>
+    </div>
+    <div class="acc"><a asp-action="Index">Volver a clubes</a></div>
+</div>
+
+<div class="ta-grid">
+    <div class="au-card ta-datos">
+        <div class="fila"><span>📝</span><div><small>De qué se trata</small>@(string.IsNullOrWhiteSpace(Model.Descripcion) ? "Sin descripción." : Model.Descripcion)</div></div>
+        <div class="fila"><span>👩‍🏫</span><div><small>Profesor/a a cargo</small><b>@profe</b></div></div>
+        <div class="fila"><span>🗓️</span><div><small>Días y horario</small>@(string.IsNullOrWhiteSpace(Model.Horario) ? "Por definir" : Model.Horario)</div></div>
+        <div class="fila"><span>🙋</span><div><small>Integrantes</small><b>@integrantes.Count</b>@(Model.Cupo is > 0 ? $" de {Model.Cupo} cupos" : " · sin límite de cupo")</div></div>
+    </div>
+
+    <div class="au-card ta-int">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h3>🙋 Integrantes</h3>
+            <span class="au-chip sol">@integrantes.Count</span>
+            @if (lleno)
+            {
+                <span class="au-chip coral">Cupo completo</span>
+            }
+        </div>
+
+        @if (puede && !lleno)
+        {
+            <div class="ta-inscribir">
+                <select id="taCurso" class="form-select" aria-label="Elegir curso">
+                    <option value="">Todos los cursos</option>
+                    @foreach (var c in cursos)
+                    {
+                        <option value="@c.Id">@c.Nombre</option>
+                    }
+                </select>
+                <div class="ta-buscar">
+                    <span class="lupa">🔍</span>
+                    <input type="search" id="taQ" class="form-control" placeholder="Elige un curso o escribe nombre o RUT" autocomplete="off" />
+                </div>
+            </div>
+            <div class="ta-res" id="taRes"></div>
+            <div id="taMsg"></div>
+            @Html.AntiForgeryToken()
+        }
+        else if (!puede && ve)
+        {
+            <p class="small text-muted mt-2 mb-2">Para sumar integrantes, pídeselo a quien el administrador autorizó (por ejemplo, el profesor/a a cargo o la UTP).</p>
+        }
+
+        @if (!ve)
+        {
+            <div class="au-vacio"><span class="e">🔒</span>La lista de integrantes la ve el equipo del colegio.</div>
+        }
+        else if (integrantes.Count == 0)
+        {
+            <div class="au-vacio"><span class="e">🙋</span>Aún no hay integrantes.@(puede ? " Búscalos arriba para inscribirlos." : "")</div>
+        }
+        else
+        {
+            var k = 0;
+            <div class="mt-1">
+                @foreach (var g in porCurso)
+                {
+                <div class="ta-curso"><h4>🏫 @g.Key</h4><span class="au-chip sol">@g.Count()</span></div>
+                @foreach (var a in g)
+                {
+                    var ini = string.Concat(a.Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpper(p[0])));
+                    <div class="ta-al">
+                        <span class="ta-av" style="background:@colores[k % colores.Length]">@ini</span>
+                        <div class="d"><b>@a.Nombre</b><br /><small>@a.Curso · @a.Rut · desde @a.FechaUtc.ToLocalTime().ToString("dd-MM-yyyy")</small></div>
+                        @if (puede)
+                        {
+                            <form asp-action="Quitar" method="post" data-c="¿Quitar a @a.Nombre del club?" onsubmit="return confirm(this.dataset.c);">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@a.Id" />
+                                <button class="btn btn-outline-danger btn-sm px-3">Quitar</button>
+                            </form>
+                        }
+                    </div>
+                    k++;
+                }
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@if (puede && !lleno)
+{
+    <script>
+        (function () {
+            var q = document.getElementById('taQ'), res = document.getElementById('taRes'), msg = document.getElementById('taMsg'), t = null;
+            var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+            var cur = document.getElementById('taCurso');
+            var buscar = function () {
+                var v = q.value.trim(), c = cur.value;
+                if (v.length < 2 && !c) { res.classList.remove('on'); return; }
+                fetch('/Talleres/BuscarAlumnos?tallerId=@Model.Id&q=' + encodeURIComponent(v) + (c ? '&cursoId=' + c : ''), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (l) {
+                        res.classList.add('on');
+                        if (!l.length) { res.innerHTML = '<div class="ta-op text-muted">No encontramos alumnos/as con ese nombre o RUT.</div>'; return; }
+                        var libres = l.filter(function (a) { return !a.inscrito; }).length;
+                        res.innerHTML = (c ? '<div class="ta-todos"><span>' + l.length + ' alumnos/as del curso · ' + libres + ' sin inscribir</span></div>' : '') + l.map(function (a) {
+                            return '<div class="ta-op"><div class="d"><b>' + esc(a.nombre) + '</b><br><small>' + esc(a.curso) + ' · ' + esc(a.rut) + '</small></div>' +
+                                (a.inscrito ? '<span class="au-chip verde">Ya inscrito/a</span>' : '<button type="button" class="btn btn-warning btn-sm px-3" data-ins="' + a.id + '">Inscribir</button>') + '</div>';
+                        }).join('');
+                    });
+            };
+            q.addEventListener('input', function () { clearTimeout(t); t = setTimeout(buscar, 250); });
+            cur.addEventListener('change', buscar);
+            res.addEventListener('click', function (e) {
+                var b = e.target.closest('[data-ins]'); if (!b) return;
+                b.disabled = true; b.textContent = 'Inscribiendo…';
+                var fd = new FormData(); fd.append('tallerId', '@Model.Id'); fd.append('estudianteId', b.getAttribute('data-ins')); fd.append('__RequestVerificationToken', token);
+                fetch('/Talleres/Inscribir', { method: 'POST', body: fd, credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (d.ok) { location.reload(); }
+                        else { msg.innerHTML = '<div class="alert alert-danger py-2">' + esc(d.error) + '</div>'; b.disabled = false; b.textContent = 'Inscribir'; }
+                    });
+            });
+        })();
+    </script>
+}

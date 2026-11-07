@@ -1,83 +1,138 @@
-﻿@model IEnumerable<Auka.Application.Entities.Taller>
-
+﻿@* Auka.Web/Views/Talleres/Index.cshtml — clubes y talleres del colegio (ACLE) *@
+@model IEnumerable<Auka.Application.Entities.Taller>
+@using Auka.Web.Controllers
 @{
-    ViewData["Title"] = "Clubes y Talleres Extraprogramáticos";
+    ViewData["Title"] = "Clubes y talleres";
+    var puedeCrear = ViewBag.PuedeCrear == true;
+    int userId = ViewBag.UserId ?? 0;
+    var misClubes = ViewBag.MisClubes as HashSet<int> ?? new HashSet<int>();
+    var lista = Model.ToList();
+    var categoriasUsadas = lista.Select(t => TalleresController.Cat(t.Categoria)).DistinctBy(c => c.Clave).ToList();
+    var totalInscritos = lista.Sum(t => t.Inscripciones.Count);
+}
+<style>
+    .cl-res { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .cl-res .au-card { padding: 12px 18px; display: flex; align-items: center; gap: .7rem; }
+    .cl-res b { font-size: 1.4rem; font-weight: 900; color: var(--a-navy); }
+    .cl-res small { color: var(--a-mut); font-weight: 700; }
+    .cl-filtros { display: flex; gap: .45rem; flex-wrap: wrap; margin-bottom: 16px; }
+    .cl-filtros button { border: 1.5px solid var(--a-line); background: #fff; border-radius: 999px; padding: .4rem .95rem; font-weight: 800; font-size: .85rem; color: var(--a-mut); transition: all .2s; }
+    .cl-filtros button.on, .cl-filtros button:hover { background: var(--a-grad-sun); color: #fff; border-color: transparent; box-shadow: 0 6px 14px rgba(251,133,0,.25); }
+    .cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+    .cl { background: #fff; border: 1px solid var(--a-line); border-radius: 22px; box-shadow: var(--a-sombra); text-decoration: none; color: var(--a-ink); display: flex; flex-direction: column; overflow: hidden; transition: transform .2s, box-shadow .2s; position: relative; }
+    .cl:hover { transform: translateY(-4px); box-shadow: var(--a-sombra-hover); color: var(--a-ink); }
+    .cl-top { padding: 18px 18px 14px; display: flex; gap: .85rem; align-items: flex-start; background: linear-gradient(160deg, #fff6e0 0%, #fff 70%); }
+    .cl-ico { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; font-size: 1.7rem; background: var(--a-grad-sun); box-shadow: 0 8px 16px rgba(251,133,0,.28); flex-shrink: 0; }
+    .cl h4 { font-size: 1.08rem; font-weight: 900; margin: 0 0 .3rem; }
+    .cl-desc { padding: 0 18px; color: var(--a-mut); font-size: .88rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
+    .cl-info { padding: 12px 18px; display: grid; gap: .35rem; font-size: .86rem; }
+    .cl-info span { display: flex; gap: .45rem; align-items: center; }
+    .cl-pie { margin-top: auto; border-top: 1px solid #eef2f8; padding: 12px 18px; display: flex; align-items: center; gap: .6rem; }
+    .cl-pie .ver { margin-left: auto; font-weight: 800; color: #c26a00; font-size: .86rem; }
+    .cl-cupo { flex: 1; max-width: 120px; height: 7px; border-radius: 9px; background: #f1e7d2; overflow: hidden; }
+    .cl-cupo i { display: block; height: 100%; background: var(--a-grad-sun); border-radius: 9px; }
+    .cl-mio { position: absolute; top: 12px; right: 12px; }
+</style>
 
-    // Roles que pueden crear talleres (deben coincidir con el [Authorize] del controlador)
-    var esAdmin = User.IsInRole("SuperAdmin")
-               || User.IsInRole("Director")
-               || User.IsInRole("UTP")
-               || User.IsInRole("Administrador");
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
 }
 
-<div class="container py-4">
-
-    @if (TempData["SuccessMessage"] != null)
+<div class="au-head sol">
+    <div class="ico">🌟</div>
+    <div class="txt">
+        <h2>Clubes y talleres</h2>
+        <p>Actividades deportivas, artísticas, científicas y culturales del colegio.</p>
+    </div>
+    @if (puedeCrear)
     {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+        <div class="acc"><a asp-action="Crear" class="blanco">➕ Crear club o taller</a></div>
+    }
+</div>
+
+@if (lista.Count == 0)
+{
+    <div class="au-card au-vacio">
+        <span class="e">🌟</span>
+        <b>Aún no hay clubes ni talleres.</b>
+        <p class="mb-3">Fútbol, robótica, teatro, coro, ajedrez, huerto... lo que el colegio ofrezca.</p>
+        @if (puedeCrear)
+        {
+            <a asp-action="Crear" class="btn btn-warning px-4">➕ Crear el primero</a>
+        }
+    </div>
+}
+else
+{
+    <div class="cl-res">
+        <div class="au-card"><span style="font-size:1.4rem">🏆</span><b>@lista.Count</b><small>@(lista.Count == 1 ? "club activo" : "clubes activos")</small></div>
+        <div class="au-card"><span style="font-size:1.4rem">🙋</span><b>@totalInscritos</b><small>inscripciones</small></div>
+    </div>
+
+    @if (categoriasUsadas.Count > 1)
+    {
+        <div class="cl-filtros" id="clF">
+            <button type="button" class="on" data-cat="">Todos</button>
+            @foreach (var c in categoriasUsadas)
+            {
+                <button type="button" data-cat="@c.Clave">@c.Icono @c.Clave</button>
+            }
         </div>
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold text-dark mb-1">⚽ Clubes y Talleres Extraprogramáticos (ACLE)</h2>
-            <p class="text-muted mb-0">Gestión de actividades deportivas, culturales y científicas del establecimiento.</p>
-        </div>
-
-        @if (esAdmin)
+    <div class="cl-grid">
+        @foreach (var t in lista)
         {
-            <a asp-action="Crear" class="btn btn-warning text-dark rounded-pill px-4 fw-bold">
-                + Crear Nuevo Club / Taller
+            var cat = TalleresController.Cat(t.Categoria);
+            var n = t.Inscripciones.Count;
+            var profe = t.Docente != null ? $"{t.Docente.Nombre} {t.Docente.Apellido}" : (string.IsNullOrWhiteSpace(t.DocenteCargo) ? "Sin profesor/a asignado" : t.DocenteCargo);
+            var pct = t.Cupo is > 0 ? Math.Min(100, n * 100 / t.Cupo.Value) : 0;
+            <a class="cl" asp-action="Detalle" asp-route-id="@t.Id" data-cat="@cat.Clave">
+                @if (t.DocenteId == userId && User.IsInRole("Docente"))
+                {
+                    <span class="au-chip cl-mio">⭐ A tu cargo</span>
+                }
+                else if (misClubes.Contains(t.Id))
+                {
+                    <span class="au-chip verde cl-mio">✅ Estás inscrito/a</span>
+                }
+                <div class="cl-top">
+                    <span class="cl-ico">@cat.Icono</span>
+                    <div>
+                        <h4>@t.Nombre</h4>
+                        <span class="au-chip @cat.Chip">@cat.Clave</span>
+                    </div>
+                </div>
+                <div class="cl-desc">@(string.IsNullOrWhiteSpace(t.Descripcion) ? "Sin descripción." : t.Descripcion)</div>
+                <div class="cl-info">
+                    <span>👩‍🏫 <b>@profe</b></span>
+                    <span>🗓️ @(string.IsNullOrWhiteSpace(t.Horario) ? "Horario por definir" : t.Horario)</span>
+                </div>
+                <div class="cl-pie">
+                    <span class="au-chip sol">🙋 @n @(t.Cupo is > 0 ? "de " + t.Cupo : (n == 1 ? "integrante" : "integrantes"))</span>
+                    @if (t.Cupo is > 0)
+                    {
+                        <span class="cl-cupo"><i style="width:@pct%"></i></span>
+                    }
+                    <span class="ver">Ver integrantes</span>
+                </div>
             </a>
         }
     </div>
+}
 
-    <div class="row g-4">
-        @if (Model == null || !Model.Any())
-        {
-            <div class="col-12">
-                <div class="alert alert-light text-center py-4 border shadow-sm">
-                    No hay talleres o clubes registrados actualmente.
-                </div>
-            </div>
-        }
-        else
-        {
-            @foreach (var taller in Model)
-            {
-                // Prioridad: usuario vinculado > texto histórico > "Sin asignar"
-                var nombreProfesor =
-                    taller.Docente != null
-                        ? $"{taller.Docente.Nombre} {taller.Docente.Apellido}"
-                        : (string.IsNullOrWhiteSpace(taller.DocenteCargo) ? "Sin asignar" : taller.DocenteCargo);
-
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 shadow-sm border-0 border-top border-4 border-warning">
-                        <div class="card-body">
-                            <h5 class="fw-bold text-dark mb-2">🏆 @taller.Nombre</h5>
-                            <p class="text-muted small mb-3">@taller.Descripcion</p>
-
-                            <div class="bg-light p-3 rounded-3 mb-3">
-                                <small class="d-block text-secondary">
-                                    👨‍🏫 <strong>Profesor a Cargo:</strong><br />
-                                    @nombreProfesor
-                                </small>
-                                <hr class="my-2" />
-                                <small class="d-block text-secondary">
-                                    ⏰ <strong>Horario:</strong> @(taller.Horario ?? "Por definir")
-                                </small>
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="badge bg-secondary">@(taller.Estudiantes?.Count ?? 0) Alumnos Inscritos</span>
-                                <button class="btn btn-outline-dark btn-sm rounded-pill px-3">Ver Integrantes</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
-    </div>
-</div>
+<script>
+    (function () {
+        var f = document.getElementById('clF'); if (!f) return;
+        f.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-cat]'); if (!b) return;
+            f.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+            var c = b.getAttribute('data-cat');
+            document.querySelectorAll('.cl[data-cat]').forEach(function (el) { el.style.display = !c || el.getAttribute('data-cat') === c ? '' : 'none'; });
+        });
+    })();
+</script>

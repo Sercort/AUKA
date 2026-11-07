@@ -35,6 +35,9 @@ public class Usuario
     public RolUsuario Rol { get; set; }
     public string? CargoInstitucional { get; set; }
     public bool EsInspectorGeneral { get; set; } = false;
+
+    // Departamento o asignatura principal del docente (Matemática, Lenguaje, Ciencias...): ordena el listado de horarios
+    public string? Departamento { get; set; }
     public string? Asignaturas { get; set; }
 
     public int ColegioId { get; set; }

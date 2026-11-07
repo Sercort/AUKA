@@ -1,0 +1,99 @@
+﻿@* Auka.Web/Views/Horarios/Profesores.cshtml — horarios del personal, agrupados por departamento y luego directivos *@
+@model List<Auka.Application.Entities.Usuario>
+@using Auka.Application.Entities
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Horarios del personal";
+    var horas = ViewBag.Horas as Dictionary<int, int> ?? new();
+    var puede = ViewBag.PuedeEditar == true;
+    var docentes = Model.Where(u => u.Rol == RolUsuario.Docente).ToList();
+    var porDepto = docentes.GroupBy(u => string.IsNullOrWhiteSpace(u.Departamento) ? "Sin departamento asignado" : u.Departamento!)
+        .OrderBy(g => g.Key == "Sin departamento asignado" ? 1 : 0).ThenBy(g => g.Key).ToList();
+    var otros = Model.Where(u => u.Rol != RolUsuario.Docente).GroupBy(u => HorariosController.NombreRol(u.Rol))
+        .OrderBy(g => g.Key).ToList();
+    var colores = new[] { "#1a319b", "#2459b0", "#1fb5c5", "#2bb673", "#6c5ce7", "#fb8500", "#ef6f6c" };
+    var k = 0;
+}
+<style>
+    .hp-grupo { display: flex; align-items: center; gap: .6rem; margin: 20px 0 10px; }
+    .hp-grupo h3 { font-size: 1rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .hp-grupo::after { content: ""; flex: 1; height: 1px; background: var(--a-line); }
+    .hp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+    .hp { display: flex; align-items: center; gap: .8rem; padding: 14px; text-decoration: none; color: var(--a-ink); transition: transform .2s, box-shadow .2s; }
+    .hp:hover { transform: translateY(-2px); box-shadow: var(--a-sombra-hover); color: var(--a-ink); }
+    .hp .av { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: #fff; font-weight: 900; flex-shrink: 0; }
+    .hp .d { flex: 1; min-width: 0; }
+    .hp small { color: var(--a-mut); display: block; }
+    .hp select { font-size: .78rem; padding: .2rem 1.8rem .2rem .6rem; border-radius: 999px; margin-top: .3rem; max-width: 100%; }
+</style>
+
+<div class="au-head violeta">
+    <div class="ico">👩‍🏫</div>
+    <div class="txt"><h2>Horarios del personal</h2><p>Docentes por departamento y luego el equipo directivo. Toca a una persona para ver su horario.</p></div>
+    <div class="acc"><a asp-action="Index">Horarios por curso</a></div>
+</div>
+@if (puede)
+{
+    <p class="small text-muted">Puedes asignar el departamento de cada docente desde su tarjeta; se guarda solo.</p>
+}
+
+@foreach (var g in porDepto)
+{
+    <div class="hp-grupo"><h3>📚 @g.Key</h3><span class="au-chip">@g.Count()</span></div>
+    <div class="hp-grid">
+        @foreach (var u in g)
+        {
+            var h = horas.TryGetValue(u.Id, out var n) ? n : 0;
+            <div class="au-card hp">
+                <a asp-action="Profesor" asp-route-id="@u.Id" class="av" style="background:@colores[k++ % colores.Length];text-decoration:none">@(u.Nombre.Length > 0 ? u.Nombre[..1] : "")@(u.Apellido.Length > 0 ? u.Apellido[..1] : "")</a>
+                <div class="d">
+                    <a asp-action="Profesor" asp-route-id="@u.Id" style="text-decoration:none;color:inherit"><b>@u.Nombre @u.Apellido</b></a>
+                    <small>🗓️ @h @(h == 1 ? "bloque" : "bloques") de clase a la semana</small>
+                    @if (puede)
+                    {
+                        <select class="form-select hp-depto" data-id="@u.Id" aria-label="Departamento">
+                            <option value="">Sin departamento</option>
+                            @foreach (var d in HorariosController.Departamentos.Union(string.IsNullOrEmpty(u.Departamento) ? Array.Empty<string>() : new[] { u.Departamento! }))
+                            {
+                                <option value="@d" selected="@(u.Departamento == d)">@d</option>
+                            }
+                        </select>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@foreach (var g in otros)
+{
+    <div class="hp-grupo"><h3>🏛️ @g.Key</h3><span class="au-chip">@g.Count()</span></div>
+    <div class="hp-grid">
+        @foreach (var u in g)
+        {
+            var h = horas.TryGetValue(u.Id, out var n) ? n : 0;
+            <a class="au-card hp" asp-action="Profesor" asp-route-id="@u.Id">
+                <span class="av" style="background:@colores[k++ % colores.Length]">@(u.Nombre.Length > 0 ? u.Nombre[..1] : "")@(u.Apellido.Length > 0 ? u.Apellido[..1] : "")</span>
+                <div class="d"><b>@u.Nombre @u.Apellido</b><small>@(h > 0 ? $"🗓️ {h} bloques de clase" : "Sin clases asignadas")</small></div>
+            </a>
+        }
+    </div>
+}
+
+@if (puede)
+{
+    @Html.AntiForgeryToken()
+    <script>
+        (function () {
+            var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            document.querySelectorAll('.hp-depto').forEach(function (s) {
+                s.addEventListener('change', function () {
+                    var fd = new FormData(); fd.append('usuarioId', s.dataset.id); fd.append('departamento', s.value); fd.append('__RequestVerificationToken', token);
+                    fetch('/Horarios/AsignarDepartamento', { method: 'POST', body: fd, credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (d) { if (d.ok) location.reload(); else alert(d.error); });
+                });
+            });
+        })();
+    </script>
+}

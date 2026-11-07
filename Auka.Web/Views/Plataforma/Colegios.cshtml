@@ -61,6 +61,7 @@
                     <div class="col-md-6">
                         <label class="small d-block mb-1"><input type="checkbox" class="form-check-input me-1" id="fCal"> <b>Calendario compartido</b> <span class="text-secondary">(si no, cada profesional ve solo su agenda)</span></label>
                         <label class="small d-block"><input type="checkbox" class="form-check-input me-1" id="fBit"> <b>Bitácora compartida</b> <span class="text-secondary">(si no, cada profesional ve solo sus notas)</span></label>
+                        <label class="small d-block mt-1"><input type="checkbox" class="form-check-input me-1" id="fPsA"> <b>Administrador/a ve el resumen psicosocial</b> <span class="text-secondary">(solo Plan Premium; cantidades y estados, nunca fichas. Aplica al volver a iniciar sesión)</span></label>
                     </div>
                     <div class="col-md-6"><label class="small fw-bold">FICHAS SOLO PARA SU ÁREA</label>
                         <div class="small text-secondary mb-1">Marca las que no se comparten. Las demás las ve todo el equipo.</div>
@@ -184,7 +185,7 @@
       $('fTit').textContent = c.nombre; $('fSub').textContent = 'N° ' + c.id + (c.rut ? ' · RBD/RUT ' + c.rut : '') + (c.registro ? ' · cliente desde ' + fecha(c.registro) : '');
       $('fCon').value = c.contacto || ''; $('fCor').value = c.correo || ''; $('fTel').value = c.telefonoContacto || '';
       $('fTipo').value = c.tipo || 'Colegio'; marcar('fPla', c.planillas || []);
-      $('fCal').checked = c.calCompartido !== false; $('fBit').checked = c.bitCompartida !== false; marcar('fArea', c.porArea || []);
+      $('fCal').checked = c.calCompartido !== false; $('fBit').checked = c.bitCompartida !== false; $('fPsA').checked = c.psicoAdmin === true; marcar('fArea', c.porArea || []);
       $('fPl').value = c.plan; limitarPlan('fTipo', 'fPl'); $('fVen').value = c.vence ? c.vence.slice(0, 10) : ''; $('fPre').value = c.precio != null ? c.precio : ''; $('fNot').value = c.notas || '';
       $('fEst').innerHTML = chip(EST, c.estado) + (c.baja ? ' <span class="small text-secondary">desde ' + fecha(c.baja) + (c.motivoBaja ? ' · ' + esc(c.motivoBaja) : '') + '</span>' : '');
       var acc = c.estado === 'suspendido' || c.estado === 'baja'
@@ -198,7 +199,7 @@
   };
   $('bGuardar').onclick = function () {
     post('/Plataforma/GuardarColegio', { id: ficha.id, plan: $('fPl').value, contacto: $('fCon').value, correo: $('fCor').value, telefono: $('fTel').value, vence: $('fVen').value, precio: $('fPre').value, notas: $('fNot').value, tipo: $('fTipo').value, planillas: marcadas('fPla'),
-        calCompartido: $('fCal').checked, bitCompartida: $('fBit').checked, porArea: marcadas('fArea') })
+        calCompartido: $('fCal').checked, bitCompartida: $('fBit').checked, psicoAdmin: $('fPsA').checked, porArea: marcadas('fArea') })
       .then(function () { msg('fMsg', 'Cambios guardados.', true); cargar(); abrir(ficha.id); }).catch(function (e) { msg('fMsg', e.message, false); });
   };
   $('mFicha').addEventListener('click', function (e) {

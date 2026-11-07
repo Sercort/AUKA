@@ -25,7 +25,7 @@ public interface INotificacionService
 public class NotificacionService : INotificacionService
 {
     // Correos que AUKA inventa cuando la persona no dio uno propio (no existen de verdad: no se les envía nada)
-    private static readonly string[] DominiosInternos = { "@alumnos.auka.cl", "@pacientes.auka.cl" };
+    private static readonly string[] DominiosInternos = { "@alumnos.auka.cl", "@pacientes.auka.cl", "@apoderados.auka.cl", "@auka.cl" };
 
     private readonly ApplicationDbContext _context;
     private readonly ICorreoService _correo;

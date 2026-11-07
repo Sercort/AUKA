@@ -34,6 +34,32 @@ public class Colegio
     // Fichas que solo ve su área (psicología o trabajo social), separadas por coma. null = todas compartidas.
     public string? FichasPorArea { get; set; }
 
+    // ---- Permisos que da el administrador del colegio (Plan Premium) ----
+    // Quién más, además del administrador y el director, puede crear clubes y talleres: "UTP", "Orientadora" o ambos (separados por coma).
+    // null = como antes (UTP sí, orientadora no). Vacío = solo administración.
+    public string? ClubesPermitidos { get; set; }
+
+    // Todos los permisos que entrega el administrador, por acción: "clubes:Director,UTP;inscribir:UTP,InspectorGeneral;horarios:UTP;profjefe:UTP".
+    // null = valores por defecto (ver Auka.Web/Services/Permisos.cs). El administrador siempre puede todo.
+    public string? Permisos { get; set; }
+
+    // El administrador (Plan Premium) entra al resumen psicosocial: ve cantidades y estados, nunca el contenido de las fichas.
+    // Lo activa solo el dueño de la plataforma cuando el colegio lo pide.
+    public bool PsicosocialAdministrador { get; set; } = false;
+
+    // Especialidades técnico-profesionales del colegio (3° y 4° medio), separadas por "|". Se van agregando al matricular o al importar.
+    public string? Especialidades { get; set; }
+
+    // ---- Horarios ----
+    // Los viernes se sale a esta hora (null = 13:00). Los bloques posteriores quedan bloqueados...
+    public TimeSpan? ViernesSalida { get; set; }
+    // ...salvo que se active la tarde del viernes (recuperación de clases)
+    public bool ViernesTardeActiva { get; set; } = false;
+
+    // ---- Alertas de convivencia ----
+    // "neg=1;alumnos=3;dias=30": curso en alerta con 1 negativa por alumno, o 3 alumnos con 3+ negativas, en 30 días. null = esos valores.
+    public string? ConfigAlertas { get; set; }
+
     // ---- Datos comerciales (los ve solo el dueño de la plataforma) ----
     public string? ContactoNombre { get; set; }       // sostenedor/a o director/a que contrató
     public string? ContactoCorreo { get; set; }

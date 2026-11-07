@@ -10,7 +10,18 @@
 
 <div class="container py-4">
     <!-- ENCABEZADO Y BOTÓN DE REGISTRO -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    @if (!soloPsico)
+    {
+        <div class="au-head violeta">
+            <div class="ico">👥</div>
+            <div class="txt"><h2>Personal del colegio</h2><p>Directivos, UTP, docentes, inspectoría y equipo psicosocial.</p></div>
+            <div class="acc">
+                <button type="button" data-bs-toggle="modal" data-bs-target="#modalImportarPersonal">📥 Importar planilla</button>
+                <button type="button" class="blanco" data-bs-toggle="modal" data-bs-target="#modalAgregarPersonal">➕ Agregar funcionario</button>
+            </div>
+        </div>
+    }
+    <div class="@(soloPsico ? "d-flex" : "d-none") justify-content-between align-items-center mb-4">
         <div>
             <h3 class="fw-bold text-primary mb-1">👥 @(soloPsico ? "Equipo del colegio" : "Personal y Equipo Docente - AUKA")</h3>
             <p class="text-muted small mb-0">@(soloPsico ? "Equipo psicosocial y profesores/as jefe de tu establecimiento." : "Administración de Directivos, UTP, Docentes, Inspectores y Dupla Psicosocial.")</p>
@@ -59,6 +70,9 @@
                         </li>
                     </ul>
                 </div>
+                @* En el Plan Premium se usa el buscador de arriba (busca personal, alumnos y cursos). Este queda solo en el Plan Psicosocial. *@
+                @if (soloPsico)
+                {
                 <div class="col-md-6">
                     <form method="get" asp-action="Index">
                         <input type="hidden" name="tab" value="@tabActual" />
@@ -68,6 +82,7 @@
                         </div>
                     </form>
                 </div>
+                }
             </div>
         </div>
     </div>

@@ -1,0 +1,174 @@
+﻿@* Auka.Web/Views/Horarios/_GrillaHorario.cshtml — grilla semanal (lunes a viernes × bloques de la jornada).
+   La usan el horario del curso (editable con permiso) y el del profesor/a (se arma solo). *@
+@model Auka.Web.Controllers.GrillaVm
+@using Auka.Application.Entities
+@using Auka.Web.Controllers
+@{
+    var colores = new[] { "#e3ebff|#1a319b", "#dff6f8|#0c6f7a", "#dcf5e8|#12744a", "#ecebff|#4b3fb8", "#fff0cc|#8a5a00", "#fde5e4|#a12d2a", "#e9f3ff|#2459b0", "#f3e8ff|#7a3db8" };
+    string Color(string a) { var h = 0; foreach (var ch in a) h = (h * 31 + ch) & 0x7fffffff; return colores[h % colores.Length]; }
+    var totalClases = Model.Celdas.Count;
+}
+<style>
+    .hg-wrap { overflow-x: auto; border-radius: 20px; }
+    .hg { width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 6px; }
+    .hg th { font-size: .78rem; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; color: var(--a-mut); text-align: center; padding: .4rem; }
+    .hg td.h { width: 92px; text-align: center; font-weight: 800; color: var(--a-navy); font-size: .82rem; white-space: nowrap; }
+    .hg td.h small { display: block; color: var(--a-mut); font-weight: 700; font-size: .7rem; }
+    .hg .c { height: 66px; border-radius: 14px; background: #f6f9fd; border: 1.5px dashed #dbe4f0; padding: .45rem .55rem; vertical-align: top; position: relative; }
+    .hg .c.llena { border: 0; }
+    .hg .c b { display: block; font-size: .84rem; line-height: 1.15; }
+    .hg .c span { display: block; font-size: .72rem; opacity: .85; margin-top: .15rem; }
+    .hg .c.ed { cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    .hg .c.ed:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(20,35,58,.12); }
+    .hg .c.ed:not(.llena)::after { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.3rem; color: #b6c3d6; font-weight: 900; }
+    .hg .c.off { background: repeating-linear-gradient(135deg, #f1f4f9, #f1f4f9 8px, #e9eef5 8px, #e9eef5 16px); border: 0; color: var(--a-mut); font-size: .72rem; text-align: center; vertical-align: middle; }
+    .hg tr.pausa td.p { border-radius: 12px; text-align: center; font-weight: 800; font-size: .8rem; padding: .35rem; }
+    .hg tr.pausa.rec td.p { background: #fff6e0; color: #8a5a00; }
+    .hg tr.pausa.alm td.p { background: #e8f8f0; color: #12744a; }
+    .hg-pie { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: 10px; color: var(--a-mut); font-size: .84rem; }
+    @@media print {
+        .au-top, .au-foot, .no-print, .au-head .acc { display: none !important; }
+        .au-main { padding: 0 !important; }
+        .hg .c { border: 1px solid #ccc !important; }
+    }
+</style>
+
+<div class="au-card p-3">
+    <div class="hg-wrap">
+        <table class="hg">
+            <thead>
+                <tr>
+                    <th>Hora</th>
+                    @foreach (var d in HorariosController.Dias)
+                    {
+                        <th>@d</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @{ var nClase = 0; }
+                @foreach (var b in Model.Bloques)
+                {
+                    if (b.Tipo != TipoBloque.Clase)
+                    {
+                        var min = (int)(b.HoraFin - b.HoraInicio).TotalMinutes;
+                        <tr class="pausa @(b.Tipo == TipoBloque.Recreo ? "rec" : "alm")">
+                            <td class="h">@b.HoraInicio.ToString("hh\\:mm")</td>
+                            <td class="p" colspan="5">@(b.Tipo == TipoBloque.Recreo ? "☕ Recreo" : "🍽️ Almuerzo") · @min min</td>
+                        </tr>
+                        continue;
+                    }
+                    nClase++;
+                    <tr>
+                        <td class="h">@b.HoraInicio.ToString("hh\\:mm")<small>a @b.HoraFin.ToString("hh\\:mm")</small><small>Bloque @nClase</small></td>
+                        @for (var dia = 1; dia <= 5; dia++)
+                        {
+                            var bloqueado = dia == 5 && !Model.ViernesTarde && b.HoraInicio >= Model.ViernesSalida;
+                            if (bloqueado)
+                            {
+                                <td class="c off">Salida viernes<br />@Model.ViernesSalida.ToString("hh\\:mm")</td>
+                                continue;
+                            }
+                            Model.Celdas.TryGetValue((dia, b.Id), out var cel);
+                            if (cel != null)
+                            {
+                                var col = Color(cel.Asignatura).Split('|');
+                                <td class="c llena @(Model.Editable ? "ed" : "")" style="background:@col[0];color:@col[1]"
+                                    data-dia="@dia" data-bloque="@b.Id" data-asig="@cel.Asignatura" data-prof="@cel.ProfesorId" data-sala="@cel.Sala">
+                                    <b>@cel.Asignatura</b>
+                                    @if (!string.IsNullOrEmpty(cel.Detalle)) { <span>@(Model.PorProfesor ? "🏫 " : "👩‍🏫 ")@cel.Detalle</span> }
+                                    @if (!string.IsNullOrEmpty(cel.Sala)) { <span>🚪 @cel.Sala</span> }
+                                </td>
+                            }
+                            else
+                            {
+                                <td class="c @(Model.Editable ? "ed" : "")" data-dia="@dia" data-bloque="@b.Id" data-asig="" data-prof="" data-sala=""></td>
+                            }
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="hg-pie">
+        <span class="au-chip">📚 @totalClases @(totalClases == 1 ? "bloque con clase" : "bloques con clase")</span>
+        <span class="au-chip sol">Viernes: @(Model.ViernesTarde ? "jornada completa (recuperación activa)" : "salida " + Model.ViernesSalida.ToString("hh\\:mm"))</span>
+        @if (Model.Editable)
+        {
+            <span>Toca un bloque para asignar asignatura, profesor/a y sala.</span>
+        }
+        <button type="button" class="btn btn-outline-secondary btn-sm px-3 ms-auto no-print" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+</div>
+
+@if (Model.Editable)
+{
+    <div class="modal fade" id="hgM" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" id="hgF">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="cursoId" value="@Model.CursoId" />
+                <input type="hidden" name="dia" id="hgDia" />
+                <input type="hidden" name="bloqueId" id="hgBloque" />
+                <div class="modal-header"><h5 class="modal-title fw-bold" id="hgT">Clase</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <label class="form-label">Asignatura</label>
+                    <input name="asignatura" id="hgAsig" class="form-control mb-3" list="hgAsigs" maxlength="80" placeholder="Elige o escribe la asignatura" />
+                    <datalist id="hgAsigs">
+                        @foreach (var a in Model.Asignaturas)
+                        {
+                            <option value="@a"></option>
+                        }
+                    </datalist>
+                    <label class="form-label">Profesor/a</label>
+                    <select name="profesorId" id="hgProf" class="form-select mb-3">
+                        <option value="">Sin asignar</option>
+                        @foreach (var p in Model.Profesores)
+                        {
+                            <option value="@p.Id">@p.Nombre</option>
+                        }
+                    </select>
+                    <label class="form-label">Sala <span class="text-muted fw-normal">(opcional)</span></label>
+                    <input name="sala" id="hgSala" class="form-control" maxlength="40" placeholder="Ej: Sala 12, Laboratorio, Gimnasio" />
+                    <div id="hgMsg" class="mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger px-3 me-auto" id="hgBorrar">Dejar libre</button>
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary px-4">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var dias = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+            var $ = function (i) { return document.getElementById(i); };
+            var modal = function () { return bootstrap.Modal.getOrCreateInstance($('hgM')); };
+            document.querySelectorAll('.hg .c.ed').forEach(function (td) {
+                td.addEventListener('click', function () {
+                    $('hgDia').value = td.dataset.dia; $('hgBloque').value = td.dataset.bloque;
+                    $('hgAsig').value = td.dataset.asig || ''; $('hgProf').value = td.dataset.prof || ''; $('hgSala').value = td.dataset.sala || '';
+                    var hora = td.parentElement.querySelector('td.h').firstChild.textContent.trim();
+                    $('hgT').textContent = dias[+td.dataset.dia] + ' · ' + hora;
+                    $('hgMsg').innerHTML = ''; $('hgBorrar').style.display = td.dataset.asig ? '' : 'none';
+                    modal().show();
+                    setTimeout(function () { $('hgAsig').focus(); }, 300);
+                });
+            });
+            var enviar = function (borrar) {
+                var fd = new FormData($('hgF')); if (borrar) fd.set('asignatura', '');
+                $('hgMsg').innerHTML = '<div class="alert alert-info py-2 mb-0">Guardando…</div>';
+                fetch('/Horarios/GuardarClase', { method: 'POST', body: fd, credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (d.ok) location.reload();
+                        else $('hgMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0"></div>', $('hgMsg').firstChild.textContent = d.error;
+                    })
+                    .catch(function () { $('hgMsg').innerHTML = '<div class="alert alert-danger py-2 mb-0">No se pudo guardar. Revisa tu conexión.</div>'; });
+            };
+            $('hgF').addEventListener('submit', function (e) { e.preventDefault(); enviar(false); });
+            $('hgBorrar').addEventListener('click', function () { enviar(true); });
+        })();
+    </script>
+}

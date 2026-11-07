@@ -1,6 +1,7 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
+using Auka.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -19,7 +20,7 @@ public class HomeController : Controller
         _env = env;
     }
 
-    public IActionResult Index()
+    public async Task<IActionResult> Index()
     {
         // Sin sesión: el portal público de AUKA (con botón "Ingresar" al login)
         if (User.Identity?.IsAuthenticated != true)
@@ -29,7 +30,141 @@ public class HomeController : Controller
         if (User.IsInRole("AdminPlataforma"))
             return RedirectToAction("Index", "Plataforma");
 
+        // Administrador del colegio y director: panel de gestión del colegio (Plan Premium)
+        if (User.IsInRole("SuperAdmin") || User.IsInRole("Director"))
+            return View("PanelAdmin", await ArmarPanelAdminAsync());
+
         return View();
+    }
+
+    // ---------------- Panel del administrador del colegio ----------------
+    private async Task<PanelAdminVm> ArmarPanelAdminAsync()
+    {
+        _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var colegioId);
+        var anio = DateTime.Now.Year;
+        var hoy = DateOnly.FromDateTime(DateTime.Now);
+        var lunes = hoy.AddDays(-(((int)hoy.DayOfWeek + 6) % 7));
+
+        var colegio = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(c => c.Id == colegioId);
+
+        var personal = await _context.Usuarios.AsNoTracking()
+            .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol != RolUsuario.Estudiante && u.Rol != RolUsuario.Apoderado && u.Rol != RolUsuario.AdminPlataforma)
+            .GroupBy(u => u.Rol).Select(g => new { Rol = g.Key, N = g.Count() }).ToListAsync();
+        var inspectorGeneral = await _context.Usuarios.AsNoTracking()
+            .Where(u => u.ColegioId == colegioId && u.Activo && u.EsInspectorGeneral)
+            .Select(u => u.Nombre + " " + u.Apellido).FirstOrDefaultAsync();
+
+        var cursos = await _context.Cursos.AsNoTracking()
+            .Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio && c.Nombre != "Pacientes")
+            .Select(c => new CursoTarjeta(c.Id, c.Nombre, c.Letra, c.Estudiantes.Count, c.CapacidadMaxima,
+                c.ProfesorJefe != null ? c.ProfesorJefe.Nombre + " " + c.ProfesorJefe.Apellido : null))
+            .ToListAsync();
+
+        var clubes = await _context.Talleres.AsNoTracking()
+            .Where(t => t.ColegioId == colegioId && t.Activo)
+            .OrderBy(t => t.Nombre)
+            .Select(t => new ClubTarjeta(t.Id, t.Nombre, t.Docente != null ? t.Docente.Nombre + " " + t.Docente.Apellido : t.DocenteCargo, t.Horario, t.Inscripciones.Count))
+            .ToListAsync();
+
+        var desde = DateTime.UtcNow.AddDays(-7);
+        var anot = await _context.Anotaciones.AsNoTracking()
+            .Where(a => a.Fecha >= desde && a.Estudiante != null && a.Estudiante.ColegioId == colegioId)
+            .GroupBy(a => a.Tipo).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
+
+        int citSemana = 0, citPend = 0;
+        if (colegio?.PlanPsicosocialActivo == true)
+        {
+            var finSemana = lunes.AddDays(6);
+            citSemana = await _context.Citaciones.AsNoTracking().CountAsync(c => c.ColegioId == colegioId && c.Fecha >= lunes && c.Fecha <= finSemana);
+            citPend = await _context.Citaciones.AsNoTracking().CountAsync(c => c.ColegioId == colegioId && c.Fecha >= hoy && c.Estado == EstadoCitacion.Pendiente);
+        }
+
+        int Rol(RolUsuario r) => personal.Where(p => p.Rol == r).Sum(p => p.N);
+        return new PanelAdminVm
+        {
+            Colegio = colegio?.Nombre ?? "Tu colegio",
+            EsAdministrador = User.IsInRole("SuperAdmin"),
+            Psicosocial = colegio?.PlanPsicosocialActivo == true,
+            // El resumen psicosocial del administrador solo existe si el dueño de la plataforma lo activó
+            PsicoAdmin = colegio?.PlanPsicosocialActivo == true && colegio.PsicosocialAdministrador,
+            Alumnos = cursos.Sum(c => c.Alumnos),
+            Docentes = Rol(RolUsuario.Docente),
+            Cursos = OrdenarCursos(cursos),
+            Clubes = clubes,
+            AnotPositivas = anot.Where(a => a.Key == TipoAnotacion.Positiva).Sum(a => a.N),
+            AnotNegativas = anot.Where(a => a.Key == TipoAnotacion.Negativa).Sum(a => a.N),
+            CitacionesSemana = citSemana,
+            CitacionesPendientes = citPend,
+            Personal = new List<(string, int, string)>
+            {
+                ("Docentes", Rol(RolUsuario.Docente), "👩‍🏫"),
+                ("Directivos", Rol(RolUsuario.Director) + Rol(RolUsuario.SuperAdmin), "🏛️"),
+                ("UTP", Rol(RolUsuario.UTP), "📚"),
+                ("Inspectoría", Rol(RolUsuario.Inspector), "🧭"),
+                ("Equipo psicosocial", Rol(RolUsuario.Psicologo) + Rol(RolUsuario.Psicopedagogo) + Rol(RolUsuario.TrabajadorSocial) + Rol(RolUsuario.Orientadora), "💙")
+            },
+            InspectorGeneral = inspectorGeneral,
+            Permisos = Permisos.Leer(colegio?.Permisos, colegio?.ClubesPermitidos),
+            ListaDocentes = await _context.Usuarios.AsNoTracking()
+                .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente)
+                .OrderBy(u => u.Apellido).Select(u => new OpcionVm(u.Id, u.Nombre + " " + u.Apellido)).ToListAsync(),
+            PuedeProfJefe = await Permisos.PuedeAsync(_context, User, Permisos.ProfJefe),
+            // Alertas de convivencia: lo malo (cursos en alerta o atención) y lo bueno (cursos destacados)
+            AlertasCursos = (await Alertas.EstadoCursosAsync(_context, colegioId)).Values.Where(e => e.Nivel != Alertas.Nivel.Normal)
+                .OrderByDescending(e => e.Nivel).ThenByDescending(e => e.Negativas).ToList(),
+            ConfigAlertas = Alertas.Leer(colegio?.ConfigAlertas)
+        };
+    }
+
+    // Orden natural de los cursos: prekínder, kínder, 1° a 8° básico, I a IV medio
+    private static List<CursoTarjeta> OrdenarCursos(List<CursoTarjeta> l)
+    {
+        int Orden(string n)
+        {
+            var x = (n ?? "").ToLowerInvariant();
+            if (x.Contains("pre")) return 0;
+            if (x.Contains("nder") || x.StartsWith("nt")) return 1;
+            if (x.Contains("medio"))
+            {
+                var r = System.Text.RegularExpressions.Regex.Match(x, @"^\s*(iv|iii|ii|i|\d)");
+                return 20 + (r.Groups[1].Value switch { "i" or "1" => 1, "ii" or "2" => 2, "iii" or "3" => 3, "iv" or "4" => 4, _ => 5 });
+            }
+            var m = System.Text.RegularExpressions.Regex.Match(x, @"^\s*(\d+)");
+            return m.Success ? 1 + int.Parse(m.Groups[1].Value) : 50;
+        }
+        return l.OrderBy(c => Orden(c.Nombre)).ThenBy(c => c.Letra).ToList();
+    }
+
+    // POST: límites de las alertas de anotaciones (por colegio)
+    [HttpPost]
+    [Authorize(Roles = "SuperAdmin")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GuardarAlertas(double neg, int alumnos, int dias)
+    {
+        _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var colegioId);
+        var colegio = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+        if (colegio == null) return NotFound();
+        colegio.ConfigAlertas = Alertas.Escribir(new Alertas.Config(Math.Clamp(neg, 0.1, 10), Math.Clamp(alumnos, 1, 40), Math.Clamp(dias, 7, 120)));
+        await _context.SaveChangesAsync();
+        TempData["PanelOk"] = "Límites de alertas guardados.";
+        return Redirect(Url.Action(nameof(Index)) + "#alertas");
+    }
+
+    // POST: el administrador elige quién más puede hacer cada cosa (casillas "p_clubes", "p_inscribir", "p_horarios", "p_profjefe")
+    [HttpPost]
+    [Authorize(Roles = "SuperAdmin")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GuardarPermisos(IFormCollection form)
+    {
+        _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var colegioId);
+        var colegio = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+        if (colegio == null) return NotFound();
+        var d = Permisos.Acciones.ToDictionary(a => a.Clave,
+            a => new HashSet<string>(form["p_" + a.Clave].Where(r => r != null && a.Roles.Contains(r)).Select(r => r!)));
+        colegio.Permisos = Permisos.Escribir(d);
+        await _context.SaveChangesAsync();
+        TempData["PanelOk"] = "Permisos guardados. Se aplican al tiro.";
+        return Redirect(Url.Action(nameof(Index)) + "#permisos");
     }
 
     public IActionResult Privacy()
@@ -102,3 +237,31 @@ public class HomeController : Controller
         return Content($"✅ ¡LISTO! La contraseña de '{admin.Email}' fue restablecida con éxito a: 123456");
     }
 }
+
+public record CursoTarjeta(int Id, string Nombre, string Letra, int Alumnos, int Capacidad, string? ProfesorJefe);
+public record ClubTarjeta(int Id, string Nombre, string? Docente, string? Horario, int Inscritos);
+
+public class PanelAdminVm
+{
+    public string Colegio { get; set; } = "";
+    public bool EsAdministrador { get; set; }
+    public bool Psicosocial { get; set; }
+    public int Alumnos { get; set; }
+    public int Docentes { get; set; }
+    public List<CursoTarjeta> Cursos { get; set; } = new();
+    public List<ClubTarjeta> Clubes { get; set; } = new();
+    public int AnotPositivas { get; set; }
+    public int AnotNegativas { get; set; }
+    public int CitacionesSemana { get; set; }
+    public int CitacionesPendientes { get; set; }
+    public List<(string Nombre, int N, string Icono)> Personal { get; set; } = new();
+    public string? InspectorGeneral { get; set; }
+    public bool PsicoAdmin { get; set; }
+    public Dictionary<string, HashSet<string>> Permisos { get; set; } = new();
+    public List<OpcionVm> ListaDocentes { get; set; } = new();
+    public bool PuedeProfJefe { get; set; }
+    public List<Auka.Web.Services.Alertas.EstadoCurso> AlertasCursos { get; set; } = new();
+    public Auka.Web.Services.Alertas.Config ConfigAlertas { get; set; } = new(1, 3, 30);
+}
+
+public record OpcionVm(int Id, string Nombre);

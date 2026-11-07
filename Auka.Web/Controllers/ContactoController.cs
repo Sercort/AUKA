@@ -58,4 +58,36 @@ public class ContactoController : Controller
 
     [HttpGet]
     public IActionResult Gracias() => View();
+
+    // Buzón de sugerencias dentro de AUKA (botón 💡 arriba): llega a Plataforma › Mensajes como "Sugerencia"
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Sugerencia(string? tema, string? mensaje)
+    {
+        // El controlador es público ([AllowAnonymous] gana sobre [Authorize]): se revisa la sesión a mano
+        if (User.Identity?.IsAuthenticated != true) return Json(new { ok = false, error = "Inicia sesión para enviar una sugerencia." });
+        mensaje = (mensaje ?? "").Trim();
+        if (mensaje.Length < 5) return Json(new { ok = false, error = "Cuéntanos un poco más tu idea." });
+        var llave = "sugerencia:" + (User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "?");
+        var n = _cache.GetOrCreate(llave, e => { e.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1); return new int[1]; })!;
+        if (n[0] >= 10) return Json(new { ok = false, error = "Enviaste varias ideas seguidas. Inténtalo más tarde." });
+
+        string Corta(string? t, int max) { t = (t ?? "").Trim(); return t.Length > max ? t[..max] : t; }
+        _ = int.TryParse(User.FindFirst("ColegioId")?.Value, out var colegioId);
+        _context.MensajesPlataforma.Add(new MensajePlataforma
+        {
+            Tipo = "Sugerencia",
+            Nombre = Corta(User.Identity?.Name, 120),
+            Cargo = Corta(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value, 80),
+            ColegioNombre = Corta(User.FindFirst("ColegioNombre")?.Value, 140),
+            ColegioRefId = colegioId > 0 ? colegioId : null,
+            Correo = Corta(User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value, 160).ToLowerInvariant(),
+            Mensaje = Corta($"[{Corta(tema, 60)}] {mensaje}", 2000),
+            Estado = EstadoMensaje.Nuevo,
+            FechaUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        n[0]++;
+        return Json(new { ok = true });
+    }
 }

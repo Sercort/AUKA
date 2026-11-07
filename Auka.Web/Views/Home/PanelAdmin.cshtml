@@ -1,0 +1,342 @@
+﻿@* Auka.Web/Views/Home/PanelAdmin.cshtml — panel del administrador del colegio y del director (Plan Premium) *@
+@model Auka.Web.Controllers.PanelAdminVm
+@{
+    ViewData["Title"] = "Panel del colegio";
+    var hoy = DateTime.Now;
+    var fecha = hoy.ToString("dddd d 'de' MMMM", new System.Globalization.CultureInfo("es-CL"));
+    fecha = char.ToUpper(fecha[0]) + fecha[1..];
+    var nombre = User.Identity?.Name ?? "";
+    var tonos = new[] { "t1", "t2", "t3", "t4", "t5", "t6" };
+}
+@await Html.PartialAsync("_TemaAuka")
+<style>
+    .pa { --navy: #1a319b; --blue: #2459b0; --teal: #1fb5c5; --violet: #5b4bc4; --grad: linear-gradient(120deg, var(--navy), var(--blue) 55%, var(--teal)); }
+    .pa h2, .pa h3 { margin: 0; }
+    .pa-hero { background: var(--grad); color: #fff; border-radius: 22px; padding: 26px 28px; position: relative; overflow: hidden; display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap; }
+    .pa-hero::after { content: ""; position: absolute; right: -80px; top: -90px; width: 300px; height: 300px; border-radius: 50%; background: radial-gradient(circle, rgba(63,218,218,.45), transparent 70%); }
+    .pa-hero h2 { font-size: 1.6rem; font-weight: 800; }
+    .pa-hero p { margin: .2rem 0 0; opacity: .9; }
+    .pa-acc { display: flex; gap: .5rem; flex-wrap: wrap; margin-left: auto; position: relative; z-index: 1; }
+    .pa-acc a { background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.3); color: #fff; text-decoration: none; padding: .5rem .95rem; border-radius: 999px; font-weight: 700; font-size: .88rem; transition: background .2s, transform .2s; }
+    .pa-acc a:hover { background: rgba(255,255,255,.28); transform: translateY(-1px); color: #fff; }
+    .pa-acc a.blanco { background: #fff; color: var(--navy); }
+
+    .pa-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin: 18px 0; }
+    .pa-kpi { background: #fff; border: 1px solid var(--a-line); border-radius: 18px; padding: 16px 18px; position: relative; overflow: hidden; transition: transform .2s, box-shadow .2s; text-decoration: none; color: inherit; display: block; }
+    .pa-kpi:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(20,35,58,.08); color: inherit; }
+    .pa-kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, var(--blue)); }
+    .pa-kpi small { display: block; font-size: .68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--a-mut); }
+    .pa-kpi b { display: block; font-size: 1.9rem; font-weight: 800; color: var(--navy); line-height: 1.15; margin-top: .2rem; }
+    .pa-kpi span { font-size: .8rem; color: var(--a-mut); }
+
+    .pa-sec { background: #fff; border: 1px solid var(--a-line); border-radius: 20px; padding: 20px 22px; margin-bottom: 18px; }
+    .pa-sec-h { display: flex; align-items: center; gap: .8rem; margin-bottom: 14px; flex-wrap: wrap; }
+    .pa-sec-h h3 { font-size: 1.05rem; font-weight: 800; color: var(--navy); }
+    .pa-sec-h .sub { color: var(--a-mut); font-size: .85rem; }
+    .pa-sec-h .ir { margin-left: auto; font-size: .85rem; font-weight: 700; color: var(--blue); text-decoration: none; }
+
+    /* Cursos como tarjetas de color */
+    .pa-cursos { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+    .pa-curso { border-radius: 16px; padding: 14px 16px; text-decoration: none; color: #fff; position: relative; overflow: hidden; transition: transform .2s, box-shadow .2s; min-height: 118px; display: flex; flex-direction: column; }
+    .pa-curso:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(20,35,58,.18); color: #fff; }
+    .pa-curso::after { content: ""; position: absolute; right: -30px; bottom: -40px; width: 110px; height: 110px; border-radius: 50%; background: rgba(255,255,255,.14); }
+    .pa-curso h4 { font-size: 1.05rem; font-weight: 800; margin: 0; }
+    .pa-curso .pj { font-size: .78rem; opacity: .9; margin-top: .15rem; }
+    .pa-curso .pie { margin-top: auto; display: flex; align-items: end; justify-content: space-between; font-size: .78rem; }
+    .pa-curso .pie b { font-size: 1.35rem; line-height: 1; }
+    .pa-curso .cap { height: 5px; border-radius: 9px; background: rgba(255,255,255,.25); margin-top: .5rem; overflow: hidden; }
+    .pa-curso .cap i { display: block; height: 100%; background: #fff; border-radius: 9px; }
+    .t1 { background: linear-gradient(135deg, #1a319b, #2459b0); } .t2 { background: linear-gradient(135deg, #2459b0, #1fb5c5); }
+    .t3 { background: linear-gradient(135deg, #0f8a99, #1fb5c5); } .t4 { background: linear-gradient(135deg, #3f37a8, #5b4bc4); }
+    .t5 { background: linear-gradient(135deg, #1e4f9e, #4a7fd4); } .t6 { background: linear-gradient(135deg, #2b3f8f, #3d8fbf); }
+
+    /* Clubes pequeños */
+    .pa-clubes { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
+    .pa-club:hover { transform: translateY(-3px); box-shadow: 0 12px 24px rgba(20,35,58,.1); color: inherit; }
+    .pa-club { text-decoration: none; color: inherit; transition: transform .2s, box-shadow .2s; flex: 0 0 210px; scroll-snap-align: start; border: 1px solid var(--a-line); border-radius: 16px; padding: 14px; background: linear-gradient(160deg, #fff8e8, #fff 60%); }
+    .pa-club h4 { font-size: .95rem; font-weight: 800; color: var(--a-ink); margin: 0 0 .25rem; }
+    .pa-club .d { font-size: .8rem; color: var(--a-mut); }
+    .pa-club .n { display: inline-block; margin-top: .55rem; font-size: .72rem; font-weight: 800; padding: .2rem .6rem; border-radius: 999px; background: #fff1d1; color: #a56a00; }
+    .pa-vacio { color: var(--a-mut); font-size: .9rem; padding: .6rem 0; }
+
+    .pa-alertas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .pa-alertas h4 { font-size: .78rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--a-mut); margin-bottom: .5rem; }
+    .pa-al { display: block; border-radius: 14px; padding: .7rem .9rem; margin-bottom: 8px; background: #f6f9fd; color: var(--a-mut); text-decoration: none; font-size: .9rem; transition: transform .15s; }
+    a.pa-al:hover { transform: translateX(3px); }
+    .pa-al b { display: block; color: var(--a-ink); }
+    .pa-al span { font-size: .82rem; }
+    .pa-al.rojo { background: #fdecec; border-left: 5px solid #ef6f6c; color: #a12d2a; }
+    .pa-al.nar { background: #fff6e0; border-left: 5px solid #ffb703; color: #8a5a00; }
+    .pa-al.verde { background: #e8f8f0; border-left: 5px solid #2bb673; color: #12744a; }
+    .pa-al.ok { background: #e8f8f0; color: #12744a; font-weight: 700; }
+    @@media (max-width: 760px) { .pa-alertas { grid-template-columns: 1fr; } }
+    .pa-dos { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
+    .pa-personal { display: grid; gap: 8px; }
+    .pa-fila { display: flex; align-items: center; gap: .7rem; padding: .55rem .7rem; border-radius: 12px; background: var(--a-bg); }
+    .pa-fila .ic { width: 34px; height: 34px; border-radius: 10px; background: #fff; display: grid; place-items: center; font-size: 1.05rem; }
+    .pa-fila b { margin-left: auto; color: var(--navy); font-size: 1.1rem; }
+
+    .pa-nota { font-size: .8rem; color: var(--a-mut); }
+    .pa-atajo { text-decoration: none; color: var(--a-ink); transition: background .2s, transform .2s; }
+    .pa-atajo:hover { background: #e9f0ff; transform: translateX(3px); color: var(--navy); }
+    .pa-matriz { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 720px; }
+    .pa-matriz th { font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--a-mut); text-align: center; padding: .6rem .4rem; border-bottom: 1px solid var(--a-line); }
+    .pa-matriz td { padding: .8rem .5rem; border-bottom: 1px solid #eef2f8; }
+    .pa-matriz tr:last-child td { border-bottom: 0; }
+    .pa-matriz td small { display: block; color: var(--a-mut); font-size: .8rem; }
+    .pa-matriz td.c { text-align: center; }
+    .pa-na { color: #c3cddb; }
+    .pa-sw { position: relative; display: inline-block; width: 46px; height: 26px; margin: 0; cursor: pointer; }
+    .pa-sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .pa-sw span { position: absolute; inset: 0; border-radius: 999px; background: #dfe6f1; transition: background .2s; }
+    .pa-sw span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(20,35,58,.2); transition: transform .2s; }
+    .pa-sw input:checked + span { background: var(--grad); }
+    .pa-sw input:checked + span::after { transform: translateX(20px); }
+    .pa-sw input:disabled + span { opacity: .6; cursor: default; }
+    .pa-sw input:focus-visible + span { outline: 3px solid rgba(31,181,197,.5); }
+
+    @@media (max-width: 1100px) { .pa-kpis { grid-template-columns: repeat(3, 1fr); } }
+    @@media (max-width: 760px) { .pa-kpis { grid-template-columns: repeat(2, 1fr); } .pa-dos { grid-template-columns: 1fr; } .pa-acc { margin-left: 0; } }
+</style>
+
+<div class="pa">
+    @if (TempData["PanelOk"] != null)
+    {
+        <div class="alert alert-success rounded-4 py-2">✅ @TempData["PanelOk"]</div>
+    }
+
+    <!-- Encabezado -->
+    <div class="pa-hero">
+        <div style="position:relative;z-index:1">
+            <small style="opacity:.85;font-weight:700;letter-spacing:.06em">@fecha.ToUpper()</small>
+            <h2>@Model.Colegio</h2>
+            <p>Hola, @nombre. Este es el resumen de tu colegio.</p>
+        </div>
+        <div class="pa-acc">
+            <a asp-controller="Personal" asp-action="Index" class="blanco">+ Personal</a>
+            <a asp-controller="Cursos" asp-action="Matricular">Matricular</a>
+            @if (Model.EsAdministrador || (Model.Permisos.GetValueOrDefault("clubes")?.Contains("Director") ?? false))
+            {
+                <a asp-controller="Talleres" asp-action="Crear">+ Club</a>
+            }
+            <a asp-controller="Horarios" asp-action="Index">Horarios</a>
+            @if (Model.PsicoAdmin)
+            {
+                <a asp-controller="Administracion" asp-action="Index">💙 Resumen psicosocial</a>
+            }
+        </div>
+    </div>
+
+    <!-- Indicadores -->
+    <div class="pa-kpis">
+        <a class="pa-kpi" asp-controller="Cursos" asp-action="Index" style="--c:var(--blue)"><small>Alumnos</small><b>@Model.Alumnos</b><span>matriculados este año</span></a>
+        <a class="pa-kpi" asp-controller="Personal" asp-action="Index" style="--c:var(--teal)"><small>Docentes</small><b>@Model.Docentes</b><span>activos</span></a>
+        <a class="pa-kpi" asp-controller="Cursos" asp-action="Index" style="--c:var(--navy)"><small>Cursos</small><b>@Model.Cursos.Count</b><span>en @hoy.Year</span></a>
+        <a class="pa-kpi" asp-controller="Talleres" asp-action="Index" style="--c:#e0a100"><small>Clubes</small><b>@Model.Clubes.Count</b><span>activos</span></a>
+        <a class="pa-kpi" asp-controller="Anotaciones" asp-action="Index" style="--c:#d64545"><small>Anotaciones</small><b>@Model.AnotNegativas</b><span>negativas · @Model.AnotPositivas positivas (7 días) · por curso</span></a>
+        @if (Model.PsicoAdmin)
+        {
+            <a class="pa-kpi" asp-controller="Administracion" asp-action="Index" style="--c:var(--violet)"><small>Citaciones</small><b>@Model.CitacionesSemana</b><span>esta semana · @Model.CitacionesPendientes por confirmar</span></a>
+        }
+        else
+        {
+            <a class="pa-kpi" asp-controller="Personal" asp-action="Index" style="--c:var(--violet)"><small>Equipo</small><b>@Model.Personal.Sum(p => p.N)</b><span>personas en total</span></a>
+        }
+    </div>
+
+    <!-- Alertas de convivencia: lo malo y lo bueno -->
+    @{
+        var NivelA = Auka.Web.Services.Alertas.Nivel.Alerta;
+        var malos = Model.AlertasCursos.Where(e => e.Nivel != Auka.Web.Services.Alertas.Nivel.Destacado).ToList();
+        var buenos = Model.AlertasCursos.Where(e => e.Nivel == Auka.Web.Services.Alertas.Nivel.Destacado).ToList();
+    }
+    <div class="pa-sec" id="alertas">
+        <div class="pa-sec-h">
+            <h3>🚦 Convivencia: alertas y cursos destacados</h3>
+            <span class="sub">Últimos @Model.ConfigAlertas.Dias días, según las anotaciones</span>
+            <a class="ir" asp-controller="Anotaciones" asp-action="Index">Ver anotaciones</a>
+        </div>
+        <div class="pa-alertas">
+            <div>
+                <h4>Necesitan atención</h4>
+                @if (malos.Count == 0)
+                {
+                    <div class="pa-al ok">✅ Ningún curso en alerta. ¡Buen clima de convivencia!</div>
+                }
+                @foreach (var e in malos)
+                {
+                    <a class="pa-al @(e.Nivel == NivelA ? "rojo" : "nar")" href="/Anotaciones?cursoId=@e.CursoId">
+                        <b>@(e.Nivel == NivelA ? "🔴" : "🟠") @e.Curso</b>
+                        <span>@e.Motivo</span>
+                    </a>
+                }
+            </div>
+            <div>
+                <h4>Cursos destacados</h4>
+                @if (buenos.Count == 0)
+                {
+                    <div class="pa-al">Aún no hay cursos destacados en este período.</div>
+                }
+                @foreach (var e in buenos)
+                {
+                    <a class="pa-al verde" href="/Anotaciones?cursoId=@e.CursoId"><b>⭐ @e.Curso</b><span>@e.Motivo</span></a>
+                }
+            </div>
+        </div>
+        @if (Model.EsAdministrador)
+        {
+            <details class="mt-3">
+                <summary class="pa-nota" style="cursor:pointer">⚙️ Ajustar cuándo un curso entra en alerta</summary>
+                <form asp-action="GuardarAlertas" method="post" class="d-flex gap-3 flex-wrap align-items-end mt-2">
+                    @Html.AntiForgeryToken()
+                    <div><label class="form-label small">Negativas por alumno/a</label><input type="number" name="neg" step="0.1" min="0.1" max="10" value="@Model.ConfigAlertas.NegPorAlumno.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control" style="max-width:130px" /></div>
+                    <div><label class="form-label small">o alumnos/as con 3+ negativas</label><input type="number" name="alumnos" min="1" max="40" value="@Model.ConfigAlertas.Alumnos3" class="form-control" style="max-width:130px" /></div>
+                    <div><label class="form-label small">Período (días)</label><input type="number" name="dias" min="7" max="120" value="@Model.ConfigAlertas.Dias" class="form-control" style="max-width:110px" /></div>
+                    <button class="btn btn-primary px-4">Guardar</button>
+                </form>
+                <p class="pa-nota mt-2 mb-0">Cuando un curso entra en alerta, avisa en la campana al profesor/a jefe, la UTP, el inspector/a general y el director/a. Si un alumno/a suma 3 negativas, avisa a su profesor/a jefe y a orientación.</p>
+            </details>
+        }
+    </div>
+
+    <!-- Cursos -->
+    <div class="pa-sec">
+        <div class="pa-sec-h">
+            <h3>Cursos @hoy.Year</h3><span class="sub">Abre un nivel para ver sus cursos</span>
+            <a class="ir" asp-controller="Cursos" asp-action="Index">Ver todos</a>
+        </div>
+        @if (Model.Cursos.Count == 0)
+        {
+            <div class="pa-vacio">Aún no hay cursos este año. Créalos en <a asp-controller="Cursos" asp-action="Index">Cursos</a>.</div>
+        }
+        else
+        {
+            var carpetas = new Auka.Web.Models.CarpetasVm
+            {
+                Clave = "panel",
+                PuedeAgregar = Model.EsAdministrador,
+                Cursos = Model.Cursos.Select(c => new Auka.Web.Models.CarpetaCurso(c.Id, c.Nombre, c.Letra, Url.Action("Alumnos", "Cursos", new { id = c.Id })!,
+                    c.Alumnos, c.Capacidad, string.IsNullOrEmpty(c.ProfesorJefe) ? "sin prof. jefe" : c.ProfesorJefe)).ToList()
+            };
+            @await Html.PartialAsync("_CursosCarpetas", carpetas)
+        }
+    </div>
+
+    <!-- Clubes -->
+    <div class="pa-sec">
+        <div class="pa-sec-h">
+            <h3>🏆 Clubes y talleres</h3><span class="sub">Actividades del colegio</span>
+            <a class="ir" asp-controller="Talleres" asp-action="Index">Ver todos</a>
+        </div>
+        @if (Model.Clubes.Count == 0)
+        {
+            <div class="pa-vacio">Aún no hay clubes. <a asp-controller="Talleres" asp-action="Crear">Crea el primero</a>.</div>
+        }
+        else
+        {
+            <div class="pa-clubes">
+                @foreach (var cl in Model.Clubes)
+                {
+                    <a class="pa-club" asp-controller="Talleres" asp-action="Detalle" asp-route-id="@cl.Id">
+                        <h4>@cl.Nombre</h4>
+                        <div class="d">👨‍🏫 @(cl.Docente ?? "Sin profesor")</div>
+                        <div class="d">⏰ @(cl.Horario ?? "Horario por definir")</div>
+                        <span class="n">@cl.Inscritos inscritos</span>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="pa-dos">
+        <!-- Personal -->
+        <div class="pa-sec">
+            <div class="pa-sec-h">
+                <h3>👥 Personal del colegio</h3>
+                <a class="ir" asp-controller="Personal" asp-action="Index">Gestionar</a>
+            </div>
+            <div class="pa-personal">
+                @foreach (var p in Model.Personal)
+                {
+                    <div class="pa-fila"><span class="ic">@p.Icono</span>@p.Nombre<b>@p.N</b></div>
+                }
+                <div class="pa-fila"><span class="ic">⭐</span>Inspector/a general<b style="font-size:.9rem">@(Model.InspectorGeneral ?? "Sin asignar")</b></div>
+            </div>
+            <p class="pa-nota mt-2 mb-0">El inspector/a general se asigna desde Personal. Es quien puede citar al apoderado por anotaciones negativas.</p>
+        </div>
+
+        <!-- Atajos -->
+        <div class="pa-sec">
+            <div class="pa-sec-h"><h3>⚡ Atajos</h3></div>
+            <div class="pa-personal">
+                <a class="pa-fila pa-atajo" asp-controller="Cursos" asp-action="Matricular"><span class="ic">📝</span>Matricular alumno/a</a>
+                <a class="pa-fila pa-atajo" asp-controller="Cursos" asp-action="Index"><span class="ic">👩‍🏫</span>Asignar profesores jefes</a>
+                <a class="pa-fila pa-atajo" asp-controller="Talleres" asp-action="Index"><span class="ic">🌟</span>Clubes e integrantes</a>
+                <a class="pa-fila pa-atajo" asp-controller="Horarios" asp-action="Index"><span class="ic">🗓️</span>Horarios</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permisos: quién más puede hacer cada cosa -->
+    <div class="pa-sec pa-perm" id="permisos">
+        <div class="pa-sec-h">
+            <h3>🔐 ¿Quién puede hacer qué?</h3>
+            <span class="sub">El administrador/a siempre puede todo. Marca a quién más le das cada permiso.</span>
+        </div>
+        @{
+            var columnas = new[] { "Director", "UTP", "Orientadora", "InspectorGeneral", "ProfesorCargo" };
+        }
+        <form asp-action="GuardarPermisos" method="post">
+            @Html.AntiForgeryToken()
+            <div class="table-responsive">
+                <table class="pa-matriz">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            @foreach (var c in columnas)
+                            {
+                                <th>@Auka.Web.Services.Permisos.NombreRol(c)</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in Auka.Web.Services.Permisos.Acciones)
+                        {
+                            var marcados = Model.Permisos.GetValueOrDefault(a.Clave) ?? new HashSet<string>();
+                            <tr>
+                                <td><b>@a.Titulo</b><small>@a.Ayuda</small></td>
+                                @foreach (var c in columnas)
+                                {
+                                    <td class="c">
+                                        @if (a.Roles.Contains(c))
+                                        {
+                                            <label class="pa-sw" title="@a.Titulo: @Auka.Web.Services.Permisos.NombreRol(c)">
+                                                <input type="checkbox" name="@("p_" + a.Clave)" value="@c" checked="@marcados.Contains(c)" disabled="@(!Model.EsAdministrador)" />
+                                                <span></span>
+                                            </label>
+                                        }
+                                        else
+                                        {
+                                            <span class="pa-na">—</span>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.EsAdministrador)
+            {
+                <div class="d-flex align-items-center gap-3 flex-wrap mt-3">
+                    <button type="submit" class="btn btn-primary px-4">Guardar permisos</button>
+                    <span class="pa-nota">«Profesor/a a cargo» solo puede inscribir en su propio club. Los demás ven los horarios y clubes, pero no los cambian.</span>
+                </div>
+            }
+            else
+            {
+                <p class="pa-nota mt-2 mb-0">Estos permisos los cambia el administrador/a del colegio.</p>
+            }
+        </form>
+    </div>
+</div>

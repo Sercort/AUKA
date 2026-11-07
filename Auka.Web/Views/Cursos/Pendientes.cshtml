@@ -1,0 +1,103 @@
+﻿@* Auka.Web/Views/Cursos/Pendientes.cshtml — documentos que faltan por alumno/a (traslados y matrícula). Lo revisa la UTP. *@
+@model List<Auka.Application.Entities.Estudiante>
+@{
+    ViewData["Title"] = "Documentos pendientes";
+    int? cursoId = ViewBag.CursoId;
+    var porCurso = Model.GroupBy(e => e.Curso == null ? "Sin curso" : $"{e.Curso.Nombre} {e.Curso.Letra}".Trim()).ToList();
+    var totalDocs = Model.Sum(e => (e.DocumentosPendientes ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries).Length);
+    var porDocumento = Model.SelectMany(e => (e.DocumentosPendientes ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries))
+        .GroupBy(d => d.Trim()).Select(g => new { Doc = g.Key, N = g.Count() }).OrderByDescending(x => x.N).ToList();
+}
+<style>
+    .dp-res { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .dp-res .au-card { padding: 14px 18px; flex: 1; min-width: 200px; }
+    .dp-res small { display: block; font-size: .7rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--a-mut); }
+    .dp-res b { font-size: 1.5rem; font-weight: 900; color: var(--a-navy); }
+    .dp-tipo { display: flex; justify-content: space-between; font-size: .86rem; padding: .2rem 0; }
+    .dp-curso { display: flex; align-items: center; gap: .5rem; margin: 18px 0 8px; }
+    .dp-curso h3 { font-size: 1rem; font-weight: 900; color: var(--a-navy); margin: 0; }
+    .dp-curso::after { content: ""; flex: 1; height: 1px; background: var(--a-line); }
+    .dp-al { display: flex; gap: 1rem; align-items: flex-start; padding: .9rem 1rem; flex-wrap: wrap; }
+    .dp-al + .dp-al { border-top: 1px solid #eef2f8; }
+    .dp-al .d { flex: 1; min-width: 220px; }
+    .dp-al small { color: var(--a-mut); }
+    .dp-docs { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .dp-doc { display: inline-flex; align-items: center; gap: .4rem; background: #fdecec; color: #a12d2a; border-radius: 999px; padding: .25rem .35rem .25rem .8rem; font-size: .8rem; font-weight: 800; }
+    .dp-doc button { border: 0; background: #fff; color: #12744a; border-radius: 999px; padding: .15rem .6rem; font-size: .75rem; font-weight: 900; }
+    .dp-doc button:hover { background: #dcf5e8; }
+</style>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<div class="au-head sol">
+    <div class="ico">📄</div>
+    <div class="txt">
+        <h2>Documentos pendientes</h2>
+        <p>Qué documento le falta a cada alumno/a. Cuando lo entreguen, márcalo como recibido.</p>
+    </div>
+    <div class="acc">
+        @if (cursoId != null)
+        {
+            <a asp-action="Alumnos" asp-route-id="@cursoId">Volver al curso</a>
+            <a asp-action="Pendientes">Ver todo el colegio</a>
+        }
+        else
+        {
+            <a asp-action="Index">Volver a cursos</a>
+        }
+    </div>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="au-card au-vacio"><span class="e">✅</span><b>No hay documentos pendientes.</b><p class="mb-0">Todos los alumnos/as tienen su documentación al día.</p></div>
+}
+else
+{
+    <div class="dp-res">
+        <div class="au-card"><small>Alumnos/as con pendientes</small><b>@Model.Count</b></div>
+        <div class="au-card"><small>Documentos por recibir</small><b style="color:#b45d00">@totalDocs</b></div>
+        <div class="au-card">
+            <small>Lo que más falta</small>
+            @foreach (var x in porDocumento)
+            {
+                <div class="dp-tipo"><span>@x.Doc</span><b style="font-size:.95rem">@x.N</b></div>
+            }
+        </div>
+    </div>
+
+    @foreach (var g in porCurso)
+    {
+        <div class="dp-curso"><h3>🏫 @g.Key</h3><span class="au-chip sol">@g.Count() @(g.Count() == 1 ? "alumno/a" : "alumnos/as")</span></div>
+        <div class="au-card">
+            @foreach (var e in g)
+            {
+                var docs = (e.DocumentosPendientes ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries);
+                <div class="dp-al">
+                    <div class="d">
+                        <b>@e.Usuario?.Apellido, @e.Usuario?.Nombre</b><br />
+                        <small>@(e.Usuario?.Rut + (string.IsNullOrEmpty(e.ColegioOrigen) ? "" : " · viene de " + e.ColegioOrigen))</small>
+                    </div>
+                    <div class="dp-docs">
+                        @foreach (var d in docs)
+                        {
+                            <form asp-action="MarcarEntregado" method="post" class="m-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="estudianteId" value="@e.Id" />
+                                <input type="hidden" name="documento" value="@d" />
+                                <input type="hidden" name="cursoId" value="@cursoId" />
+                                <span class="dp-doc">📄 @d <button type="submit" title="Marcar como recibido">✓ Recibido</button></span>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}

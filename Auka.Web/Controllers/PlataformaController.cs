@@ -306,6 +306,7 @@ public class PlataformaController : Controller
             planillas = Organizacion.Activas(c.PlanillasActivas),
             calCompartido = c.CalendarioCompartido,
             bitCompartida = c.BitacoraCompartida,
+            psicoAdmin = c.PsicosocialAdministrador,
             porArea = Organizacion.PorArea(c.FichasPorArea),
             plan = PlanDe(c),
             estado = EstadoDe(c, hoy),
@@ -327,7 +328,7 @@ public class PlataformaController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> GuardarColegio(int id, string plan, string? contacto, string? correo, string? telefono,
         string? vence, int? precio, string? notas, string? tipo, string? planillas,
-        bool calCompartido = true, bool bitCompartida = true, string? porArea = null)
+        bool calCompartido = true, bool bitCompartida = true, string? porArea = null, bool psicoAdmin = false)
     {
         var c = await _context.Colegios.FirstOrDefaultAsync(x => x.Id == id);
         if (c == null) return NotFound(new { error = "Colegio no encontrado." });
@@ -370,6 +371,11 @@ public class PlataformaController : Controller
         c.CalendarioCompartido = calCompartido;
         c.BitacoraCompartida = bitCompartida;
         c.FichasPorArea = nuevoPorArea;
+
+        // Plan Premium: ¿el administrador del colegio ve el resumen psicosocial? (nunca las fichas)
+        if (c.PsicosocialAdministrador != psicoAdmin)
+            Log(c.Id, "Datos", psicoAdmin ? "Resumen psicosocial activado para el administrador/a" : "Resumen psicosocial desactivado para el administrador/a");
+        c.PsicosocialAdministrador = psicoAdmin;
 
         await _context.SaveChangesAsync();
         _cache.Remove(Organizacion.LlaveCache(c.Id));   // la organización ve el cambio al tiro

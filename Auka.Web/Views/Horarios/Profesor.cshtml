@@ -1,0 +1,12 @@
+﻿@* Auka.Web/Views/Horarios/Profesor.cshtml — horario de un profesor/a (se arma solo desde los horarios de los cursos) *@
+@model Auka.Web.Controllers.GrillaVm
+@{
+    ViewData["Title"] = "Horario " + Model.Titulo;
+}
+<div class="au-head violeta">
+    <div class="ico">👩‍🏫</div>
+    <div class="txt"><h2>@Model.Titulo</h2><p>@Model.Subtitulo</p></div>
+    <div class="acc"><a asp-action="Profesores">Volver al personal</a></div>
+</div>
+<p class="small text-muted mb-2">Se completa solo: cada vez que la UTP asigna a este profesor/a en el horario de un curso, aparece aquí.</p>
+@await Html.PartialAsync("_GrillaHorario", Model)

@@ -549,7 +549,7 @@ public class AccountController : Controller
         var colegio = await _context.Colegios
             .AsNoTracking()
             .Where(c => c.Id == usuario.ColegioId)
-            .Select(c => new { c.PlanPsicosocialActivo, c.SoloPsicosocial, c.Nombre })
+            .Select(c => new { c.PlanPsicosocialActivo, c.SoloPsicosocial, c.Nombre, c.PsicosocialAdministrador })
             .FirstOrDefaultAsync();
         var planPsicosocial = colegio?.PlanPsicosocialActivo ?? false;
 
@@ -562,7 +562,9 @@ public class AccountController : Controller
             new SystemClaim("ColegioId", usuario.ColegioId.ToString()),
             new SystemClaim("PlanPsicosocial", planPsicosocial ? "true" : "false"),
             new SystemClaim("PlanPremium", (colegio?.SoloPsicosocial ?? false) ? "false" : "true"),
-            new SystemClaim("ColegioNombre", colegio?.Nombre ?? "")
+            new SystemClaim("ColegioNombre", colegio?.Nombre ?? ""),
+            // Plan Premium: el administrador ve el resumen psicosocial (sin fichas) solo si el dueño de la plataforma lo activó
+            new SystemClaim("PsicoAdmin", planPsicosocial && colegio?.SoloPsicosocial == false && colegio.PsicosocialAdministrador ? "true" : "false")
         };
     }
 

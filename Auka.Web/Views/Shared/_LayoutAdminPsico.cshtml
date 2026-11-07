@@ -33,7 +33,15 @@
                 }
             </nav>
             <div class="ad-user">
-                <span class="ad-plan">PLAN PSICOSOCIAL</span>
+                @if (User.FindFirst("PlanPremium")?.Value != "false")
+                {
+                    <a class="btn px-3" asp-controller="Home" asp-action="Index">Volver al panel del colegio</a>
+                    <span class="ad-plan">RESUMEN PSICOSOCIAL</span>
+                }
+                else
+                {
+                    <span class="ad-plan">PLAN PSICOSOCIAL</span>
+                }
                 <div class="dropdown">
                     <button class="btn dropdown-toggle px-3" type="button" data-bs-toggle="dropdown" aria-expanded="false">@User.Identity?.Name</button>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2">

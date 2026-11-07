@@ -1,105 +1,290 @@
-﻿@{
-    ViewData["Title"] = "Proceso de Matrícula";
+﻿@* Auka.Web/Views/Cursos/Matricular.cshtml — matrícula con revisión automática de alumno y apoderado.
+   Renovación: con el RUT aparecen su curso anterior, el nivel siguiente y su apoderado.
+   Traslado: colegio de origen y documentos. 3º y 4º medio: especialidad (se van guardando). *@
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Matrícula";
+    var especialidades = ViewBag.Especialidades as List<string> ?? new();
+    var hoy = DateTime.Now.ToString("yyyy-MM-dd");
 }
+<style>
+    .mt-wrap { max-width: 900px; margin: 0 auto; }
+    .mt-sec { padding: 20px 22px; margin-bottom: 16px; }
+    .mt-sec h3 { font-size: 1.05rem; font-weight: 900; color: var(--a-navy); margin: 0 0 .2rem; display: flex; align-items: center; gap: .5rem; }
+    .mt-sec .ayuda { color: var(--a-mut); font-size: .86rem; margin-bottom: 14px; }
+    .mt-num { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--a-grad); color: #fff; font-size: .9rem; }
+    .mt-tipos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .mt-tipos label { cursor: pointer; margin: 0; }
+    .mt-tipos input { position: absolute; opacity: 0; pointer-events: none; }
+    .mt-tipos .op { display: block; border: 2px solid var(--a-line); border-radius: 18px; padding: 14px; transition: all .2s; height: 100%; background: #fff; }
+    .mt-tipos .op b { display: block; font-size: 1rem; }
+    .mt-tipos .op small { color: var(--a-mut); }
+    .mt-tipos .op span { font-size: 1.5rem; }
+    .mt-tipos input:checked + .op { border-color: transparent; background: var(--a-grad); color: #fff; box-shadow: 0 10px 22px rgba(36,89,176,.28); }
+    .mt-tipos input:checked + .op small { color: rgba(255,255,255,.85); }
+    .mt-tipos input:focus-visible + .op { outline: 3px solid rgba(31,181,197,.5); }
+    .rut-fila .form-control { max-width: 240px; }
+    .estado { display: none; border-radius: 14px; padding: .7rem .9rem; font-size: .9rem; margin-top: .7rem; }
+    .estado.ok { display: block; background: #e8f8f0; color: #12744a; border: 1px solid #c4ecd6; }
+    .estado.nuevo { display: block; background: #eef3ff; color: var(--a-navy); border: 1px solid #d5e0ff; }
+    .estado.mal { display: block; background: #fdecec; color: #a12d2a; border: 1px solid #f6c6c6; }
+    .estado ul { margin: .35rem 0 0; padding-left: 1.1rem; }
+    .bloqueado { background: #f6f9fd !important; }
+    .mt-oculto { display: none; }
+    .mt-docs label { display: flex; align-items: center; gap: .55rem; padding: .55rem .75rem; border: 1.5px solid var(--a-line); border-radius: 12px; margin-bottom: 8px; cursor: pointer; font-weight: 600; }
+    .mt-docs input { width: 18px; height: 18px; accent-color: var(--a-green); }
+    .mt-nueva { border: 0; background: #fff5d9; color: #8a5a00; border-radius: 999px; padding: .5rem .95rem; font-weight: 800; white-space: nowrap; }
+    .mt-nueva:hover { background: #ffecb3; }
+    .mt-acc { display: flex; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+    @@media (max-width: 640px) { .mt-tipos { grid-template-columns: 1fr; } }
+</style>
 
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm border-0 rounded-3">
-                <div class="card-header bg-primary text-white py-3">
-                    <h4 class="mb-0 fw-bold">📝 Proceso de Matrícula e Inscripción</h4>
-                </div>
-                <div class="card-body p-4">
-                    <form asp-action="Matricular" method="post">
-                        @Html.AntiForgeryToken()
+<div class="mt-wrap">
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+    }
 
-                        <!-- TIPO DE MATRÍCULA -->
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Tipo de Matrícula</label>
-                            <select name="tipoMatricula" class="form-select" required>
-                                <option value="0">Alumno Nuevo (Asignación Automática de Letra)</option>
-                                <option value="1">Renovación (Alumno Antiguo - Mantiene Curso)</option>
-                                <option value="2">Traslado de otro Colegio</option>
-                            </select>
-                        </div>
+    <div class="au-head">
+        <div class="ico">📝</div>
+        <div class="txt">
+            <h2>Matrícula</h2>
+            <p>Escribe el RUT y AUKA revisa sola si el alumno/a o el apoderado/a ya están en el colegio.</p>
+        </div>
+        <div class="acc"><a asp-action="Index">Volver a cursos</a></div>
+    </div>
 
-                        <hr />
+    <form asp-action="Matricular" method="post" id="fMat">
+        @Html.AntiForgeryToken()
 
-                        <!-- SECCIÓN 1: DATOS DEL ESTUDIANTE -->
-                        <h5 class="fw-bold text-primary mb-3">👤 Datos del Estudiante</h5>
+        <!-- 1. Tipo de matrícula -->
+        <div class="au-card mt-sec">
+            <h3><span class="mt-num">1</span> Tipo de matrícula</h3>
+            <div class="mt-tipos mt-2">
+                <label><input type="radio" name="tipoMatricula" value="Nuevo" checked /><span class="op"><span>🆕</span><b>Alumno/a nuevo/a</b><small>Primera vez en el colegio</small></span></label>
+                <label><input type="radio" name="tipoMatricula" value="Renovacion" /><span class="op"><span>🔄</span><b>Renovación</b><small>Ya estudiaba aquí: pasa de curso</small></span></label>
+                <label><input type="radio" name="tipoMatricula" value="Traslado" /><span class="op"><span>🚚</span><b>Traslado</b><small>Viene desde otro colegio</small></span></label>
+            </div>
+        </div>
 
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">RUT del Estudiante</label>
-                            <input type="text" name="rut" class="form-control" placeholder="12345678-9" required />
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Nombre</label>
-                                <input type="text" name="nombre" class="form-control" required />
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Apellido</label>
-                                <input type="text" name="apellido" class="form-control" required />
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Correo Electrónico</label>
-                            <input type="email" name="email" class="form-control" placeholder="estudiante@Auka.cl" required />
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">Nivel / Especialidad al que Postula</label>
-                            <select name="nivel" class="form-select rounded-3" asp-items="ViewBag.Niveles" required>
-                                <option value="" disabled selected>-- Seleccione Nivel o Especialidad --</option>
-                            </select>
-                            <small class="text-muted d-block mt-1">Si es alumno nuevo, el sistema le asignará una letra (A, B, C...) de forma equitativa dentro de la especialidad elegida.</small>
-                        </div>
-
-                        <hr />
-
-                        <!-- SECCIÓN 2: DATOS DEL APODERADO Y CONTACTO FAMILIAR -->
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <h5 class="fw-bold text-primary mb-0">👨‍👩‍👧 Datos del Apoderado Responsable</h5>
-                        </div>
-                        <p class="text-muted small mb-3">Si el apoderado ya tiene otros hijos matriculados en el colegio, ingresa su RUT para enlazar automáticamente la cuenta familiar.</p>
-
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">RUT Apoderado</label>
-                            <input type="text" name="rutApoderado" class="form-control" placeholder="12345678-K" required />
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Nombre Apoderado</label>
-                                <input type="text" name="nombreApoderado" class="form-control" required />
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Apellido Apoderado</label>
-                                <input type="text" name="apellidoApoderado" class="form-control" required />
-                            </div>
-                        </div>
-
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Correo Apoderado</label>
-                                <input type="email" name="emailApoderado" class="form-control" placeholder="apoderado@gmail.com" required />
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Teléfono de Contacto / Celular</label>
-                                <input type="tel" name="telefonoContacto" class="form-control" placeholder="+56 9 1234 5678" required />
-                            </div>
-                        </div>
-
-                        <!-- BOTONES DE ACCIÓN -->
-                        <div class="d-flex justify-content-between pt-2">
-                            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Cancelar</a>
-                            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Finalizar Matrícula</button>
-                        </div>
-                    </form>
+        <!-- 2. Alumno -->
+        <div class="au-card mt-sec">
+            <h3><span class="mt-num">2</span> Alumno/a</h3>
+            <div class="ayuda" id="ayEst">Si ya existe en el colegio, se usa su cuenta y solo se actualiza su matrícula.</div>
+            <label class="form-label">RUT del alumno/a</label>
+            <div class="rut-fila"><input type="text" name="rut" id="rutEst" class="form-control" placeholder="12.345.678-9" required autocomplete="off" /></div>
+            <div class="estado" id="estEst"></div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-6"><label class="form-label">Nombres</label><input type="text" name="nombre" id="nomEst" class="form-control" required maxlength="80" /></div>
+                <div class="col-md-6"><label class="form-label">Apellidos</label><input type="text" name="apellido" id="apeEst" class="form-control" required maxlength="80" /></div>
+                <div class="col-12">
+                    <label class="form-label">Correo del alumno/a <span class="text-muted fw-normal">(recomendado: Gmail)</span></label>
+                    <input type="email" name="email" id="mailEst" class="form-control" placeholder="Si no tiene, entra con su RUT y recibe todo dentro de AUKA" maxlength="160" />
                 </div>
             </div>
         </div>
-    </div>
+
+        <!-- 3. Curso -->
+        <div class="au-card mt-sec">
+            <h3><span class="mt-num">3</span> Curso</h3>
+            <div class="ayuda">Si el nivel tiene varios cursos (A, B, C), AUKA lo deja en el que tiene menos alumnos/as. De kínder a 6º básico, todo lo recibe su apoderado/a.</div>
+            <div class="row g-3">
+                @if ((ViewBag.AniosMatricula as int[] ?? Array.Empty<int>()).Length > 1)
+                {
+                    <div class="col-12">
+                        <label class="form-label">Año escolar</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            @foreach (var an in (int[])ViewBag.AniosMatricula)
+                            {
+                                <label class="au-chip" style="cursor:pointer;font-size:.9rem;padding:.45rem .9rem"><input type="radio" name="anioEscolar" value="@an" checked="@(an == DateTime.Now.Year)" class="form-check-input m-0 me-1" /> @an @(an == DateTime.Now.Year ? "(actual)" : "(próximo año)")</label>
+                            }
+                        </div>
+                    </div>
+                }
+                <div class="col-md-6">
+                    <label class="form-label">Nivel</label>
+                    <select name="nivel" id="nivel" class="form-select" asp-items="ViewBag.Niveles" required>
+                        <option value="" disabled selected>Elige el nivel</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mt-oculto" id="bEsp">
+                    <label class="form-label">Especialidad <span class="text-muted fw-normal">(3º y 4º medio técnico-profesional)</span></label>
+                    <div class="d-flex gap-2">
+                        <select name="especialidad" id="esp" class="form-select">
+                            <option value="">Científico-humanista / sin especialidad</option>
+                            @foreach (var e in especialidades)
+                            {
+                                <option value="@e">@e</option>
+                            }
+                        </select>
+                        <button type="button" class="mt-nueva" id="bNueva">➕ Nueva</button>
+                    </div>
+                    <input type="text" name="especialidadNueva" id="espNueva" class="form-control mt-2 mt-oculto" maxlength="80" placeholder="Ej: Administración, Electricidad, Programación" />
+                    @if (especialidades.Count == 0)
+                    {
+                        <div class="small text-muted mt-1">Aún no hay especialidades guardadas: agrega la primera con «Nueva». Quedará en la lista para las próximas matrículas.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Traslado (solo si viene de otro colegio) -->
+        <div class="au-card mt-sec mt-oculto" id="bTras">
+            <h3><span class="mt-num">4</span> 🚚 Viene desde otro colegio</h3>
+            <div class="ayuda">Lo revisa la UTP. Los documentos que no marques quedan como pendientes en la nómina del curso.</div>
+            <div class="row g-3">
+                <div class="col-md-7"><label class="form-label">Colegio de origen</label><input type="text" name="colegioOrigen" id="colOrigen" class="form-control" maxlength="160" placeholder="Nombre del colegio" /></div>
+                <div class="col-md-5">
+                    <label class="form-label">RBD <span class="text-muted fw-normal">(opcional)</span></label>
+                    <input type="text" name="rbdOrigen" class="form-control" maxlength="20" placeholder="Ej: 8485-3" />
+                    <div class="small text-muted mt-1">Número que el Mineduc le da a cada colegio. Aparece en el certificado de notas.</div>
+                </div>
+                <div class="col-md-5"><label class="form-label">Comuna</label><input type="text" name="comunaOrigen" class="form-control" maxlength="80" /></div>
+                <div class="col-md-3"><label class="form-label">Fecha de traslado</label><input type="date" name="fechaTraslado" class="form-control" value="@hoy" /></div>
+                <div class="col-md-4">
+                    <label class="form-label">Motivo</label>
+                    <select name="motivoTraslado" class="form-select">
+                        <option>Cambio de domicilio</option><option>Decisión de la familia</option><option>Cupo o cercanía</option>
+                        <option>Convivencia escolar</option><option>Rendimiento académico</option><option>Otro</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="d-flex align-items-center gap-2 fw-bold" style="cursor:pointer">
+                        <input type="checkbox" name="necesidadesEducativas" value="true" id="nee" class="form-check-input m-0" /> Viene con PIE o necesidades educativas especiales
+                    </label>
+                </div>
+                <div class="col-12 mt-docs">
+                    <div class="form-label">Documentos entregados</div>
+                    @foreach (var d in CursosController.DocumentosTraslado)
+                    {
+                        <label class="@(d.StartsWith("Informe PIE") ? "doc-pie mt-oculto" : "")"><input type="checkbox" name="documentosEntregados" value="@d" /> @d</label>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Apoderado -->
+        <div class="au-card mt-sec">
+            <h3><span class="mt-num" id="nApo">4</span> 👨‍👩‍👧 Apoderado/a</h3>
+            <div class="ayuda">Si ya es apoderado/a de otro alumno/a del colegio, se le suma este hijo/a automáticamente (y verás sus hermanos/as).</div>
+            <label class="form-label">RUT del apoderado/a</label>
+            <div class="rut-fila"><input type="text" name="rutApoderado" id="rutApo" class="form-control" placeholder="12.345.678-K" required autocomplete="off" /></div>
+            <div class="estado" id="estApo"></div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-6"><label class="form-label">Nombres</label><input type="text" name="nombreApoderado" id="nomApo" class="form-control" required maxlength="80" /></div>
+                <div class="col-md-6"><label class="form-label">Apellidos</label><input type="text" name="apellidoApoderado" id="apeApo" class="form-control" required maxlength="80" /></div>
+                <div class="col-md-6"><label class="form-label">Correo <span class="text-muted fw-normal">(recomendado: Gmail)</span></label><input type="email" name="emailApoderado" id="mailApo" class="form-control" placeholder="apoderado@@gmail.com (le llegan los avisos)" maxlength="160" /></div>
+                <div class="col-md-3"><label class="form-label">Teléfono</label><input type="tel" name="telefonoContacto" id="telApo" class="form-control" placeholder="+56 9 1234 5678" maxlength="40" /></div>
+                <div class="col-md-3"><label class="form-label">Parentesco</label>
+                    <select name="parentesco" id="parApo" class="form-select">
+                        <option>Madre</option><option>Padre</option><option>Abuela</option><option>Abuelo</option><option>Tía</option><option>Tío</option>
+                        <option>Hermana</option><option>Hermano</option><option>Tutor/a legal</option><option>Otro</option>
+                    </select></div>
+            </div>
+            <div class="ayuda mt-2 mb-0">Con correo: le llega un enlace para crear su contraseña. Sin correo: entra con su RUT y te mostramos una clave provisoria para entregársela.</div>
+        </div>
+
+        <div class="mt-acc">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4">Cancelar</a>
+            <button type="submit" class="btn btn-primary px-5">Finalizar matrícula</button>
+        </div>
+    </form>
 </div>
+
+<script>
+(function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var poner = function (id, v) { var e = $(id); if (e && v != null && v !== '') { e.value = v; } };
+    var tipo = function () { var r = document.querySelector('input[name="tipoMatricula"]:checked'); return r ? r.value : 'Nuevo'; };
+    var interno = function (m) { return !m || /auka\.cl$/i.test(m); };
+
+    // ---- Mostrar u ocultar secciones según el tipo y el nivel ----
+    var esMedioTP = function (n) { n = (n || '').toLowerCase().replace('°', 'º'); return /^(3|4|iii|iv)\s*º?\s*medio/.test(n); };
+    var actualizar = function () {
+        var t = tipo();
+        $('bTras').classList.toggle('mt-oculto', t !== 'Traslado');
+        $('colOrigen').required = t === 'Traslado';
+        $('nApo').textContent = t === 'Traslado' ? '5' : '4';
+        $('bEsp').classList.toggle('mt-oculto', !esMedioTP($('nivel').value));
+        $('ayEst').textContent = t === 'Renovacion'
+            ? 'Escribe su RUT: aparecen su curso anterior, el nivel que le corresponde y su apoderado/a.'
+            : 'Si ya existe en el colegio, se usa su cuenta y solo se actualiza su matrícula.';
+    };
+    document.querySelectorAll('input[name="tipoMatricula"]').forEach(function (r) { r.addEventListener('change', actualizar); });
+    $('nivel').addEventListener('change', actualizar);
+    $('nee').addEventListener('change', function () { document.querySelectorAll('.doc-pie').forEach(function (l) { l.classList.toggle('mt-oculto', !$('nee').checked); }); });
+    $('bNueva').addEventListener('click', function () { var i = $('espNueva'); i.classList.toggle('mt-oculto'); if (!i.classList.contains('mt-oculto')) i.focus(); else i.value = ''; });
+
+    var elegirNivel = function (n) {
+        if (!n) return;
+        var s = $('nivel'), hay = Array.prototype.some.call(s.options, function (o) { return o.value === n; });
+        if (!hay) { var o = document.createElement('option'); o.value = o.textContent = n; s.appendChild(o); }
+        s.value = n; actualizar();
+    };
+
+    // ---- Revisión del RUT al salir del campo ----
+    var revisar = function (inp, caja, quien, campos, alEncontrar) {
+        var ultimo = '';
+        var ir = function () {
+            var v = inp.value.trim(); if (!v || v === ultimo) return; ultimo = v;
+            caja.className = 'estado nuevo'; caja.textContent = 'Revisando…';
+            fetch('/Cursos/BuscarPersona?tipo=' + quien + '&rut=' + encodeURIComponent(v), { credentials: 'same-origin' })
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                .then(function (d) {
+                    if (!d.valido) { caja.className = 'estado mal'; caja.textContent = '⚠️ El RUT no es válido. Revisa el dígito verificador.'; return; }
+                    inp.value = d.rut;
+                    campos.forEach(function (c) { $(c).classList.remove('bloqueado'); });
+                    if (!d.existe) {
+                        caja.className = 'estado nuevo';
+                        caja.textContent = quien === 'apoderado' ? '🆕 Apoderado/a nuevo/a: se creará su cuenta al matricular.'
+                            : (tipo() === 'Renovacion' ? '⚠️ No encontramos a este alumno/a en el colegio. Si es primera vez, elige «Alumno/a nuevo/a».' : '🆕 Alumno/a nuevo/a: se creará su cuenta al matricular.');
+                        return;
+                    }
+                    poner(campos[0], d.nombre); poner(campos[1], d.apellido);
+                    if (!interno(d.email)) poner(campos[2], d.email);
+                    if (quien === 'apoderado' && campos[3]) poner(campos[3], d.telefono);
+                    campos.forEach(function (c) { $(c).classList.add('bloqueado'); });
+                    caja.className = 'estado ok';
+                    alEncontrar(d, caja);
+                })
+                .catch(function () { caja.className = 'estado mal'; caja.textContent = 'No se pudo revisar el RUT ahora. Puedes seguir igual.'; });
+        };
+        inp.addEventListener('blur', ir);
+        inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ir(); } });
+        return function () { ultimo = ''; ir(); };
+    };
+
+    var revisarApo = revisar($('rutApo'), $('estApo'), 'apoderado', ['nomApo', 'apeApo', 'mailApo', 'telApo'], function (d, caja) {
+        var h = d.hijos || [];
+        caja.innerHTML = '✅ <b>' + esc(d.nombre + ' ' + d.apellido) + '</b> ya es apoderado/a en el colegio. Se le sumará este alumno/a.' +
+            (h.length ? '<div class="mt-1">Será <b>hermano/a</b> de:</div><ul>' + h.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '');
+    });
+
+    revisar($('rutEst'), $('estEst'), 'alumno', ['nomEst', 'apeEst', 'mailEst'], function (d, caja) {
+        var txt = '✅ <b>' + esc(d.nombre + ' ' + d.apellido) + '</b> ya está en el colegio' + (d.curso ? ' (' + esc(d.curso) + (d.anio ? ' · ' + d.anio : '') + ')' : '') + '.';
+        if (tipo() === 'Nuevo') {   // si ya existe, no es "nuevo": se cambia a renovación
+            document.querySelector('input[name="tipoMatricula"][value="Renovacion"]').checked = true; actualizar();
+            txt += ' Lo marcamos como <b>renovación</b>.';
+        }
+        if (d.nivelSiguiente && tipo() === 'Renovacion') { elegirNivel(d.nivelSiguiente); txt += ' Nivel sugerido: <b>' + esc(d.nivelSiguiente) + '</b> (puedes cambiarlo si repite).'; }
+        else if (d.curso && !d.nivelSiguiente) txt += ' Elige el nivel que le corresponde.';
+        if (d.especialidad) { var s = $('esp'); if (Array.prototype.some.call(s.options, function (o) { return o.value === d.especialidad; })) s.value = d.especialidad; }
+        var a = (d.apoderados || [])[0];
+        if (a) {
+            txt += '<div class="mt-1">👨‍👩‍👧 Apoderado/a: <b>' + esc(a.nombre + ' ' + a.apellido) + '</b> (' + esc(a.parentesco) + '). Lo completamos abajo.</div>';
+            $('rutApo').value = a.rut;
+            var p = $('parApo'); if (Array.prototype.some.call(p.options, function (o) { return o.value === a.parentesco; })) p.value = a.parentesco;
+            revisarApo();
+        }
+        caja.innerHTML = txt;
+    });
+
+    // No dejar el mismo RUT para alumno y apoderado
+    $('fMat').addEventListener('submit', function (e) {
+        var a = $('rutEst').value.replace(/[^0-9kK]/g, '').toUpperCase(), b = $('rutApo').value.replace(/[^0-9kK]/g, '').toUpperCase();
+        if (a && a === b) { e.preventDefault(); $('estApo').className = 'estado mal'; $('estApo').textContent = '⚠️ El alumno/a y el apoderado/a no pueden tener el mismo RUT.'; }
+    });
+    actualizar();
+})();
+</script>

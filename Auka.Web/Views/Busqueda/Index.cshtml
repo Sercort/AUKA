@@ -50,11 +50,12 @@
                                     {
                                         <tr>
                                             <td><code>@est.Usuario?.Rut</code></td>
-                                            <td><strong>@est.Usuario?.Nombre @est.Usuario?.Apellido</strong></td>
+                                            <td><a href="/Cursos/Ficha/@est.Id" class="text-decoration-none"><strong>@est.Usuario?.Nombre @est.Usuario?.Apellido</strong></a></td>
                                             <td><span class="badge bg-info text-white">@est.Curso?.Nombre "@est.Curso?.Letra"</span></td>
                                             <td>
+                                                <a href="/Cursos/Ficha/@est.Id" class="btn btn-sm btn-primary rounded-pill">Ver ficha</a>
                                                 <a asp-controller="Cursos" asp-action="Alumnos" asp-route-id="@est.CursoId" class="btn btn-sm btn-outline-primary rounded-pill">
-                                                    Ver en Curso
+                                                    Ver curso
                                                 </a>
                                             </td>
                                         </tr>
@@ -121,6 +122,7 @@
                                         <th>Nombre</th>
                                         <th>Cargo / Rol</th>
                                         <th>Correo</th>
+                                        <th>Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -131,6 +133,13 @@
                                             <td><strong>@p.Nombre @p.Apellido</strong></td>
                                             <td><span class="badge bg-secondary">@p.Rol</span></td>
                                             <td>@p.Email</td>
+                                            <td>
+                                                <a href="/Horarios/Profesor/@p.Id" class="btn btn-sm btn-outline-primary rounded-pill">Ver horario</a>
+                                                @if (User.IsInRole("SuperAdmin") || User.IsInRole("Director"))
+                                                {
+                                                    <a href="/Personal/Editar/@p.Id" class="btn btn-sm btn-outline-secondary rounded-pill">Editar</a>
+                                                }
+                                            </td>
                                         </tr>
                                     }
                                 </tbody>

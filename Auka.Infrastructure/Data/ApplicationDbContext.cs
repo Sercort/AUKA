@@ -35,6 +35,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<Evaluacion> Evaluaciones { get; set; } = null!;
     public DbSet<Calificacion> Calificaciones { get; set; } = null!;
     public DbSet<Taller> Talleres { get; set; } = null!;
+    public DbSet<InscripcionTaller> InscripcionesTaller { get; set; } = null!;
+    public DbSet<MatriculaAnual> MatriculasAnuales { get; set; } = null!;
+    public DbSet<BloqueJornada> BloquesJornada { get; set; } = null!;
+    public DbSet<ClaseHorario> ClasesHorario { get; set; } = null!;
     public DbSet<BloqueHorario> BloquesHorarios { get; set; } = null!;
     public DbSet<Anotacion> Anotaciones { get; set; } = null!;
     public DbSet<AnotacionEliminada> AnotacionesEliminadas { get; set; } = null!;
@@ -73,6 +77,35 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Evaluacion>().ToTable("Evaluaciones");
         modelBuilder.Entity<Calificacion>().ToTable("Calificaciones");
         modelBuilder.Entity<Taller>().ToTable("Talleres");
+        modelBuilder.Entity<BloqueJornada>(e =>
+        {
+            e.ToTable("BloquesJornada");
+            e.HasIndex(b => new { b.ColegioId, b.Orden }).IsUnique();
+        });
+        modelBuilder.Entity<ClaseHorario>(e =>
+        {
+            e.ToTable("ClasesHorario");
+            e.HasIndex(c => new { c.CursoId, c.Dia, c.BloqueJornadaId }).IsUnique();
+            e.HasIndex(c => new { c.ProfesorId, c.Dia, c.BloqueJornadaId });
+            e.HasOne(c => c.Curso).WithMany().HasForeignKey(c => c.CursoId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(c => c.Bloque).WithMany().HasForeignKey(c => c.BloqueJornadaId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(c => c.Profesor).WithMany().HasForeignKey(c => c.ProfesorId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<MatriculaAnual>(e =>
+        {
+            e.ToTable("MatriculasAnuales");
+            e.HasIndex(m => new { m.EstudianteId, m.Anio }).IsUnique();
+            e.HasIndex(m => m.CursoId);
+            e.HasOne(m => m.Estudiante).WithMany().HasForeignKey(m => m.EstudianteId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(m => m.Curso).WithMany().HasForeignKey(m => m.CursoId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<InscripcionTaller>(e =>
+        {
+            e.ToTable("InscripcionesTaller");
+            e.HasIndex(i => new { i.TallerId, i.EstudianteId }).IsUnique();
+            e.HasOne(i => i.Taller).WithMany(t => t.Inscripciones).HasForeignKey(i => i.TallerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(i => i.Estudiante).WithMany().HasForeignKey(i => i.EstudianteId).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<BloqueHorario>().ToTable("BloquesHorarios");
         modelBuilder.Entity<Anotacion>().ToTable("Anotaciones");
         modelBuilder.Entity<AnotacionEliminada>().ToTable("AnotacionesEliminadas");

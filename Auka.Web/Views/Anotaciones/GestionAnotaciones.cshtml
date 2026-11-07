@@ -15,7 +15,7 @@
             <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalNuevaAnotacion">
                 + Nueva Anotación
             </button>
-            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Volver a Selección</a>
+            <a asp-action="Index" asp-route-cursoId="@estudiante?.CursoId" class="btn btn-outline-secondary rounded-pill px-4">Volver al curso</a>
         </div>
     </div>
 

@@ -1,132 +1,275 @@
-﻿@model Auka.Application.Entities.Curso
-
+﻿@* Auka.Web/Views/Cursos/Alumnos.cshtml — nómina del curso: alumnos, apoderados, traslados y profesor jefe *@
+@using Auka.Application.Entities
+@model Curso
 @{
-    ViewData["Title"] = $"Alumnos - {Model.Nombre} {Model.Letra}";
-    var esUTPOAdmin = User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin");
+    ViewData["Title"] = $"{Model.Nombre} {Model.Letra}";
+    var esGestion = User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin");
+    var puedeJefe = ViewBag.PuedeProfJefe == true;
+    var docentes = ViewBag.Docentes as List<Auka.Web.Controllers.OpcionVm> ?? new();
+    var otros = ViewBag.OtrosCursos as List<Curso> ?? new();
+    var alumnos = (ViewBag.Alumnos as List<Estudiante> ?? Model.Estudiantes.ToList())
+        .Where(e => e.Usuario != null).OrderBy(e => e.Usuario!.Apellido).ThenBy(e => e.Usuario!.Nombre).ToList();
+    var esArchivo = ViewBag.EsArchivo == true;
+    var asis = ViewBag.Asistencia as Dictionary<int, (int P, int T)> ?? new();
+    var clubes = ViewBag.Clubes as Dictionary<int, List<string>> ?? new();
+    var asisP = asis.Values.Sum(v => v.P);
+    var asisT = asis.Values.Sum(v => v.T);
+    string Pct(int p, int t) => t == 0 ? "sin registros" : Math.Round(p * 100.0 / t) + "%";
+    if (esArchivo) { esGestion = false; puedeJefe = false; }
+    var pct = Model.CapacidadMaxima > 0 ? Math.Min(100, alumnos.Count * 100 / Model.CapacidadMaxima) : 0;
+    var colores = new[] { "#1a319b", "#2459b0", "#1fb5c5", "#2bb673", "#6c5ce7", "#fb8500", "#ef6f6c" };
+    var pendientes = alumnos.Count(e => !string.IsNullOrEmpty(e.DocumentosPendientes));
+    bool Interno(string? c) => string.IsNullOrEmpty(c) || c.EndsWith("auka.cl", StringComparison.OrdinalIgnoreCase);
+}
+<style>
+    .no-res { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+    .no-res .au-card { padding: 14px 18px; text-align: left; cursor: pointer; transition: transform .2s, box-shadow .2s, outline-color .2s; outline: 3px solid transparent; }
+    .no-res .au-card:hover { transform: translateY(-2px); box-shadow: var(--a-sombra-hover); }
+    .no-res .au-card.on { outline-color: var(--a-teal); }
+    .no-res .ver { display: block; font-size: .74rem; font-weight: 800; color: var(--a-blue); margin-top: .35rem; }
+    .no-docs { margin: .45rem 0 0; padding: .55rem .8rem; border-radius: 12px; background: #fdecec; color: #a12d2a; font-size: .82rem; display: none; }
+    .no-lista.solo-docs .no-docs { display: block; }
+    .no-docs ul { margin: .2rem 0 0; padding-left: 1.1rem; }
+    .no-res small { display: block; font-size: .7rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--a-mut); }
+    .no-res b { display: block; font-size: 1.45rem; font-weight: 900; color: var(--a-navy); margin-top: .15rem; }
+    .no-res .bar { height: 7px; border-radius: 9px; background: #edf1f7; margin-top: .5rem; overflow: hidden; }
+    .no-res .bar i { display: block; height: 100%; border-radius: 9px; background: var(--a-grad); }
+    .no-jefe select { border-radius: 999px; font-weight: 700; max-width: 260px; }
+    .no-lista .au-card { padding: 6px; }
+    .no-al { display: flex; align-items: center; gap: .9rem; padding: .8rem .9rem; border-radius: 16px; transition: background .2s; }
+    .no-al:hover { background: #f5f9ff; }
+    .no-al + .no-al { border-top: 1px solid #eef2f8; }
+    .no-n { width: 28px; text-align: right; color: var(--a-mut); font-weight: 800; font-size: .8rem; }
+    .no-av { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; color: #fff; font-weight: 900; flex-shrink: 0; }
+    .no-dat { min-width: 0; flex: 1; }
+    .no-dat .nom { font-weight: 800; color: var(--a-ink); }
+    .no-dat .sub { font-size: .82rem; color: var(--a-mut); }
+    .no-chips { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .35rem; }
+    .no-apo { font-size: .82rem; color: var(--a-mut); text-align: right; min-width: 180px; }
+    .no-apo b { color: var(--a-ink); display: block; font-size: .86rem; }
+    @@media (max-width: 1100px) { .no-res { grid-template-columns: repeat(3, 1fr); } }
+    @@media (max-width: 860px) { .no-res { grid-template-columns: repeat(2, 1fr); } .no-apo { display: none; } }
+</style>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert" style="white-space:pre-line">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+@if (TempData["InfoMessage"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+        @TempData["InfoMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
 }
 
-<div class="container py-4">
-    <!-- Mensajes de Alerta y Confirmación de Matrícula -->
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4 shadow-sm" role="alert">
-            @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    @if (TempData["InfoMessage"] != null)
-    {
-        <div class="alert alert-info alert-dismissible fade show rounded-3 mb-4 shadow-sm" role="alert">
-            ℹ️ @TempData["InfoMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold text-primary mb-1">📋 Nómina: @Model.Nombre "@Model.Letra"</h2>
-            <p class="text-muted mb-0">Lista oficial de estudiantes matriculados en este nivel.</p>
-        </div>
-
-        <div>
-            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill me-2">Volver a Cursos</a>
-            @if (esUTPOAdmin)
-            {
-                <a asp-action="Matricular" class="btn btn-primary rounded-pill px-4 fw-bold">
-                    + Matricular Nuevo Alumno
-                </a>
-            }
-        </div>
+<div class="au-head">
+    <div class="ico">📋</div>
+    <div class="txt">
+        <h2>@Model.Nombre @Model.Letra</h2>
+        <p>Nómina @Model.AnioAcademico · @(Model.ProfesorJefe != null ? $"Profesor/a jefe: {Model.ProfesorJefe.Nombre} {Model.ProfesorJefe.Apellido}" : "Aún sin profesor/a jefe")</p>
     </div>
-
-    <!-- Buscador Rápido en Vivo -->
-    <div class="mb-3">
-        <input type="text" id="filtroAlumno" class="form-control rounded-pill px-3 shadow-sm" placeholder="🔎 Filtrar alumno por nombre, apellido o RUT en este curso..." onkeyup="filtrarTabla()" />
-    </div>
-
-    <div class="card shadow-sm border-0 rounded-3">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" id="tablaAlumnos">
-                    <thead class="table-light">
-                        <tr>
-                            <th>RUT</th>
-                            <th>Nombre Completo</th>
-                            <th>Correo Electrónico</th>
-                            <th>Tipo Matrícula</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (!Model.Estudiantes.Any())
-                        {
-                            <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">No hay estudiantes matriculados en este curso.</td>
-                            </tr>
-                        }
-                        else
-                        {
-                            @foreach (var est in Model.Estudiantes)
-                            {
-                                <tr>
-                                    <td><code>@est.Usuario?.Rut</code></td>
-                                    <td>
-                                        <strong>@est.Usuario?.Nombre @est.Usuario?.Apellido</strong>
-                                        @if (est.FueCambiadoPorExcepcion)
-                                        {
-                                            <br />
-                                            <small class="badge bg-warning text-dark mt-1" title="@est.MotivoCambioExcepcion">
-                                                ⚠️ Cambiado por Excepción
-                                            </small>
-                                        }
-                                    </td>
-                                    <td>@est.Usuario?.Email</td>
-                                    <td>
-                                        @if (est.TipoMatricula == Auka.Application.Entities.TipoMatricula.Nuevo)
-                                        {
-                                            <span class="badge bg-success rounded-pill px-3">🆕 Alumno Nuevo</span>
-                                        }
-                                        else if (est.TipoMatricula == Auka.Application.Entities.TipoMatricula.Renovacion)
-                                        {
-                                            <span class="badge bg-primary rounded-pill px-3">🔄 Renovación</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-warning text-dark rounded-pill px-3">🚚 Traslado</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        @if (esUTPOAdmin)
-                                        {
-                                            <button class="btn btn-outline-warning btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalCambio-@est.Id">
-                                                🔄 Cambiar Curso
-                                            </button>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <div class="acc">
+        <a asp-action="Index">Volver a cursos</a>
+        <a href="/Horarios/Curso/@Model.Id">🗓️ Horario</a>
+        @if (esGestion)
+        {
+            <a asp-action="Matricular" class="blanco">📝 Matricular</a>
+        }
     </div>
 </div>
 
-<!-- Script del Filtro en Vivo -->
-<script>
-    function filtrarTabla() {
-        var input = document.getElementById("filtroAlumno").value.toLowerCase();
-        var filas = document.querySelectorAll("#tablaAlumnos tbody tr");
+@if (esArchivo)
+{
+    <div class="alert alert-warning mb-3">🗄️ Archivo del año escolar @Model.AnioAcademico: es solo de consulta.</div>
+}
 
-        filas.forEach(function(fila) {
-            var texto = fila.innerText.toLowerCase();
-            if (texto.includes(input)) {
-                fila.style.display = "";
-            } else {
-                fila.style.display = "none";
-            }
+<!-- Indicadores: cada uno filtra la nómina -->
+<div class="no-res" id="noF">
+    <button type="button" class="au-card on" data-f="">
+        <small>Alumnos/as</small><b>@alumnos.Count <span style="font-size:.9rem;color:var(--a-mut)">/ @Model.CapacidadMaxima</span></b>
+        <div class="bar"><i style="width:@pct%"></i></div>
+    </button>
+    <button type="button" class="au-card" data-f="nuevo"><small>Nuevos este año</small><b>@alumnos.Count(e => e.TipoMatricula == TipoMatricula.Nuevo)</b><span class="ver">Ver quiénes</span></button>
+    <button type="button" class="au-card" data-f="traslado"><small>Traslados</small><b>@alumnos.Count(e => e.TipoMatricula == TipoMatricula.Traslado)</b><span class="ver">Ver de dónde vienen</span></button>
+    <button type="button" class="au-card" data-f="docs"><small>Documentos pendientes</small><b style="color:@(pendientes > 0 ? "#b45d00" : "var(--a-navy)")">@pendientes</b><span class="ver">Ver qué falta</span></button>
+    <button type="button" class="au-card" data-f="asis"><small>Asistencia del curso</small><b>@Pct(asisP, asisT)</b><span class="ver">@(asisT == 0 ? "Aún sin registros" : "Ver bajo 85%")</span></button>
+</div>
+@if (pendientes > 0 && !esArchivo && (User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin")))
+{
+    <div class="mb-3"><a asp-action="Pendientes" asp-route-cursoId="@Model.Id" class="btn btn-outline-warning btn-sm px-3">📄 Gestionar documentos pendientes del curso</a></div>
+}
+
+@if (puedeJefe)
+{
+    <div class="au-card p-3 mb-3 d-flex align-items-center gap-3 flex-wrap no-jefe">
+        <span style="font-size:1.4rem">👩‍🏫</span>
+        <div><b>Profesor/a jefe</b><div class="small text-muted">Recibe los avisos del curso y cita a reunión de apoderados.</div></div>
+        <form asp-action="AsignarProfesorJefe" method="post" class="d-flex gap-2 ms-auto flex-wrap">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="cursoId" value="@Model.Id" />
+            <input type="hidden" name="volver" value="@Url.Action("Alumnos", new { id = Model.Id })" />
+            <select name="usuarioId" class="form-select">
+                <option value="0">Sin profesor/a jefe</option>
+                @foreach (var d in docentes)
+                {
+                    <option value="@d.Id" selected="@(Model.ProfesorJefeId == d.Id)">@d.Nombre</option>
+                }
+            </select>
+            <button class="btn btn-primary px-4">Guardar</button>
+        </form>
+    </div>
+}
+
+<div class="no-lista">
+    <div class="au-card">
+        @if (alumnos.Count == 0)
+        {
+            <div class="au-vacio">
+                <span class="e">🎒</span>
+                <b>Este curso aún no tiene alumnos/as.</b>
+                @if (esGestion)
+                {
+                    <div class="mt-3"><a asp-action="Matricular" class="btn btn-primary px-4">📝 Matricular el primero</a></div>
+                }
+            </div>
+        }
+        @for (var k = 0; k < alumnos.Count; k++)
+        {
+            var e = alumnos[k];
+            var u = e.Usuario!;
+            var ini = (u.Nombre.Length > 0 ? u.Nombre[..1] : "") + (u.Apellido.Length > 0 ? u.Apellido[..1] : "");
+            var titular = e.Apoderados.OrderByDescending(a => a.EsSostenedorPrincipal).FirstOrDefault();
+            var asi = asis.TryGetValue(e.Id, out var av) ? av : (0, 0);
+            var docs = (e.DocumentosPendientes ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries);
+            var bajo = asi.Item2 > 0 && asi.Item1 * 100 < asi.Item2 * 85;
+            <div class="no-al" data-tipo="@e.TipoMatricula.ToString().ToLower()" data-docs="@docs.Length" data-asis="@(bajo ? 1 : 0)">
+                <span class="no-n">@(k + 1)</span>
+                <a class="no-av text-decoration-none" href="/Cursos/Ficha/@e.Id" style="background:@colores[k % colores.Length]" title="Abrir ficha">@ini.ToUpper()</a>
+                <div class="no-dat">
+                    <a class="nom d-block text-decoration-none" href="/Cursos/Ficha/@e.Id" title="Abrir ficha">@u.Apellido, @u.Nombre</a>
+                    <div class="sub">@u.Rut · @(Interno(u.Email) ? "entra con su RUT" : u.Email)</div>
+                    <div class="no-chips">
+                        @switch (e.TipoMatricula)
+                        {
+                            case TipoMatricula.Nuevo: <span class="au-chip verde">🆕 Nuevo/a</span> break;
+                            case TipoMatricula.Renovacion: <span class="au-chip">🔄 Renovación</span> break;
+                            default: <span class="au-chip sol" title="@e.MotivoTraslado">@("🚚 Traslado" + (string.IsNullOrEmpty(e.ColegioOrigen) ? "" : " desde " + e.ColegioOrigen))</span> break;
+                        }
+                        <span class="au-chip @(asi.Item2 == 0 ? "" : bajo ? "coral" : "verde")" title="Asistencia del año">📅 @Pct(asi.Item1, asi.Item2)</span>
+                        @if (clubes.TryGetValue(e.Id, out var cls))
+                        {
+                            foreach (var cl in cls)
+                            {
+                                <span class="au-chip sol">🌟 @cl</span>
+                            }
+                        }
+                        @if (!string.IsNullOrEmpty(e.Especialidad))
+                        {
+                            <span class="au-chip violeta">🛠️ @e.Especialidad</span>
+                        }
+                        @if (e.NecesidadesEducativas)
+                        {
+                            <span class="au-chip teal">🧩 PIE / NEE</span>
+                        }
+                        @if (!string.IsNullOrEmpty(e.DocumentosPendientes))
+                        {
+                            <span class="au-chip coral" title="@e.DocumentosPendientes.Replace("|", ", ")">📄 Faltan documentos</span>
+                        }
+                        @if (!e.AccesoPropio)
+                        {
+                            <span class="au-chip">👨‍👩‍👧 Lo acompaña su apoderado/a</span>
+                        }
+                        @if (e.FueCambiadoPorExcepcion)
+                        {
+                            <span class="au-chip sol" title="@e.MotivoCambioExcepcion">⚠️ Cambio de curso</span>
+                        }
+                    </div>
+                    @if (docs.Length > 0)
+                    {
+                        <div class="no-docs"><b>Falta entregar:</b><ul>@foreach (var d in docs) { <li>@d</li> }</ul></div>
+                    }
+                    @if (e.TipoMatricula == TipoMatricula.Traslado && !string.IsNullOrEmpty(e.ColegioOrigen))
+                    {
+                        <div class="sub mt-1">@("🚚 Viene de " + e.ColegioOrigen + (string.IsNullOrEmpty(e.ComunaOrigen) ? "" : ", " + e.ComunaOrigen) + (e.FechaTraslado != null ? " · " + e.FechaTraslado.Value.ToString("dd-MM-yyyy") : "") + (string.IsNullOrEmpty(e.MotivoTraslado) ? "" : " · " + e.MotivoTraslado))</div>
+                    }
+                </div>
+                <div class="no-apo">
+                    @if (titular?.Apoderado?.Usuario != null)
+                    {
+                        <b>@titular.Apoderado.Usuario.Nombre @titular.Apoderado.Usuario.Apellido</b>
+                        <span>@(titular.Parentesco + (string.IsNullOrEmpty(titular.Apoderado.TelefonoContacto) ? "" : " · " + titular.Apoderado.TelefonoContacto))</span>
+                    }
+                    else
+                    {
+                        <span>Sin apoderado/a registrado</span>
+                    }
+                </div>
+                <a class="btn btn-outline-primary btn-sm px-3" href="/Cursos/Ficha/@e.Id">Ficha</a>
+                @if (esGestion && otros.Count > 0)
+                {
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-cambio="@e.Id" data-nombre="@u.Nombre @u.Apellido">Cambiar curso</button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@if (esGestion && otros.Count > 0)
+{
+    <div class="modal fade" id="mCambio" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" asp-action="CambiarCursoAlumno" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="estudianteId" id="cEst" />
+                <div class="modal-header"><h5 class="modal-title fw-bold">🔄 Cambiar de curso a <span id="cNom"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <label class="form-label">Nuevo curso</label>
+                    <select name="nuevoCursoId" class="form-select mb-3" required>
+                        @foreach (var o in otros)
+                        {
+                            <option value="@o.Id">@o.Nombre @o.Letra</option>
+                        }
+                    </select>
+                    <label class="form-label">Motivo</label>
+                    <input name="motivo" class="form-control" maxlength="200" placeholder="Ej: solicitud del apoderado, cupo, convivencia" />
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">Cambiar curso</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('click', function (ev) {
+            var b = ev.target.closest('[data-cambio]'); if (!b) return;
+            document.getElementById('cEst').value = b.getAttribute('data-cambio');
+            document.getElementById('cNom').textContent = b.getAttribute('data-nombre');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('mCambio')).show();
         });
-    }
+    </script>
+}
+
+<script>
+    (function () {
+        var f = document.getElementById('noF'), lista = document.querySelector('.no-lista');
+        if (!f || !lista) return;
+        f.addEventListener('click', function (ev) {
+            var b = ev.target.closest('[data-f]'); if (!b) return;
+            f.querySelectorAll('[data-f]').forEach(function (x) { x.classList.toggle('on', x === b); });
+            var k = b.getAttribute('data-f');
+            lista.classList.toggle('solo-docs', k === 'docs');
+            lista.querySelectorAll('.no-al').forEach(function (r) {
+                var ver = !k || (k === 'nuevo' && r.dataset.tipo === 'nuevo') || (k === 'traslado' && r.dataset.tipo === 'traslado')
+                    || (k === 'docs' && +r.dataset.docs > 0) || (k === 'asis' && r.dataset.asis === '1');
+                r.style.display = ver ? '' : 'none';
+            });
+            lista.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    })();
 </script>

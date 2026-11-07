@@ -74,12 +74,13 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser()
               .RequireClaim("PlanPsicosocial", "true"));
 
-    // Administrador de un colegio con Plan Psicosocial (sin Premium)
+    // Administrador de un colegio con Plan Psicosocial (sin Premium), o del Plan Premium si el dueño de la plataforma
+    // le activó el resumen psicosocial (ve cantidades y estados, nunca el contenido de las fichas)
     options.AddPolicy("AdminPsicosocial", policy =>
         policy.RequireAuthenticatedUser()
               .RequireRole("SuperAdmin")
               .RequireClaim("PlanPsicosocial", "true")
-              .RequireClaim("PlanPremium", "false"));
+              .RequireAssertion(ctx => ctx.User.FindFirst("PlanPremium")?.Value == "false" || ctx.User.FindFirst("PsicoAdmin")?.Value == "true"));
 
     // Alumnos/as y apoderados/as: portafolio psicosocial (lo que el equipo comparte con ellos/as)
     options.AddPolicy("FamiliaPsicosocial", policy =>
