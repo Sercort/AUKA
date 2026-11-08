@@ -161,6 +161,7 @@ public class CursosController : Controller
                 if (curso == null)
                 {
                     curso = new Curso { Nombre = nivel, Letra = letra, CapacidadMaxima = 40, ColegioId = colegioId, AnioAcademico = anio };
+                    curso.ProfesorJefeId = await JefeQueSigueAsync(colegioId, nivel, letra, anio);
                     _context.Cursos.Add(curso);
                     await _context.SaveChangesAsync();
                     cursos.Add(curso); cursosNuevos++;
@@ -323,6 +324,7 @@ public class CursosController : Controller
         // Cuántos alumnos/as van matriculados en cada año con período (y cupos totales de sus cursos)
         var cursos = await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && anios.Contains(c.AnioAcademico) && c.Nombre != "Pacientes")
             .Select(c => new { c.AnioAcademico, c.CapacidadMaxima, Alumnos = c.Estudiantes.Count }).ToListAsync();
+        ViewBag.RotarJefes = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.RotarLetraJefes).FirstOrDefaultAsync();
         ViewBag.Avance = cursos.GroupBy(c => c.AnioAcademico).ToDictionary(g => g.Key, g => (Matriculados: g.Sum(x => x.Alumnos), Cupos: g.Sum(x => x.CapacidadMaxima)));
         return View(periodos);
     }
@@ -702,6 +704,18 @@ public class CursosController : Controller
         ViewBag.Docentes = await _context.Usuarios.AsNoTracking()
             .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente)
             .OrderBy(u => u.Apellido).Select(u => new OpcionVm(u.Id, u.Nombre + " " + u.Apellido)).ToListAsync();
+        // Ciclo de cada docente (básica, media...) según los cursos donde hace clases: así al elegir profesor/a jefe
+        // de 1º básico salen primero los de básica, y de 3º medio, los de media
+        var cicloCurso = Niveles.Ciclo(curso.Nombre);
+        var clasesDe = await _context.ClasesHorario.AsNoTracking().Where(c => c.ProfesorId != null && c.Curso != null && c.Curso.AnioAcademico == curso.AnioAcademico)
+            .Select(c => new { Prof = c.ProfesorId!.Value, c.Curso!.Nombre }).Distinct().ToListAsync();
+        var jefes = await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.AnioAcademico == curso.AnioAcademico && c.ProfesorJefeId != null && c.Id != curso.Id)
+            .Select(c => new { Prof = c.ProfesorJefeId!.Value, c.Nombre, c.Letra }).ToListAsync();
+        ViewBag.CicloCurso = cicloCurso;
+        _ = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var yoJefe);
+        ViewBag.EsSuJefe = curso.ProfesorJefeId != null && curso.ProfesorJefeId == yoJefe;
+        ViewBag.DelCiclo = clasesDe.Where(x => Niveles.Ciclo(x.Nombre) == cicloCurso).Select(x => x.Prof).Concat(jefes.Where(j => Niveles.Ciclo(j.Nombre) == cicloCurso).Select(j => j.Prof)).ToHashSet();
+        ViewBag.YaEsJefe = jefes.GroupBy(j => j.Prof).ToDictionary(g => g.Key, g => $"{g.First().Nombre} {g.First().Letra}".Trim());
         return View(curso);
     }
 
@@ -849,6 +863,159 @@ public class CursosController : Controller
         return LocalRedirect(Url.IsLocalUrl(volver) ? volver! : "/");
     }
 
+    /// <summary>
+    /// El profesor/a jefe sigue con su curso: al crear "2º Básico A" del año siguiente, queda el jefe que tuvo "1º Básico A".
+    /// Al cerrar un ciclo vuelve a empezar: el de 8º básico pasa a 1º básico y el de 4º medio a 1º medio (misma letra).
+    /// Si ese profesor/a ya es jefe de otro curso ese año, no se asigna (se elige a mano). Siempre se puede cambiar después.
+    /// </summary>
+    private async Task<int?> JefeQueSigueAsync(int colegioId, string nivel, string? letra, int anio)
+    {
+        var o = Niveles.Orden(nivel);
+        if (o >= 99 || string.IsNullOrWhiteSpace(letra)) return null;
+        var iniciaCiclo = o == 2 || o == 10;                 // 1º básico o 1º medio
+        var previo = o == 2 ? 9 : o == 10 ? 13 : o - 1;      // de dónde viene: 8º básico, 4º medio o el nivel anterior
+        if (previo < 0) return null;
+        var l = letra.Trim().ToUpperInvariant();
+        // Los cursos marcados "no sigue" (cortar) no arrastran a su profesor/a jefe
+        var antes = (await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio - 1 && c.ProfesorJefeId != null && !c.JefeNoSigue).ToListAsync())
+            .Where(c => Niveles.Orden(c.Nombre) == previo).ToList();
+        var ocupados = (await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio && c.ProfesorJefeId != null)
+            .Select(c => c.ProfesorJefeId!.Value).ToListAsync()).ToHashSet();
+        var activos = (await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente).Select(u => u.Id).ToListAsync()).ToHashSet();
+        bool Libre(int? id) => id != null && activos.Contains(id.Value) && !ocupados.Contains(id.Value);
+
+        var rotar = iniciaCiclo && await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.RotarLetraJefes).FirstOrDefaultAsync();
+        if (!rotar)
+        {
+            // Mantiene su letra: 1º A (nivel anterior) → 2º A; 8º A → 1º A
+            var prev = antes.FirstOrDefault(c => (c.Letra ?? "").Trim().ToUpperInvariant() == l);
+            return Libre(prev?.ProfesorJefeId) ? prev!.ProfesorJefeId : null;
+        }
+
+        // Rotación: entre los profesores/as que terminan el ciclo y siguen libres, se elige a uno que no haya empezado
+        // todavía con esta letra. Cada uno pasa por todas las letras antes de repetir (ej. A → C → B → A...).
+        var candidatos = antes.Where(c => Libre(c.ProfesorJefeId)).Select(c => c.ProfesorJefeId!.Value).Distinct().ToList();
+        if (candidatos.Count == 0) return null;
+        var letrasNivel = (await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.AnioAcademico >= anio - 1).ToListAsync())
+            .Where(c => Niveles.Orden(c.Nombre) == o).Select(c => (c.Letra ?? "").Trim().ToUpperInvariant()).Append(l).Distinct().ToList();
+        // Historial: con qué letra empezó cada uno sus ciclos anteriores (más reciente primero)
+        var historial = (await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.AnioAcademico < anio && c.ProfesorJefeId != null && candidatos.Contains(c.ProfesorJefeId!.Value)).ToListAsync())
+            .Where(c => Niveles.Orden(c.Nombre) == o).OrderByDescending(c => c.AnioAcademico)
+            .GroupBy(c => c.ProfesorJefeId!.Value).ToDictionary(g => g.Key, g => g.Select(c => (c.Letra ?? "").Trim().ToUpperInvariant()).ToList());
+
+        bool YaUso(int prof, string letraX)
+        {
+            if (!historial.TryGetValue(prof, out var usadas) || usadas.Count == 0) return false;
+            // Vuelta actual: desde la última vez que completó todas las letras
+            var vuelta = new List<string>();
+            foreach (var u in usadas) { if (vuelta.Contains(u) || vuelta.Count >= letrasNivel.Count) break; vuelta.Add(u); }
+            if (vuelta.Count >= letrasNivel.Count) vuelta = usadas.Take(1).ToList();   // ya pasó por todas: solo no repetir la última
+            return vuelta.Contains(letraX);
+        }
+
+        // Sin la misma letra que ya tuvo; si todos ya la usaron, cualquiera menos el que la tuvo la última vez
+        var elegibles = candidatos.Where(p => !YaUso(p, l)).ToList();
+        if (elegibles.Count == 0) elegibles = candidatos.Where(p => !(historial.TryGetValue(p, out var u) && u.FirstOrDefault() == l)).ToList();
+        if (elegibles.Count == 0) elegibles = candidatos;
+        // Al azar entre los que corresponden (con semilla fija por colegio, año y curso: si se recalcula, da lo mismo)
+        var rnd = new Random(colegioId * 7919 + anio * 31 + o * 17 + l[0]);
+        return elegibles.OrderBy(p => p).ElementAt(rnd.Next(elegibles.Count));
+    }
+
+    /// <summary>
+    /// "Cortar": el profesor/a jefe no sigue con este curso el año siguiente. Lo puede marcar quien asigna profesores jefe
+    /// o el mismo profesor/a jefe (en ese caso se avisa a la UTP). Se puede deshacer.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CortarJefe(int cursoId, bool noSigue)
+    {
+        var colegioId = ColegioActual();
+        var curso = await _context.Cursos.Include(c => c.ProfesorJefe).FirstOrDefaultAsync(c => c.Id == cursoId && c.ColegioId == colegioId);
+        if (curso == null) return NotFound();
+        _ = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var yo);
+        var esJefe = curso.ProfesorJefeId == yo;
+        if (!esJefe && !await Permisos.PuedeAsync(_context, User, Permisos.ProfJefe)) return RedirectToAction("AccesoDenegado", "Account");
+        curso.JefeNoSigue = noSigue;
+        if (esJefe && noSigue)
+        {
+            var utps = await _context.Usuarios.Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.UTP).Select(u => u.Id).ToListAsync();
+            foreach (var u in utps)
+                _context.Notificaciones.Add(new Notificacion { ColegioId = colegioId, UsuarioId = u, Titulo = "✂️ Profesor/a jefe no sigue",
+                    Mensaje = $"{curso.ProfesorJefe?.Nombre} {curso.ProfesorJefe?.Apellido} no seguirá como jefe de {curso.Nombre} {curso.Letra} el próximo año. Hay que elegir a otro/a.",
+                    Enlace = $"/Cursos/Alumnos/{curso.Id}", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo });
+        }
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = noSigue
+            ? $"✂️ Listo: el próximo año {curso.Nombre} {curso.Letra} no sigue con el mismo profesor/a jefe" + (esJefe ? ". La UTP fue avisada." : ".")
+            : $"🔗 Listo: el profesor/a jefe sigue con {curso.Nombre} {curso.Letra} el próximo año.";
+        return RedirectToAction(nameof(Alumnos), new { id = cursoId });
+    }
+
+    /// <summary>La UTP, el director/a o el administrador eligen cómo vuelven los profesores/as jefe a 1º al terminar el ciclo.</summary>
+    [Authorize(Roles = "SuperAdmin,Director,UTP")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GuardarCicloJefes(bool rotar)
+    {
+        var colegioId = ColegioActual();
+        var col = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+        if (col == null) return NotFound();
+        col.RotarLetraJefes = rotar;
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = rotar
+            ? "🔄 Listo: al terminar su ciclo, cada profesor/a jefe vuelve a 1º con otra letra, sin repetir hasta pasar por todas."
+            : "📌 Listo: al terminar su ciclo, cada profesor/a jefe vuelve a 1º con su misma letra.";
+        return RedirectToAction(nameof(PeriodosMatricula));
+    }
+
+    /// <summary>
+    /// Importa los profesores/as jefe desde Excel (CSV). Columnas: Nivel; Letra; RUT profesor jefe.
+    /// Un profesor/a puede ser jefe de un solo curso por año: si viene repetido, se avisa y se deja el primero.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(2_000_000)]
+    public async Task<IActionResult> ImportarJefes(IFormFile? archivo)
+    {
+        if (!await Permisos.PuedeAsync(_context, User, Permisos.ProfJefe)) return RedirectToAction("AccesoDenegado", "Account");
+        if (archivo == null || archivo.Length == 0) { TempData["Error"] = "Elige el archivo CSV."; return RedirectToAction(nameof(Index)); }
+        var pl = await Csv.LeerAsync(archivo);
+        int iNiv = pl.Col("nivel", "curso"), iLet = pl.Col("letra"), iRut = pl.Col("rut");
+        if (iNiv < 0 || iLet < 0 || iRut < 0) { TempData["Error"] = "Faltan columnas. Usa la plantilla: Nivel, Letra y RUT profesor jefe."; return RedirectToAction(nameof(Index)); }
+
+        var colegioId = ColegioActual();
+        var anio = DateTime.Now.Year;
+        var cursos = await _context.Cursos.Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio).ToListAsync();
+        var docentes = (await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente).ToListAsync())
+            .GroupBy(u => Rut.Normalizar(u.Rut)).ToDictionary(g => g.Key, g => g.First());
+        var usados = new Dictionary<int, string>();
+        var errores = new List<string>();
+        int asignados = 0, iguales = 0;
+        for (var i = 0; i < pl.Filas.Count; i++)
+        {
+            var f = pl.Filas[i]; var fila = i + 2;
+            string C(int k) => Csv.Planilla.Celda(f, k);
+            if (C(iNiv).Length == 0 && C(iRut).Length == 0) continue;
+            var letra = C(iLet).ToUpperInvariant();
+            var curso = cursos.FirstOrDefault(c => Normal(c.Nombre) == Normal(C(iNiv)) && (c.Letra ?? "").Trim().ToUpperInvariant() == letra);
+            if (curso == null) { errores.Add($"Fila {fila}: no existe {C(iNiv)} {letra} este año."); continue; }
+            if (!Rut.TryValidar(C(iRut), out var rut, out _) || !docentes.TryGetValue(rut, out var doc)) { errores.Add($"Fila {fila}: no hay profesor/a con RUT {C(iRut)} en Personal."); continue; }
+            if (usados.TryGetValue(doc.Id, out var otro)) { errores.Add($"Fila {fila}: {doc.Nombre} {doc.Apellido} ya quedó como jefe de {otro}."); continue; }
+            usados[doc.Id] = $"{curso.Nombre} {curso.Letra}";
+            if (curso.ProfesorJefeId == doc.Id) { iguales++; continue; }
+            curso.ProfesorJefeId = doc.Id;
+            asignados++;
+        }
+        // Si alguien quedó como jefe en la planilla, se quita de los cursos donde estaba antes (uno solo por año)
+        foreach (var c in cursos.Where(c => c.ProfesorJefeId != null && usados.ContainsKey(c.ProfesorJefeId.Value) && usados[c.ProfesorJefeId.Value] != $"{c.Nombre} {c.Letra}"))
+            c.ProfesorJefeId = null;
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = $"👩‍🏫 Profesores/as jefe: {asignados} asignados" + (iguales > 0 ? $", {iguales} ya estaban" : "") + ".";
+        if (errores.Count > 0) TempData["Error"] = $"{errores.Count} filas no se pudieron: " + string.Join(" ", errores.Take(8)) + (errores.Count > 8 ? " …" : "");
+        return RedirectToAction(nameof(Index));
+    }
+
     private static string SiguienteLetra(IEnumerable<Curso> delNivel)
     {
         var usadas = delNivel.Select(c => (c.Letra ?? "").Trim().ToUpperInvariant()).ToHashSet();
@@ -874,6 +1041,7 @@ public class CursosController : Controller
             CapacidadMaxima = delNivel.FirstOrDefault()?.CapacidadMaxima ?? 40,
             ColegioId = colegioId, AnioAcademico = anio
         };
+        nuevo.ProfesorJefeId = await JefeQueSigueAsync(colegioId, nuevo.Nombre, nuevo.Letra, anio);
         _context.Cursos.Add(nuevo);
         await _context.SaveChangesAsync();
         TempData["SuccessMessage"] = $"Curso {nuevo.Nombre} {nuevo.Letra} creado.";
@@ -940,11 +1108,28 @@ public class CursosController : Controller
             var delNivel = (await _context.Cursos.Include(c => c.Estudiantes)
                     .Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio).ToListAsync())
                 .Where(c => Normal(c.Nombre) == Normal(nivelLimpio)).ToList();
-            var curso = delNivel.OrderBy(c => c.Estudiantes.Count).ThenBy(c => c.Letra).FirstOrDefault();
+            // Renovación: el alumno/a sigue con su mismo curso (misma letra) y así con su mismo profesor/a jefe.
+            // Nuevos y traslados van al curso del nivel con más espacio.
+            string? letraPrev = null;
+            if (tipoMatricula == TipoMatricula.Renovacion)
+            {
+                var uPrev = (await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.Rol == RolUsuario.Estudiante)
+                    .Select(u => new { u.Id, u.Rut }).ToListAsync()).FirstOrDefault(u => Rut.Normalizar(u.Rut) == rutEstNorm);
+                if (uPrev != null)
+                    letraPrev = await _context.Estudiantes.AsNoTracking().Where(e => e.UsuarioId == uPrev.Id && e.Curso != null).Select(e => e.Curso!.Letra).FirstOrDefaultAsync();
+                letraPrev = string.IsNullOrWhiteSpace(letraPrev) ? null : letraPrev.Trim().ToUpperInvariant();
+            }
+            var mismo = letraPrev == null ? null : delNivel.FirstOrDefault(c => (c.Letra ?? "").Trim().ToUpperInvariant() == letraPrev);
+            var curso = mismo != null && mismo.Estudiantes.Count < mismo.CapacidadMaxima ? mismo
+                : delNivel.OrderBy(c => c.Estudiantes.Count).ThenBy(c => c.Letra).FirstOrDefault();
+            // Renovación sin su letra en el nivel: se crea con su misma letra
+            if (letraPrev != null && mismo == null) curso = null;
             // Sin cursos en el nivel, o todos llenos: se crea solo el siguiente (A, B, C...)
             if (curso == null || curso.Estudiantes.Count >= curso.CapacidadMaxima)
             {
-                var nuevo = new Curso { Nombre = curso?.Nombre ?? nivelLimpio, Letra = SiguienteLetra(delNivel), CapacidadMaxima = curso?.CapacidadMaxima ?? 40, ColegioId = colegioId, AnioAcademico = anio };
+                var letraNueva = letraPrev != null && mismo == null ? letraPrev : SiguienteLetra(delNivel);
+                var nuevo = new Curso { Nombre = curso?.Nombre ?? delNivel.FirstOrDefault()?.Nombre ?? nivelLimpio, Letra = letraNueva, CapacidadMaxima = curso?.CapacidadMaxima ?? 40, ColegioId = colegioId, AnioAcademico = anio };
+                nuevo.ProfesorJefeId = await JefeQueSigueAsync(colegioId, nuevo.Nombre, nuevo.Letra, anio);
                 _context.Cursos.Add(nuevo);
                 await _context.SaveChangesAsync();
                 if (curso != null) avisos.Add($"Los cursos de {nuevo.Nombre} estaban llenos: se creó {nuevo.Nombre} {nuevo.Letra}.");

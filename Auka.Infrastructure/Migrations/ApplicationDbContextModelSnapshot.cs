@@ -495,6 +495,9 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<string>("PeriodosMatricula")
                         .HasColumnType("text");
 
+                    b.Property<bool>("RotarLetraJefes")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("PsicosocialAdministrador")
                         .HasColumnType("boolean");
 
@@ -564,6 +567,9 @@ namespace Auka.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("HorarioBloqueado")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("JefeNoSigue")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Nombre")

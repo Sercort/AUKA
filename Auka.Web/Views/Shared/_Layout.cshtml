@@ -94,6 +94,10 @@
 
                 <nav class="au-links" aria-label="Menú principal">
                     <a class="@on("Home", "")" asp-controller="Home" asp-action="Index">🏠 Inicio</a>
+                    @if (User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin"))
+                    {
+                        <a class="@on("Utp", "")" asp-controller="Utp" asp-action="Index">📈 Panel UTP</a>
+                    }
                     @if (esStaff)
                     {
                         <a class="@(on("Cursos", "Index") + on("Cursos", "Alumnos"))" asp-controller="Cursos" asp-action="Index">🏫 Cursos</a>

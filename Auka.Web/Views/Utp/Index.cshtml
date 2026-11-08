@@ -1,0 +1,168 @@
+@* Auka.Web/Views/Utp/Index.cshtml — panel de la UTP: lo académico del colegio en una mirada *@
+@model Auka.Web.Controllers.UtpController.PanelUtpVm
+@using Auka.Web.Services
+@{
+    ViewData["Title"] = "Panel UTP";
+    string N(decimal? n) => n is decimal v ? Csv.Nota1(v) : "—";
+    string ColorNota(decimal? n) => n == null ? "#8a97ab" : n < 4.0m ? "#c0392b" : n < 5.0m ? "#d98a00" : "#12744a";
+    int Ancho(decimal? n) => n is decimal v ? (int)Math.Clamp((v - 1m) / 6m * 100m, 4m, 100m) : 0;
+    var pctRojas = Model.TotalNotas > 0 ? Math.Round(Model.NotasRojas * 100.0 / Model.TotalNotas, 1) : 0;
+    var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
+}
+<style>
+    .ut-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .ut-kpi { padding: 16px 18px; display: flex; flex-direction: column; gap: .2rem; text-decoration: none; color: inherit; transition: transform .15s, box-shadow .15s; }
+    a.ut-kpi:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(20,35,58,.1); }
+    .ut-kpi .n { font-size: 1.8rem; font-weight: 900; line-height: 1; color: var(--a-navy); }
+    .ut-kpi small { color: var(--a-mut); font-weight: 700; }
+    .ut-kpi .i { font-size: 1.3rem; }
+    .ut-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+    .ut-card { padding: 18px; }
+    .ut-card h3 { font-size: 1.02rem; font-weight: 900; color: var(--a-navy); margin: 0 0 12px; display: flex; align-items: center; gap: .5rem; }
+    .ut-card h3 a { margin-left: auto; font-size: .78rem; font-weight: 800; text-decoration: none; }
+    .ut-bar { display: grid; grid-template-columns: 110px 1fr 46px; gap: .6rem; align-items: center; padding: .28rem 0; font-size: .86rem; }
+    .ut-bar a { color: var(--a-ink); text-decoration: none; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ut-bar .t { height: 10px; border-radius: 999px; background: #eef2f8; overflow: hidden; }
+    .ut-bar .t span { display: block; height: 100%; border-radius: 999px; }
+    .ut-bar b { text-align: right; }
+    .ut-fila { display: flex; gap: .7rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid #eef2f8; font-size: .88rem; }
+    .ut-fila:last-child { border-bottom: 0; }
+    .ut-fila .x { flex: 1; min-width: 0; }
+    .ut-fila small { color: var(--a-mut); font-weight: 600; }
+    .ut-scroll { max-height: 380px; overflow: auto; padding-right: 4px; }
+    .ut-pend { display: flex; gap: .5rem; flex-wrap: wrap; }
+</style>
+
+<div class="au-head" style="background:linear-gradient(120deg,#2459b0,#1fb5c5)">
+    <div class="ico">📈</div>
+    <div class="txt">
+        <h2>Panel UTP</h2>
+        <p>Lo académico del colegio en una mirada: rendimiento, alumnos/as en riesgo, evaluaciones y convivencia. Toca cualquier dato para ir al detalle.</p>
+    </div>
+    <div class="acc">
+        <a asp-controller="Notas" asp-action="Index">📊 Libro de notas</a>
+        <a asp-controller="Evaluaciones" asp-action="Index">📝 Evaluaciones</a>
+        <a asp-controller="Horarios" asp-action="Index" class="blanco">🗓️ Horarios</a>
+    </div>
+</div>
+
+@* ---- Indicadores *@
+<div class="ut-kpis">
+    <a class="au-card ut-kpi" asp-controller="Notas" asp-action="Index"><span class="i">📊</span><span class="n" style="color:@ColorNota(Model.PromedioColegio)">@N(Model.PromedioColegio)</span><small>promedio del colegio</small></a>
+    <a class="au-card ut-kpi" href="#riesgo"><span class="i">⚠️</span><span class="n" style="color:@(Model.TotalRiesgo > 0 ? "#c0392b" : "#12744a")">@Model.TotalRiesgo</span><small>alumnos/as en riesgo de repetir</small></a>
+    <a class="au-card ut-kpi" asp-controller="Notas" asp-action="Index"><span class="i">🔴</span><span class="n">@pctRojas%</span><small>de las notas son rojas (@Model.NotasRojas.ToString("N0"))</small></a>
+    <a class="au-card ut-kpi" href="#semana"><span class="i">📝</span><span class="n">@Model.Semana.Count</span><small>evaluaciones en 7 días</small></a>
+    <a class="au-card ut-kpi" href="#atrasados"><span class="i">⏰</span><span class="n" style="color:@(Model.Atrasados.Count > 0 ? "#d98a00" : "#12744a")">@Model.Atrasados.Count</span><small>profesores/as sin notas en 30 días</small></a>
+    <div class="au-card ut-kpi"><span class="i">✅</span><span class="n" style="color:#8a97ab">—</span><small>asistencia (llega con el módulo de asistencia)</small></div>
+</div>
+
+@* ---- Pendientes de la UTP *@
+@if (Model.EsUtp && (Model.HorariosPorAprobar + Model.HorariosConComentario + Model.SolicitudesCambio + Model.InteresadosClubes + Model.CursosSinJefe) > 0)
+{
+    <div class="au-card ut-card mb-3">
+        <h3>📌 Pendientes</h3>
+        <div class="ut-pend">
+            @if (Model.HorariosPorAprobar > 0) { <a class="au-chip teal" href="/Horarios/Profesores">✅ @Model.HorariosPorAprobar horarios por aprobar</a> }
+            @if (Model.HorariosConComentario > 0) { <a class="au-chip coral" href="/Horarios/Profesores">✋ @Model.HorariosConComentario comentarios o solicitudes de horario</a> }
+            @if (Model.SolicitudesCambio > 0) { <a class="au-chip sol" href="/Horarios/Profesores">🔁 @Model.SolicitudesCambio cambios esperando respuesta</a> }
+            @if (Model.InteresadosClubes > 0) { <a class="au-chip violeta" href="/Talleres/Interesados">🙋 @Model.InteresadosClubes interesados en clubes</a> }
+            @if (Model.CursosSinJefe > 0) { <a class="au-chip" href="/Cursos">👩‍🏫 @Model.CursosSinJefe cursos sin profesor/a jefe</a> }
+        </div>
+    </div>
+}
+
+<div class="ut-grid">
+    @* ---- Rendimiento por curso *@
+    <div class="au-card ut-card">
+        <h3>🏫 Promedio por curso <a asp-controller="Notas" asp-action="Index">Ver libros</a></h3>
+        <div class="ut-scroll">
+            @foreach (var c in Model.Cursos)
+            {
+                <div class="ut-bar">
+                    <a href="/Notas/Libro?cursoId=@c.Id" title="@c.Curso">@c.Curso</a>
+                    <div class="t"><span style="width:@(Ancho(c.Promedio))%;background:@ColorNota(c.Promedio)"></span></div>
+                    <b style="color:@ColorNota(c.Promedio)">@N(c.Promedio)</b>
+                </div>
+            }
+            @if (Model.Cursos.Count == 0) { <p class="text-muted small mb-0">Aún no hay cursos.</p> }
+        </div>
+        <small class="text-muted d-block mt-2">Arriba los cursos con promedio más bajo: los que necesitan apoyo primero.</small>
+    </div>
+
+    @* ---- Rendimiento por asignatura *@
+    <div class="au-card ut-card">
+        <h3>📚 Promedio por asignatura</h3>
+        <div class="ut-scroll">
+            @foreach (var r in Model.Ramos)
+            {
+                <div class="ut-bar">
+                    <span class="fw-bold text-truncate" title="@r.Ramo">@r.Ramo</span>
+                    <div class="t"><span style="width:@(Ancho(r.Promedio))%;background:@ColorNota(r.Promedio)"></span></div>
+                    <b style="color:@ColorNota(r.Promedio)">@N(r.Promedio)</b>
+                </div>
+            }
+            @if (Model.Ramos.Count == 0) { <p class="text-muted small mb-0">Aún no hay notas.</p> }
+        </div>
+    </div>
+
+    @* ---- Alumnos en riesgo *@
+    <div class="au-card ut-card" id="riesgo">
+        <h3>⚠️ Alumnos/as en riesgo de repetir @(Model.TotalRiesgo > Model.Riesgo.Count ? "(los " + Model.Riesgo.Count + " más urgentes)" : "")</h3>
+        <div class="ut-scroll">
+            @foreach (var a in Model.Riesgo)
+            {
+                <div class="ut-fila">
+                    <span class="au-chip coral" style="min-width:52px;justify-content:center">@N(a.Promedio)</span>
+                    <div class="x"><a href="/Cursos/Ficha/@a.EstudianteId" class="fw-bold text-decoration-none">@a.Nombre</a><br /><small>@a.Curso · @a.RamosRojos @(a.RamosRojos == 1 ? "asignatura" : "asignaturas") en rojo@(a.Negativas > 0 ? " · " + a.Negativas + " anotaciones negativas en 30 días" : "")</small></div>
+                </div>
+            }
+            @if (Model.Riesgo.Count == 0) { <p class="text-muted small mb-0">🎉 No hay alumnos/as en riesgo.</p> }
+        </div>
+        <small class="text-muted d-block mt-2">Riesgo: promedio general bajo 4,0 o tres o más asignaturas en rojo.</small>
+    </div>
+
+    @* ---- Evaluaciones de la semana *@
+    <div class="au-card ut-card" id="semana">
+        <h3>📝 Evaluaciones de los próximos 7 días <a asp-controller="Evaluaciones" asp-action="Index">Calendario</a></h3>
+        <div class="ut-scroll">
+            @foreach (var e in Model.Semana)
+            {
+                <div class="ut-fila">
+                    <span class="au-chip verde" style="min-width:74px;justify-content:center">@e.Fecha.ToString("ddd dd", cl)</span>
+                    <div class="x"><a href="/Evaluaciones?cursoId=@e.CursoId" class="fw-bold text-decoration-none">@e.Curso</a> · @e.Ramo<br /><small>@(e.Tipo ?? "Evaluación") · @e.Titulo</small></div>
+                </div>
+            }
+            @if (Model.Semana.Count == 0) { <p class="text-muted small mb-0">No hay evaluaciones programadas esta semana.</p> }
+        </div>
+    </div>
+
+    @* ---- Profesores atrasados con notas *@
+    <div class="au-card ut-card" id="atrasados">
+        <h3>⏰ Profesores/as sin notas recientes</h3>
+        <div class="ut-scroll">
+            @foreach (var p in Model.Atrasados)
+            {
+                <div class="ut-fila">
+                    <span class="au-chip sol" style="min-width:74px;justify-content:center">@(p.UltimaNota == null ? "Nunca" : p.Dias + " días")</span>
+                    <div class="x"><a href="/Horarios/Profesor/@p.Id" class="fw-bold text-decoration-none">@p.Nombre</a><br /><small>@p.Ramos</small></div>
+                </div>
+            }
+            @if (Model.Atrasados.Count == 0) { <p class="text-muted small mb-0">✅ Todos los profesores/as registraron notas en los últimos 30 días.</p> }
+        </div>
+    </div>
+
+    @* ---- Convivencia *@
+    <div class="au-card ut-card">
+        <h3>📋 Convivencia (anotaciones, 30 días) <a asp-controller="Anotaciones" asp-action="Index">Ver libro</a></h3>
+        @foreach (var c in Model.Convivencia)
+        {
+            var chip = c.Nivel == Alertas.Nivel.Alerta ? "coral" : c.Nivel == Alertas.Nivel.Atencion ? "sol" : "verde";
+            var txt = c.Nivel == Alertas.Nivel.Alerta ? "🔴 Alerta" : c.Nivel == Alertas.Nivel.Atencion ? "🟠 Atención" : "🌟 Destacado";
+            <div class="ut-fila">
+                <span class="au-chip @chip" style="min-width:104px;justify-content:center">@txt</span>
+                <div class="x"><b>@c.Curso</b><br /><small>@c.Negativas negativas · @c.Positivas positivas · @c.Motivo</small></div>
+            </div>
+        }
+        @if (Model.Convivencia.Count == 0) { <p class="text-muted small mb-0">Sin cursos en alerta. 👏</p> }
+    </div>
+</div>

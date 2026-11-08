@@ -1,0 +1,76 @@
+@* Auka.Web/Views/Evaluaciones/Cursos.cshtml — calendario de evaluaciones: carpetas por nivel › curso *@
+@{
+    ViewData["Title"] = "Calendario de evaluaciones";
+    var carpetas = ViewBag.Carpetas as Auka.Web.Models.CarpetasVm ?? new Auka.Web.Models.CarpetasVm();
+    bool esUtp = ViewBag.EsUtp ?? false;
+    int semana = ViewBag.Semana ?? 0;
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
+<div class="au-head" style="background:linear-gradient(120deg,#1a8a5a,#2bb673 60%,#5fd39b)">
+    <div class="ico">📝</div>
+    <div class="txt">
+        <h2>Calendario de evaluaciones</h2>
+        <p>Pruebas, trabajos y disertaciones de cada curso. Lo que se programa aquí aparece también en el libro de notas, esperando sus notas.</p>
+    </div>
+    <div class="acc">
+        <a asp-action="Exportar">📤 Planilla de todos los cursos</a>
+        @if (esUtp)
+        {
+            <button type="button" data-bs-toggle="modal" data-bs-target="#mImpEv" class="blanco">📥 Importar calendario</button>
+        }
+    </div>
+</div>
+
+<div class="au-card p-3 mb-3 d-flex align-items-center gap-3">
+    <span style="font-size:1.6rem">🗓️</span>
+    <div><b style="font-size:1.4rem;color:var(--a-navy)">@semana</b> <span class="text-muted fw-bold">evaluaciones en los próximos 7 días</span></div>
+    <small class="text-muted ms-auto">Los cursos con 6 o más evaluaciones en 15 días salen marcados: conviene repartirlas.</small>
+</div>
+
+@if (carpetas.Cursos.Count == 0)
+{
+    <div class="au-card au-vacio"><span class="e">📝</span><b>No tienes cursos asignados este año.</b></div>
+}
+else
+{
+    @await Html.PartialAsync("_CursosCarpetas", carpetas)
+}
+
+@if (esUtp)
+{
+    <div class="modal fade" id="mImpEv" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <form class="modal-content" asp-action="Importar" method="post" enctype="multipart/form-data" onsubmit="var b=this.querySelector('button.btn-primary'); if(b.disabled) return false; b.disabled=true; b.textContent='Importando…'; return true;">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h5 class="modal-title fw-bold">📥 Importar calendario de evaluaciones</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <ol class="mb-3">
+                        <li>Una fila por evaluación: curso (nivel y letra), asignatura, nombre, fecha, tipo y contenidos.</li>
+                        <li>Guárdala como <b>CSV</b> (punto y coma) y súbela aquí.</li>
+                    </ol>
+                    <button type="button" class="btn btn-outline-primary btn-sm px-3 mb-3" id="evPlantilla">📄 Descargar plantilla</button>
+                    <input type="file" name="archivo" accept=".csv" class="form-control" required />
+                    <small class="text-muted d-block mt-2">Si la evaluación ya existe (mismo curso, asignatura y nombre), se actualizan la fecha y los contenidos: no se duplica. Tipos: Prueba, Trabajo, Disertación, Control, Proyecto, Guía evaluada, Examen.</small>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">Importar</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('evPlantilla').addEventListener('click', function () {
+            var csv = '﻿Nivel;Letra;Asignatura;Evaluación;Fecha;Tipo;Contenidos\r\n' +
+                '2º Básico;A;Matemática;N8;18-11-2026;Prueba;Sumas y restas hasta el 100\r\n' +
+                '2º Básico;A;Lenguaje y Comunicación;N8;20-11-2026;Disertación;Mi animal favorito\r\n';
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            a.download = 'plantilla_calendario_evaluaciones.csv'; document.body.appendChild(a); a.click(); a.remove();
+        });
+    </script>
+}

@@ -115,6 +115,25 @@ else
     </div>
 }
 
+@{ bool rotarJefes = ViewBag.RotarJefes == true; }
+<form asp-action="GuardarCicloJefes" method="post" class="au-card pm-form mb-3">
+    @Html.AntiForgeryToken()
+    <h4>👩‍🏫 Profesores/as jefe al pasar de año</h4>
+    <p class="text-muted small mb-2">Cada profesor/a jefe sigue con su curso año a año (1º A → 2º A → 3º A...). Cuando termina el ciclo (8º básico o 4º medio) vuelve a empezar en 1º. ¿Con qué letra?</p>
+    <div class="pm-roles">
+        <label>
+            <input type="radio" class="form-check-input mt-1" name="rotar" value="false" checked="@(!rotarJefes)" />
+            <span><b>📌 Mantiene su letra</b><small>El de 8º A vuelve a 1º A, siempre el mismo ciclo.</small></span>
+        </label>
+        <label>
+            <input type="radio" class="form-check-input mt-1" name="rotar" value="true" checked="@rotarJefes" />
+            <span><b>🔄 Rotación</b><small>Vuelve a 1º con otra letra (B, C...), sin repetir hasta pasar por todas. Después parte de nuevo.</small></span>
+        </label>
+    </div>
+    <div class="d-flex justify-content-end mt-2"><button class="btn btn-primary px-4">Guardar</button></div>
+    <small class="text-muted">Se aplica al crear los cursos del año siguiente. Siempre se puede cambiar el profesor/a jefe a mano en cada curso.</small>
+</form>
+
 <form asp-action="AbrirMatricula" method="post" class="au-card pm-form" id="pmForm">
     @Html.AntiForgeryToken()
     <h4 id="pmTitulo">➕ Abrir un período de matrícula</h4>

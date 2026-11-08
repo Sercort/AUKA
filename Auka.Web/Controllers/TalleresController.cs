@@ -298,8 +298,8 @@ public class TalleresController : Controller
         if (errores.Count == 0)
         {
             var copia = new Taller { Id = t.Id, Nombre = t.Nombre, Niveles = string.Join(",", Clubes.LeerNiveles(string.Join(",", niveles ?? Array.Empty<string>()))), FechaInicio = fechaInicio, FechaFin = fechaFin };
-            var integrantes = await _context.InscripcionesTaller.Where(i => i.TallerId == t.Id && i.Estudiante != null)
-                .Select(i => i.Estudiante!).Include(e => e.Curso).Include(e => e.Usuario).ToListAsync();
+            var integrantes = await _context.Estudiantes.Include(e => e.Curso).Include(e => e.Usuario)
+                .Where(e => _context.InscripcionesTaller.Any(i => i.TallerId == t.Id && i.EstudianteId == e.Id)).ToListAsync();
             foreach (var e in integrantes)
             {
                 var m = await Clubes.PuedeInscribirAsync(_context, copia, nuevas, e);
@@ -346,7 +346,7 @@ public class TalleresController : Controller
         var pl = await Csv.LeerAsync(archivo);
         int iClub = pl.Col("club", "taller", "nombre"), iCat = pl.Col("categoria"), iRut = pl.Col("rut"), iDia = pl.Col("dia"),
             iIni = pl.Col("hora inicio", "inicio", "desde"), iFin = pl.Col("hora fin", "hora termino", "termino", "hasta"), iLug = pl.Col("lugar"),
-            iCupo = pl.Col("cupo"), iNiv = pl.Col("niveles", "nivel", "para"), iFI = pl.Col("fecha inicio"), iFF = pl.Col("fecha fin", "fecha termino"), iDes = pl.Col("descripcion");
+            iCupo = pl.Col("cupo"), iMin = pl.Col("cupo minimo", "minimo"), iNiv = pl.Col("niveles", "nivel", "para"), iFI = pl.Col("fecha inicio"), iFF = pl.Col("fecha fin", "fecha termino"), iDes = pl.Col("descripcion");
         if (iClub < 0 || iDia < 0 || iIni < 0 || iFin < 0) { TempData["Error"] = "Faltan columnas. Usa la plantilla: Club, RUT profesor, Día, Hora inicio y Hora fin."; return RedirectToAction(nameof(Index)); }
 
         var colegioId = ColegioId();
@@ -405,6 +405,7 @@ public class TalleresController : Controller
             if (doc != null) { t.DocenteId = doc.Id; t.DocenteCargo = $"{doc.Nombre} {doc.Apellido}"; }
             t.Lugar = lugar.Length == 0 ? null : lugar;
             if (int.TryParse(C(primera, iCupo), out var cupo) && cupo > 0) t.Cupo = cupo;
+            if (iMin >= 0 && int.TryParse(C(primera, iMin), out var cupoMin) && cupoMin > 0) t.CupoMinimo = cupoMin;
             if (iNiv >= 0 && C(primera, iNiv).Length > 0) { var nv = Clubes.NivelesDesdeTexto(C(primera, iNiv)); t.Niveles = nv.Count > 0 ? string.Join(",", nv) : null; }
             t.FechaInicio = fIni; t.FechaFin = fFin;
             var des = C(primera, iDes); if (des.Length > 0) t.Descripcion = des.Length > 500 ? des[..500] : des;

@@ -52,6 +52,7 @@
             <a asp-action="PeriodosMatricula">🗓️ Períodos de matrícula</a>
             <a asp-action="Pendientes">📄 Documentos pendientes</a>
             <button type="button" data-bs-toggle="modal" data-bs-target="#mImp">📥 Importar planilla</button>
+            <button type="button" data-bs-toggle="modal" data-bs-target="#mJefes">👩‍🏫 Importar profesores jefe</button>
             <form asp-action="CorregirDuplicados" method="post" class="d-inline" data-c="¿Revisar y corregir cursos, alumnos/as y apoderados/as repetidos de este año?" onsubmit="return confirm(this.dataset.c);">
                 @Html.AntiForgeryToken()
                 <button type="submit">🧹 Corregir duplicados</button>
@@ -141,6 +142,32 @@
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
             a.download = 'plantilla_alumnos_auka.csv'; document.body.appendChild(a); a.click(); a.remove();
+        });
+    </script>
+}
+
+@if (esGestion && !esArchivo)
+{
+    <div class="modal fade" id="mJefes" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" asp-action="ImportarJefes" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h5 class="modal-title fw-bold">👩‍🏫 Importar profesores/as jefe</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <p class="small">Una fila por curso: <b>Nivel; Letra; RUT profesor jefe</b>. El profesor/a debe estar en Personal. Cada uno puede ser jefe de un solo curso por año. Después sigue con su curso año a año.</p>
+                    <button type="button" class="btn btn-outline-primary btn-sm px-3 mb-3" id="pjPlantilla">📄 Descargar plantilla</button>
+                    <input type="file" name="archivo" accept=".csv" class="form-control" required />
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">Importar</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('pjPlantilla').addEventListener('click', function () {
+            var csv = '\ufeffNivel;Letra;RUT profesor jefe\r\n1º Básico;A;12.345.678-5\r\n1º Básico;B;9.876.543-3\r\n';
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            a.download = 'plantilla_profesores_jefe.csv'; document.body.appendChild(a); a.click(); a.remove();
         });
     </script>
 }

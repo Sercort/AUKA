@@ -171,8 +171,9 @@ public static class Clubes
             }
         }
 
-        var otros = await db.InscripcionesTaller.AsNoTracking().Where(i => i.EstudianteId == est.Id && i.TallerId != taller.Id)
-            .Select(i => i.Taller!).Include(t => t.Sesiones).ToListAsync();
+        // Sus otros clubes (se parte desde Talleres para poder traer las sesiones)
+        var otros = await db.Talleres.AsNoTracking().Include(t => t.Sesiones)
+            .Where(t => t.Id != taller.Id && t.Inscripciones.Any(i => i.EstudianteId == est.Id)).ToListAsync();
         foreach (var o in otros.Where(o => o.Activo && !Terminado(o) && CruzanFechas(taller.FechaInicio, taller.FechaFin, o.FechaInicio, o.FechaFin)))
             foreach (var so in o.Sesiones)
                 if (sesiones.Any(s => s.Dia == so.Dia && Cruza(s.HoraInicio, s.HoraFin, so.HoraInicio, so.HoraFin)))

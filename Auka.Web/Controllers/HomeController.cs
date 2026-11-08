@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Auka.Application.Entities;
 using Auka.Infrastructure.Data;
 using Auka.Web.Services;
@@ -29,6 +29,10 @@ public class HomeController : Controller
         // El dueño de la plataforma tiene su propio panel
         if (User.IsInRole("AdminPlataforma"))
             return RedirectToAction("Index", "Plataforma");
+
+        // UTP: su panel académico es su pantalla de inicio
+        if (User.IsInRole("UTP"))
+            return RedirectToAction("Index", "Utp");
 
         // Administrador del colegio y director: panel de gestión del colegio (Plan Premium)
         if (User.IsInRole("SuperAdmin") || User.IsInRole("Director"))

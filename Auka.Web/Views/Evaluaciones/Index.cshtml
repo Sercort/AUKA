@@ -1,54 +1,100 @@
-﻿@model IEnumerable<Auka.Application.Entities.Evaluacion>
-
+@* Auka.Web/Views/Evaluaciones/Index.cshtml — calendario de evaluaciones de un curso, agrupado por mes *@
+@model List<Auka.Web.Controllers.EvaluacionesController.ItemEval>
 @{
-    var curso = ViewBag.Curso as Auka.Application.Entities.Curso;
-    ViewData["Title"] = $"Calendario de Evaluaciones - {curso?.Nombre} {curso?.Letra}";
+    var curso = (Auka.Application.Entities.Curso)ViewBag.Curso;
+    var nombreCurso = (curso.Nombre + " " + curso.Letra).Trim();
+    ViewData["Title"] = "Evaluaciones " + nombreCurso;
+    var ramos = ViewBag.Ramos as List<string> ?? new List<string>();
+    var tipos = ViewBag.Tipos as string[] ?? Array.Empty<string>();
+    bool puede = ViewBag.PuedeProgramar == true;
+    var hoy = DateTime.UtcNow.Date;
+    var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
+    var esPersonal = !(User.IsInRole("Estudiante") || User.IsInRole("Apoderado"));
+    var proximas = Model.Where(e => e.Fecha.Date >= hoy).ToList();
+    var pasadas = Model.Where(e => e.Fecha.Date < hoy).ToList();
+    // Primero lo que viene (de más cerca a más lejos); después lo realizado (de lo más reciente hacia atrás)
+    var gruposEv = proximas.OrderBy(e => e.Fecha).GroupBy(e => (Proxima: true, e.Fecha.Year, e.Fecha.Month))
+        .Concat(pasadas.OrderByDescending(e => e.Fecha).GroupBy(e => (Proxima: false, e.Fecha.Year, e.Fecha.Month))).ToList();
+    string Icono(string? t) => t switch { "Prueba" => "📝", "Trabajo" => "📂", "Disertación" => "🎤", "Control" => "✏️", "Proyecto" => "🛠️", "Guía evaluada" => "📄", "Examen" => "🎓", _ => "📌" };
+}
+<style>
+    .ev-mes { font-weight: 900; color: var(--a-navy); text-transform: capitalize; margin: 18px 0 8px; display: flex; align-items: center; gap: .5rem; }
+    .ev { display: flex; gap: 14px; align-items: center; padding: 12px 16px; border-radius: 16px; background: #fff; border: 1px solid var(--a-line); margin-bottom: 8px; }
+    .ev .dia { width: 56px; text-align: center; border-radius: 14px; background: #e9f8f0; color: #12744a; padding: .35rem 0; flex-shrink: 0; }
+    .ev .dia b { display: block; font-size: 1.35rem; line-height: 1; }
+    .ev .dia small { font-size: .7rem; font-weight: 800; text-transform: uppercase; }
+    .ev.pronto { border-color: #ffd98a; background: #fffaf0; }
+    .ev.pronto .dia { background: #fff0cc; color: #8a5a00; }
+    .ev.pasada { opacity: .72; }
+    .ev .d { flex: 1; min-width: 0; }
+    .ev .d b { color: var(--a-ink); }
+    .ev .d small { color: var(--a-mut); font-weight: 600; }
+</style>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
 }
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold text-primary mb-1">🗓️ Calendario de Evaluaciones: @curso?.Nombre "@curso?.Letra"</h2>
-            <p class="text-muted mb-0">Próximas pruebas y contenidos publicados por los profesores.</p>
-        </div>
-        
-        <div class="d-flex gap-2">
-            <!-- SOLO EL PROFESOR PUEDE VER EL BOTÓN DE PROGRAMAR NUEVA EVALUACIÓN -->
-            @if (User.IsInRole("Docente"))
-            {
-                <a asp-action="Crear" class="btn btn-success rounded-pill px-4 fw-bold">
-                    + Programar Nueva Evaluación
-                </a>
-            }
-            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Volver a Cursos</a>
-        </div>
-    </div>
-
-    <!-- Lista de tarjetas de evaluaciones -->
-    <div class="row g-3">
-        @if (!Model.Any())
+<div class="au-head" style="background:linear-gradient(120deg,#1a8a5a,#2bb673 60%,#5fd39b)">
+    <div class="ico">📝</div>
+    <div class="txt"><h2>Evaluaciones de @nombreCurso</h2><p>@proximas.Count próximas · @pasadas.Count ya realizadas</p></div>
+    <div class="acc">
+        @if (esPersonal)
         {
-            <div class="col-12 text-center py-5">
-                <p class="text-muted fs-5">No hay evaluaciones programadas para este curso.</p>
-            </div>
+            <a asp-action="Index" asp-route-cursoId="">📂 Todos los cursos</a>
+            <a asp-controller="Notas" asp-action="Libro" asp-route-cursoId="@curso.Id">📊 Libro de notas</a>
         }
-        else
-        {
-            @foreach (var item in Model)
-            {
-                <div class="col-md-4">
-                    <div class="card shadow-sm border-0 rounded-3">
-                        <div class="card-body">
-                            <span class="badge bg-primary mb-2">@item.Asignatura?.Nombre</span>
-                            <h5 class="fw-bold text-dark">@item.Titulo</h5>
-                            <hr />
-                            <small class="text-danger fw-bold">
-                                📅 Fecha: @item.Fecha.ToString("dd-MM-yyyy HH:mm") hrs
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
+        <a asp-action="Exportar" asp-route-cursoId="@curso.Id" class="blanco">📤 Descargar</a>
     </div>
 </div>
+
+@if (puede)
+{
+    <form asp-action="Programar" method="post" class="au-card p-3 mb-3">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cursoId" value="@curso.Id" />
+        <b class="d-block mb-2">➕ Programar evaluación</b>
+        <div class="row g-2">
+            <div class="col-md-3"><select class="form-select" name="ramo" required aria-label="Asignatura"><option value="">Asignatura</option>@foreach (var r in ramos) { <option value="@r">@r</option> }</select></div>
+            <div class="col-md-2"><select class="form-select" name="tipo" aria-label="Tipo">@foreach (var t in tipos) { <option value="@t">@Icono(t) @t</option> }</select></div>
+            <div class="col-md-2"><input class="form-control" name="titulo" maxlength="60" required placeholder="Nombre (ej. N5)" aria-label="Nombre" /></div>
+            <div class="col-md-2"><input class="form-control" type="date" name="fecha" required aria-label="Fecha" /></div>
+            <div class="col-md-3"><button class="btn btn-success w-100">Programar</button></div>
+            <div class="col-12"><input class="form-control" name="contenido" maxlength="500" placeholder="Contenidos que entran (opcional): ej. fracciones, unidad 3" aria-label="Contenidos" /></div>
+        </div>
+        <small class="text-muted">Queda en el calendario del curso (lo ven alumnos/as y apoderados/as) y como columna nueva en el libro de notas.</small>
+    </form>
+}
+
+@if (Model.Count == 0)
+{
+    <div class="au-card au-vacio"><span class="e">🗓️</span><b>Aún no hay evaluaciones programadas.</b></div>
+}
+@foreach (var mes in gruposEv)
+{
+    <div class="ev-mes">@(mes.Key.Proxima ? "🗓️" : "🗄️") @(new DateTime(mes.Key.Year, mes.Key.Month, 1).ToString("MMMM yyyy", cl)) @(mes.Key.Proxima ? "" : "· realizadas")</div>
+    @foreach (var e in mes)
+    {
+        var dias = (e.Fecha.Date - hoy).TotalDays;
+        <div class="ev @(dias < 0 ? "pasada" : dias <= 7 ? "pronto" : "")">
+            <div class="dia"><b>@e.Fecha.ToString("dd")</b><small>@e.Fecha.ToString("ddd", cl)</small></div>
+            <div class="d">
+                <b>@Icono(e.Tipo) @e.Asignatura · @e.Titulo</b> @if (dias >= 0 && dias <= 7) { <span class="au-chip sol">@(dias == 0 ? "¡Hoy!" : dias == 1 ? "Mañana" : "En " + dias + " días")</span> }
+                <br /><small>@(e.Tipo ?? "Evaluación")@(e.Contenido != null ? " · " + e.Contenido : "")@(esPersonal && e.Notas > 0 ? " · " + e.Notas + " notas puestas" : "")</small>
+            </div>
+            @if (e.PuedeEditar && e.Notas == 0)
+            {
+                <form asp-action="Quitar" method="post" class="m-0" data-c="¿Quitar esta evaluación del calendario?" onsubmit="return confirm(this.dataset.c);">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@e.Id" />
+                    <button class="btn btn-sm btn-link text-danger" aria-label="Quitar">✕</button>
+                </form>
+            }
+        </div>
+    }
+}

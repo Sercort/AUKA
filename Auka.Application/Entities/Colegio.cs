@@ -46,6 +46,9 @@ public class Colegio
     // Períodos de matrícula (JSON): año, desde, hasta, quiénes pueden matricular y si se cerró.
     // null = sin períodos: matricula la administración (y desde septiembre, también para el año siguiente). Ver Auka.Web/Services/Matriculas.cs
     public string? PeriodosMatricula { get; set; }
+    // Profesor/a jefe que termina su ciclo (8º básico o 4º medio) y vuelve a 1º:
+    // false = mantiene su letra (8º A → 1º A); true = rotación (otra letra, sin repetir hasta pasar por todas)
+    public bool RotarLetraJefes { get; set; }
 
     // El administrador (Plan Premium) entra al resumen psicosocial: ve cantidades y estados, nunca el contenido de las fichas.
     // Lo activa solo el dueño de la plataforma cuando el colegio lo pide.

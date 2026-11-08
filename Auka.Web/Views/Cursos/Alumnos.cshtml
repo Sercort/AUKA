@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Cursos/Alumnos.cshtml — nómina del curso: alumnos, apoderados, traslados y profesor jefe *@
+@* Auka.Web/Views/Cursos/Alumnos.cshtml — nómina del curso: alumnos, apoderados, traslados y profesor jefe *@
 @using Auka.Application.Entities
 @model Curso
 @{
@@ -6,6 +6,9 @@
     var esGestion = User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin");
     var puedeJefe = ViewBag.PuedeProfJefe == true;
     var docentes = ViewBag.Docentes as List<Auka.Web.Controllers.OpcionVm> ?? new();
+    string cicloCurso = ViewBag.CicloCurso ?? "";
+    var delCiclo = ViewBag.DelCiclo as HashSet<int> ?? new HashSet<int>();
+    var yaEsJefe = ViewBag.YaEsJefe as Dictionary<int, string> ?? new Dictionary<int, string>();
     var otros = ViewBag.OtrosCursos as List<Curso> ?? new();
     var alumnos = (ViewBag.Alumnos as List<Estudiante> ?? Model.Estudiantes.ToList())
         .Where(e => e.Usuario != null).OrderBy(e => e.Usuario!.Apellido).ThenBy(e => e.Usuario!.Nombre).ToList();
@@ -123,21 +126,43 @@
 {
     <div class="au-card p-3 mb-3 d-flex align-items-center gap-3 flex-wrap no-jefe">
         <span style="font-size:1.4rem">👩‍🏫</span>
-        <div><b>Profesor/a jefe</b><div class="small text-muted">Recibe los avisos del curso y cita a reunión de apoderados.</div></div>
+        <div><b>Profesor/a jefe</b><div class="small text-muted">Recibe los avisos del curso y cita a reunión de apoderados. Sigue con el mismo curso al año siguiente (se puede cambiar).</div></div>
         <form asp-action="AsignarProfesorJefe" method="post" class="d-flex gap-2 ms-auto flex-wrap">
             @Html.AntiForgeryToken()
             <input type="hidden" name="cursoId" value="@Model.Id" />
             <input type="hidden" name="volver" value="@Url.Action("Alumnos", new { id = Model.Id })" />
-            <select name="usuarioId" class="form-select">
+            <select name="usuarioId" class="form-select" style="min-width:280px">
                 <option value="0">Sin profesor/a jefe</option>
-                @foreach (var d in docentes)
-                {
-                    <option value="@d.Id" selected="@(Model.ProfesorJefeId == d.Id)">@d.Nombre</option>
-                }
+                <optgroup label="Profesores/as de @(cicloCurso.Replace("Educación ", "")) (hacen clases en este ciclo)">
+                    @foreach (var d in docentes.Where(d => delCiclo.Contains(d.Id)))
+                    {
+                        <option value="@d.Id" selected="@(Model.ProfesorJefeId == d.Id)">@d.Nombre@(yaEsJefe.TryGetValue(d.Id, out var jc) ? " · ya es jefe de " + jc : "")</option>
+                    }
+                </optgroup>
+                <optgroup label="Otros profesores/as">
+                    @foreach (var d in docentes.Where(d => !delCiclo.Contains(d.Id)))
+                    {
+                        <option value="@d.Id" selected="@(Model.ProfesorJefeId == d.Id)">@d.Nombre@(yaEsJefe.TryGetValue(d.Id, out var jc2) ? " · ya es jefe de " + jc2 : "")</option>
+                    }
+                </optgroup>
             </select>
             <button class="btn btn-primary px-4">Guardar</button>
         </form>
     </div>
+}
+@if ((puedeJefe || ViewBag.EsSuJefe == true) && Model.ProfesorJefeId != null && !esArchivo)
+{
+    <form asp-action="CortarJefe" method="post" class="au-card p-3 mb-3 d-flex align-items-center gap-3 flex-wrap no-jefe" style="background:@(Model.JefeNoSigue ? "#fff6e0" : "#fff")">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cursoId" value="@Model.Id" />
+        <input type="hidden" name="noSigue" value="@(Model.JefeNoSigue ? "false" : "true")" />
+        <span style="font-size:1.4rem">@(Model.JefeNoSigue ? "✂️" : "🔗")</span>
+        <div>
+            <b>@(Model.JefeNoSigue ? "El profesor/a jefe NO sigue con este curso el próximo año" : "El profesor/a jefe sigue con este curso el próximo año")</b>
+            <div class="small text-muted">@(Model.JefeNoSigue ? "AUKA no lo asignará solo: hay que elegir a otro/a al crear el curso del próximo año." : "Si no va a continuar (cambio de ciclo, licencia, decisión de la UTP), márcalo aquí.")</div>
+        </div>
+        <button class="btn @(Model.JefeNoSigue ? "btn-outline-success" : "btn-outline-warning") btn-sm px-3 ms-auto">@(Model.JefeNoSigue ? "🔗 Sí sigue" : "✂️ No sigue el próximo año")</button>
+    </form>
 }
 
 <div class="no-lista">

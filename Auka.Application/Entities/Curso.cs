@@ -18,6 +18,8 @@ public class Curso
     public bool? ViernesTarde { get; set; }
     // Horario del curso bloqueado por la UTP: el automático no lo toca y no se edita hasta desbloquearlo
     public bool HorarioBloqueado { get; set; }
+    // "Cortar": el profesor/a jefe no sigue con este curso el año siguiente (AUKA no lo asigna solo; la UTP elige a otro)
+    public bool JefeNoSigue { get; set; }
 
     public ICollection<Estudiante> Estudiantes { get; set; } = new List<Estudiante>();
 }
