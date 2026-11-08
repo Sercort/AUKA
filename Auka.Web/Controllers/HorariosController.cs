@@ -83,15 +83,8 @@ public class HorariosController : Controller
         if (bloques.Count > 0) return bloques;
 
         var t = new TimeSpan(8, 0, 0);
-        var plan = new (TipoBloque Tipo, int Min)[]
-        {
-            (TipoBloque.Clase, 45), (TipoBloque.Clase, 45), (TipoBloque.Recreo, 15),
-            (TipoBloque.Clase, 45), (TipoBloque.Clase, 45), (TipoBloque.Recreo, 15),
-            (TipoBloque.Clase, 45), (TipoBloque.Clase, 45), (TipoBloque.Almuerzo, 45),
-            (TipoBloque.Clase, 45), (TipoBloque.Clase, 45)
-        };
         var orden = 1;
-        foreach (var (tipo, min) in plan)
+        foreach (var (tipo, min) in PlanDoble)
         {
             bloques.Add(new BloqueJornada { ColegioId = colegioId, Orden = orden++, HoraInicio = t, HoraFin = t.Add(TimeSpan.FromMinutes(min)), Tipo = tipo });
             t = t.Add(TimeSpan.FromMinutes(min));
@@ -100,6 +93,34 @@ public class HorariosController : Controller
         await _context.SaveChangesAsync();
         return bloques;
     }
+
+    /// <summary>
+    /// Jornada con bloques dobles: cada clase dura 2 horas pedagógicas (90 min) y va de un recreo al otro.
+    /// 08:00–09:30 clase · recreo · 09:45–11:15 clase · recreo · 11:30–13:00 clase · almuerzo · 13:45–15:15 clase.
+    /// </summary>
+    private static readonly (TipoBloque Tipo, int Min)[] PlanDoble =
+    {
+        (TipoBloque.Clase, 90), (TipoBloque.Recreo, 15),
+        (TipoBloque.Clase, 90), (TipoBloque.Recreo, 15),
+        (TipoBloque.Clase, 90), (TipoBloque.Almuerzo, 45),
+        (TipoBloque.Clase, 90)
+    };
+
+    /// <summary>Horas pedagógicas (45 min) que vale un bloque: uno de 90 minutos son 2 horas.</summary>
+    public static int HorasBloque(BloqueJornada? b) => b == null ? 1 : Math.Max(1, (int)Math.Round((b.HoraFin - b.HoraInicio).TotalMinutes / 45.0));
+
+    /// <summary>Horas pedagógicas de clase a la semana de cada profesor/a (suma lo que vale cada bloque).</summary>
+    private async Task<Dictionary<int, int>> HorasProfesoresAsync(int colegioId, int? soloProfesor = null)
+    {
+        var valor = await ValorBloquesAsync(colegioId);
+        var cl = await _context.ClasesHorario.AsNoTracking()
+            .Where(c => c.ColegioId == colegioId && c.ProfesorId != null && (soloProfesor == null || c.ProfesorId == soloProfesor))
+            .Select(c => new { P = c.ProfesorId!.Value, c.BloqueJornadaId }).ToListAsync();
+        return cl.GroupBy(c => c.P).ToDictionary(g => g.Key, g => g.Sum(x => valor.GetValueOrDefault(x.BloqueJornadaId, 1)));
+    }
+
+    private async Task<Dictionary<int, int>> ValorBloquesAsync(int colegioId) =>
+        (await _context.BloquesJornada.AsNoTracking().Where(b => b.ColegioId == colegioId).ToListAsync()).ToDictionary(b => b.Id, b => HorasBloque(b));
 
     private async Task<(TimeSpan Salida, bool Tarde)> ViernesAsync(int colegioId)
     {
@@ -118,12 +139,49 @@ public class HorariosController : Controller
     public async Task<IActionResult> Jornada()
     {
         var colegioId = ColegioId();
-        ViewBag.PuedeEditar = await PuedeEditarAsync();
+        // La jornada (bloques, recreos, viernes) solo la ve y la cambia quien arma los horarios (UTP / administración)
+        if (!await PuedeEditarAsync()) return RedirectToAction(nameof(Index));
+        ViewBag.PuedeEditar = true;
         var (salida, tarde) = await ViernesAsync(colegioId);
         ViewBag.ViernesSalida = salida;
         ViewBag.ViernesTarde = tarde;
         ViewBag.ConClases = await _context.ClasesHorario.CountAsync(c => c.ColegioId == colegioId);
         return View(await JornadaAsync(colegioId));
+    }
+
+    /// <summary>
+    /// Cambia la jornada a bloques dobles (90 min, de recreo a recreo). Como los bloques cambian,
+    /// los horarios armados se borran y se quitan los bloqueos/aprobaciones: después se usa "🪄 Generar horario".
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AplicarBloquesDobles(string? entrada)
+    {
+        if (!await PuedeEditarAsync()) return RedirectToAction("AccesoDenegado", "Account");
+        var colegioId = ColegioId();
+        var t = TimeSpan.TryParse(entrada, out var e) ? e : new TimeSpan(8, 0, 0);
+
+        _context.ClasesHorario.RemoveRange(await _context.ClasesHorario.Where(c => c.ColegioId == colegioId).ToListAsync());
+        var actuales = await _context.BloquesJornada.Where(b => b.ColegioId == colegioId).OrderBy(b => b.Orden).ToListAsync();
+        foreach (var b in actuales) b.Orden += 1000;   // evita choque del índice único mientras se reordena
+        await _context.SaveChangesAsync();
+        for (var i = 0; i < PlanDoble.Length; i++)
+        {
+            var b = i < actuales.Count ? actuales[i] : null;
+            if (b == null) { b = new BloqueJornada { ColegioId = colegioId }; _context.BloquesJornada.Add(b); }
+            b.Orden = i + 1; b.Tipo = PlanDoble[i].Tipo; b.HoraInicio = t; b.HoraFin = t.Add(TimeSpan.FromMinutes(PlanDoble[i].Min));
+            t = b.HoraFin;
+        }
+        if (actuales.Count > PlanDoble.Length) _context.BloquesJornada.RemoveRange(actuales.Skip(PlanDoble.Length));
+
+        // Los horarios aprobados ya no existen: se desbloquean para armarlos de nuevo
+        foreach (var c in await _context.Cursos.Where(c => c.ColegioId == colegioId && c.HorarioBloqueado).ToListAsync()) c.HorarioBloqueado = false;
+        foreach (var u in await _context.Usuarios.Where(u => u.ColegioId == colegioId && (u.HorarioBloqueado || u.HorarioConfirmadoUtc != null || u.HorarioAprobadoUtc != null)).ToListAsync())
+        { u.HorarioBloqueado = false; u.HorarioConfirmadoUtc = null; u.HorarioAprobadoUtc = null; }
+        await _context.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "✅ Jornada con bloques dobles (90 min, de recreo a recreo). Los horarios anteriores se borraron: vuelve a Horarios y usa \"🪄 Generar horario\".";
+        return RedirectToAction(nameof(Jornada));
     }
 
     [HttpPost]
@@ -229,8 +287,7 @@ public class HorariosController : Controller
         if (vm.Editable)
         {
             // Cada profesor/a con su carga: "Alejandra Soto · Lenguaje · 18/30 h"
-            var horas = await _context.ClasesHorario.AsNoTracking().Where(c => c.ColegioId == colegioId && c.ProfesorId != null)
-                .GroupBy(c => c.ProfesorId!.Value).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);
+            var horas = await HorasProfesoresAsync(colegioId);
             vm.Profesores = (await _context.Usuarios.AsNoTracking()
                 .Where(u => u.ColegioId == colegioId && u.Activo && (u.Rol == RolUsuario.Docente || u.Rol == RolUsuario.UTP || u.Rol == RolUsuario.Director || u.Rol == RolUsuario.Orientadora))
                 .OrderBy(u => u.Departamento == null).ThenBy(u => u.Departamento).ThenBy(u => u.Apellido)
@@ -356,7 +413,7 @@ public class HorariosController : Controller
         string? aviso = null;
         if (prof?.HorasContrato is > 0)
         {
-            var horas = await _context.ClasesHorario.CountAsync(c => c.ProfesorId == profesorId);
+            var horas = (await HorasProfesoresAsync(colegioId, profesorId)).GetValueOrDefault(profesorId!.Value);
             if (horas > prof.HorasContrato) aviso = $"Cuidado: {prof.Nombre} {prof.Apellido} queda con {horas} horas y su contrato es de {prof.HorasContrato}.";
         }
         return Json(new { ok = true, aviso });
@@ -375,8 +432,7 @@ public class HorariosController : Controller
         var hacenAsig = await _context.ClasesHorario.AsNoTracking()
             .Where(c => c.ColegioId == colegioId && c.ProfesorId != null && c.Asignatura.ToLower() == asignatura.ToLower())
             .Select(c => c.ProfesorId!.Value).Distinct().ToListAsync();
-        var horas = await _context.ClasesHorario.AsNoTracking().Where(c => c.ColegioId == colegioId && c.ProfesorId != null)
-            .GroupBy(c => c.ProfesorId!.Value).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);
+        var horas = await HorasProfesoresAsync(colegioId);
         var clave = asignatura.Trim().ToLower();
         clave = clave.Length > 6 ? clave[..6] : clave;   // "lenguaje y comunicación" ≈ "lengua", "matemática" ≈ "matemá"
         var candidatos = (await _context.Usuarios.AsNoTracking()
@@ -548,7 +604,9 @@ public class HorariosController : Controller
         var existentes = await _context.ClasesHorario.Where(c => c.ColegioId == colegioId).ToListAsync();
         var cursoOcupado = existentes.Select(c => (c.CursoId, c.Dia, c.BloqueJornadaId)).ToHashSet();
         var profOcupado = existentes.Where(c => c.ProfesorId != null).Select(c => (c.ProfesorId!.Value, c.Dia, c.BloqueJornadaId)).ToHashSet();
-        var carga = existentes.Where(c => c.ProfesorId != null).GroupBy(c => c.ProfesorId!.Value).ToDictionary(g => g.Key, g => g.Count());
+        var valor = await ValorBloquesAsync(colegioId);   // 1 bloque de 90 min = 2 horas pedagógicas
+        int V(int bloqueId) => valor.GetValueOrDefault(bloqueId, 1);
+        var carga = existentes.Where(c => c.ProfesorId != null).GroupBy(c => c.ProfesorId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => V(x.BloqueJornadaId)));
 
         var docentes = await _context.Usuarios.AsNoTracking()
             .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente && !u.HorarioBloqueado)
@@ -571,7 +629,7 @@ public class HorariosController : Controller
             var porDia = new Dictionary<(string, int), int>();   // cuántas horas de cada asignatura hay ya ese día (para repartir)
 
             // Lo que ya está puesto cuenta: si un bloqueado ya hace 3 horas de Matemática, solo faltan las demás
-            var yaTiene = existentes.Where(c => c.CursoId == curso.Id).GroupBy(c => c.Asignatura.Trim().ToLower()).ToDictionary(g => g.Key, g => g.Count());
+            var yaTiene = existentes.Where(c => c.CursoId == curso.Id).GroupBy(c => c.Asignatura.Trim().ToLower()).ToDictionary(g => g.Key, g => g.Sum(x => V(x.BloqueJornadaId)));
             foreach (var (asig, horasPlan) in PlanDe(curso.Nombre, especialidad))
             {
                 var horas = Math.Max(0, horasPlan - yaTiene.GetValueOrDefault(asig.ToLower()));
@@ -589,17 +647,19 @@ public class HorariosController : Controller
                         .OrderBy(d => carga.GetValueOrDefault(d.Id)).Select(d => d.Id).ToList();
                 }
 
-                for (var h = 0; h < horas; h++)
+                var restantes = horas;
+                while (restantes > 0)
                 {
-                    // Bloques libres del curso, primero los días con menos horas de esta asignatura y temprano
+                    // Bloques libres del curso: primero los que no se pasan de las horas que faltan, los días con menos horas de esta asignatura y temprano
+                    var falta = restantes;
                     var libres = slots.Where(sl => !cursoOcupado.Contains((curso.Id, sl.Dia, sl.B.Id)))
-                        .OrderBy(sl => porDia.GetValueOrDefault((asig, sl.Dia))).ThenBy(sl => sl.B.HoraInicio).ThenBy(sl => sl.Dia).ToList();
-                    if (libres.Count == 0) { sinEspacio += horas - h; break; }
+                        .OrderBy(sl => V(sl.B.Id) > falta ? 1 : 0).ThenBy(sl => porDia.GetValueOrDefault((asig, sl.Dia))).ThenBy(sl => sl.B.HoraInicio).ThenBy(sl => sl.Dia).ToList();
+                    if (libres.Count == 0) { sinEspacio += restantes; break; }
 
                     (int Dia, BloqueJornada B)? elegido = null; int? prof = null;
                     foreach (var sl in libres)
                     {
-                        var p = candidatos.FirstOrDefault(c => !profOcupado.Contains((c, sl.Dia, sl.B.Id)) && carga.GetValueOrDefault(c) < Tope(c));
+                        var p = candidatos.FirstOrDefault(c => !profOcupado.Contains((c, sl.Dia, sl.B.Id)) && carga.GetValueOrDefault(c) + V(sl.B.Id) <= Tope(c));
                         if (p != 0) { elegido = sl; prof = p; break; }
                     }
                     if (elegido == null) { elegido = libres[0]; prof = null; sinProfesor++; faltan[asig] = faltan.GetValueOrDefault(asig) + 1; }
@@ -607,11 +667,13 @@ public class HorariosController : Controller
                     var (dia, bl) = elegido.Value;
                     nuevos.Add(new ClaseHorario { ColegioId = colegioId, CursoId = curso.Id, Dia = dia, BloqueJornadaId = bl.Id, Asignatura = asig, ProfesorId = prof, ModificadaUtc = DateTime.UtcNow });
                     cursoOcupado.Add((curso.Id, dia, bl.Id));
-                    porDia[(asig, dia)] = porDia.GetValueOrDefault((asig, dia)) + 1;
+                    var vale = V(bl.Id);
+                    restantes -= vale;
+                    porDia[(asig, dia)] = porDia.GetValueOrDefault((asig, dia)) + vale;
                     if (prof != null)
                     {
                         profOcupado.Add((prof.Value, dia, bl.Id));
-                        carga[prof.Value] = carga.GetValueOrDefault(prof.Value) + 1;
+                        carga[prof.Value] = carga.GetValueOrDefault(prof.Value) + vale;
                         // El mismo profesor/a sigue con las demás horas de esta asignatura en este curso
                         candidatos = candidatos.OrderBy(c => c == prof ? 0 : 1).ThenBy(c => carga.GetValueOrDefault(c)).ToList();
                     }
@@ -627,7 +689,9 @@ public class HorariosController : Controller
         if (sinEspacio > 0) msg += $" {sinEspacio} horas no cupieron en la jornada.";
         if (cursosBloqueados > 0) msg += $" {cursosBloqueados} {(cursosBloqueados == 1 ? "curso bloqueado no se tocó" : "cursos bloqueados no se tocaron")}.";
         if (profBloqueados.Count > 0) msg += " Los bloques de docentes con horario aprobado (🔒) se respetaron.";
-        msg += " Revísalo y ajústalo tocando cada bloque.";
+        if (asignados == 0 && cursos.Count > 0)
+            msg = "ℹ️ No se agregó nada: los horarios de los cursos ya están llenos (el botón solo completa bloques vacíos). Para armarlos de nuevo con bloques dobles: Jornada y viernes → \"Aplicar bloques dobles\" (borra los horarios actuales) y después vuelve a apretar este botón.";
+        else msg += " Revísalo y ajústalo tocando cada bloque.";
         TempData["SuccessMessage"] = msg;
         return cursoId != null ? Redirect($"/Horarios/Curso/{cursoId}") : RedirectToAction(nameof(Index));
     }
@@ -655,9 +719,7 @@ public class HorariosController : Controller
                     || u.Rol == RolUsuario.Inspector || u.Rol == RolUsuario.Orientadora || u.Rol == RolUsuario.SuperAdmin))
                 .OrderBy(u => u.Apellido).ToListAsync();
         }
-        var horas = await _context.ClasesHorario.AsNoTracking().Where(c => c.ColegioId == colegioId && c.ProfesorId != null)
-            .GroupBy(c => c.ProfesorId!.Value).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
-        ViewBag.Horas = horas.ToDictionary(h => h.Key, h => h.N);
+        ViewBag.Horas = await HorasProfesoresAsync(colegioId);
         // Cursos de cada docente y en qué ciclo hace clases (básica / media)
         var cursosProf = await _context.ClasesHorario.AsNoTracking().Include(c => c.Curso)
             .Where(c => c.ColegioId == colegioId && c.ProfesorId != null)
@@ -1024,12 +1086,13 @@ public class HorariosController : Controller
         var clases = await _context.ClasesHorario.AsNoTracking().Include(c => c.Curso).Where(c => c.ProfesorId == id).ToListAsync();
         var vm = await ArmarGrillaAsync(colegioId, clases, porProfesor: true);
         vm.Titulo = $"{u.Nombre} {u.Apellido}";
-        vm.Subtitulo = (u.Departamento ?? NombreRol(u.Rol)) + $" · {clases.Count} {(clases.Count == 1 ? "bloque" : "bloques")} de clase a la semana"
+        var horasProf = (await HorasProfesoresAsync(colegioId, id)).GetValueOrDefault(id);
+        vm.Subtitulo = (u.Departamento ?? NombreRol(u.Rol)) + $" · {clases.Count} {(clases.Count == 1 ? "bloque" : "bloques")} de clase ({horasProf} horas pedagógicas) a la semana"
             + (u.HorasContrato is > 0 ? $" de {u.HorasContrato} por contrato" : "");
         vm.ProfesorId = u.Id;
         vm.EsPropio = u.Id == UsuarioId();
         vm.HorasContrato = u.HorasContrato;
-        vm.Horas = clases.Count;
+        vm.Horas = horasProf;
         vm.ConfirmadoUtc = u.HorarioConfirmadoUtc;
         vm.UltimoCambioUtc = clases.Count == 0 ? null : clases.Max(c => c.ModificadaUtc);
         vm.ProfesorBloqueado = u.HorarioBloqueado;

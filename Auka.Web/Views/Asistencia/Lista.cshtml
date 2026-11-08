@@ -1,0 +1,143 @@
+@* Auka.Web/Views/Asistencia/Lista.cshtml — pasar lista: presente / ausente / atrasado (hora + justificativo).
+   "Finalizar clase" la cierra: después solo la UTP puede corregirla. Los atrasos de la entrada (inspectoría) llegan solos. *@
+@model List<Auka.Web.Controllers.AsistenciaController.FilaLista>
+@using Auka.Application.Entities
+@{
+    var curso = (Curso)ViewBag.Curso;
+    var bloque = (BloqueJornada)ViewBag.Bloque;
+    var dia = (DateOnly)ViewBag.Fecha;
+    bool puede = ViewBag.Puede == true;
+    bool yaTomada = ViewBag.YaTomada == true;
+    bool cerrada = ViewBag.Cerrada == true;
+    bool vencida = ViewBag.Vencida == true;
+    bool esSuya = ViewBag.EsSuya == true;
+    bool esUtp = ViewBag.EsUtp == true;
+    var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
+    ViewData["Title"] = "Lista " + curso.Nombre + " " + curso.Letra;
+    var ahora = DateTime.Now.ToString("HH:mm");
+    var motivos = new[] { "Locomoción / tráfico", "Se quedó dormido/a", "Hora médica", "Trámite familiar", "Sin justificar" };
+}
+<style>
+    .ls { display: flex; align-items: center; gap: .8rem; padding: .6rem .8rem; border-bottom: 1px solid #eef2f8; flex-wrap: wrap; }
+    .ls .n { flex: 1; min-width: 180px; }
+    .ls .n small { display: block; color: var(--a-mut); font-weight: 600; }
+    .ls .op { display: flex; gap: .35rem; }
+    .ls .op input { display: none; }
+    .ls .op label { border: 1.5px solid var(--a-line); border-radius: 999px; padding: .35rem .8rem; font-weight: 800; font-size: .85rem; cursor: pointer; user-select: none; }
+    .ls .op input:disabled + label { cursor: default; opacity: .75; }
+    .ls .op input:checked + label.p { background: #dcf5e8; border-color: #2bb673; color: #12744a; opacity: 1; }
+    .ls .op input:checked + label.a { background: #fde5e4; border-color: #e0565b; color: #a12d2a; opacity: 1; }
+    .ls .op input:checked + label.t { background: #fff0cc; border-color: #ffb703; color: #8a5a00; opacity: 1; }
+    .ls .atrx { display: none; gap: .4rem; align-items: center; flex-wrap: wrap; width: 100%; padding-left: 34px; }
+    .ls.atr .atrx { display: flex; }
+    .ls .atrx input[type=time] { width: 110px; }
+    .ls .atrx input[type=text] { flex: 1; min-width: 200px; }
+    .ls.aus { background: #fff7f7; }
+    .ls.atr { background: #fffbf0; }
+    .ls .insp { background: #eef3ff; color: #2459b0; border-radius: 999px; padding: .1rem .55rem; font-size: .75rem; font-weight: 800; }
+    .ls-res { position: sticky; bottom: 0; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; padding: 12px 16px; background: rgba(255,255,255,.96); border-top: 1px solid var(--a-line); backdrop-filter: blur(6px); }
+</style>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+<div class="au-head" style="background:linear-gradient(120deg,#12744a,#2bb673 60%,#7ddcae)">
+    <div class="ico">✅</div>
+    <div class="txt"><h2>@curso.Nombre @curso.Letra · @ViewBag.Asignatura</h2><p style="text-transform:capitalize">@dia.ToString("dddd d 'de' MMMM", cl) · @bloque.HoraInicio.ToString("hh\\:mm") a @bloque.HoraFin.ToString("hh\\:mm") · @Model.Count alumnos/as</p></div>
+    <div class="acc"><a href="/Asistencia?fecha=@dia.ToString("yyyy-MM-dd")">✅ Clases del día</a></div>
+</div>
+
+@if (cerrada && !esUtp)
+{
+    <div class="alert alert-secondary">🔒 <b>Clase finalizada.</b> La lista ya no se puede modificar. Si hay un error, la UTP puede corregirla.</div>
+}
+else if (cerrada && esUtp)
+{
+    <div class="alert alert-warning">🔒 Clase finalizada por el profesor/a. Como UTP puedes corregirla.</div>
+}
+else if (vencida && !yaTomada)
+{
+    <div class="alert alert-danger">⛔ <b>Asistencia no pasada.</b> La lista se cerró sola @(Auka.Web.Controllers.AsistenciaController.HorasCierre) horas después de terminar la clase y se avisó a la UTP. @(esUtp ? "Como UTP puedes pasarla ahora." : "Solo la UTP puede registrarla.")</div>
+}
+else if (vencida && !esUtp)
+{
+    <div class="alert alert-secondary">🔒 <b>Lista cerrada.</b> Pasaron más de @(Auka.Web.Controllers.AsistenciaController.HorasCierre) horas desde que terminó la clase. Si hay un error, la UTP puede corregirla.</div>
+}
+else if (!puede)
+{
+    <div class="alert alert-secondary">👁️ Solo lectura: la lista la pasa el profesor/a de esta clase.</div>
+}
+else if (yaTomada)
+{
+    <div class="alert alert-info">La lista está guardada pero la clase no se ha finalizado: aún puedes corregirla. Al terminar la clase, aprieta <b>🔒 Finalizar clase</b>.</div>
+}
+
+<form method="post" action="/Asistencia/Guardar" class="au-card p-0" id="lsForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="cursoId" value="@curso.Id" />
+    <input type="hidden" name="bloqueId" value="@bloque.Id" />
+    <input type="hidden" name="fecha" value="@dia.ToString("yyyy-MM-dd")" />
+    <input type="hidden" name="finalizar" value="false" id="lsFin" />
+    @{ var i = 0; }
+    @foreach (var f in Model)
+    {
+        i++;
+        var e = f.Estado ?? EstadoAsistencia.Presente;
+        <div class="ls @(e == EstadoAsistencia.Ausente ? "aus" : e == EstadoAsistencia.Atrasado ? "atr" : "")">
+            <span class="text-muted fw-bold" style="width:26px">@i</span>
+            <div class="n"><b>@f.Nombre</b>
+                @if (f.LlegadaInspectoria is TimeSpan li) { <span class="insp" title="@f.MotivoInspectoria">🚪 Llegó @li.ToString("hh\\:mm") (inspectoría)</span> }
+                <small>@(f.PorcentajeAnual is decimal p ? (p < 85m ? "🔴 " : "") + p.ToString("0.#") + "% en el año" : "Sin registros aún")@(f.AtrasosMes > 0 ? " · ⏰ " + f.AtrasosMes + " días con atraso este mes" : "")@(e == EstadoAsistencia.Ausente && f.Observacion != null ? " · " + f.Observacion : "")</small>
+            </div>
+            <div class="op">
+                <input type="radio" name="e_@(f.EstudianteId)" id="p@(f.EstudianteId)" value="0" checked="@(e == EstadoAsistencia.Presente || e == EstadoAsistencia.Justificado)" disabled="@(!puede)" /><label class="p" for="p@(f.EstudianteId)">✅ Presente</label>
+                <input type="radio" name="e_@(f.EstudianteId)" id="a@(f.EstudianteId)" value="1" checked="@(e == EstadoAsistencia.Ausente)" disabled="@(!puede)" /><label class="a" for="a@(f.EstudianteId)">❌ Ausente</label>
+                <input type="radio" name="e_@(f.EstudianteId)" id="t@(f.EstudianteId)" value="2" checked="@(e == EstadoAsistencia.Atrasado)" disabled="@(!puede)" /><label class="t" for="t@(f.EstudianteId)">⏰ Atrasado</label>
+            </div>
+            <div class="atrx">
+                <span class="small fw-bold">Llegó a las</span>
+                <input type="time" class="form-control form-control-sm" name="h_@(f.EstudianteId)" value="@(f.Llegada?.ToString("hh\\:mm") ?? ahora)" disabled="@(!puede)" aria-label="Hora de llegada" />
+                <input type="text" class="form-control form-control-sm mot" name="m_@(f.EstudianteId)" value="@(e == EstadoAsistencia.Atrasado ? f.Observacion : "")" maxlength="300" list="lsMotivos" placeholder="¿Por qué llegó atrasado/a? (justificativo)" disabled="@(!puede)" aria-label="Motivo del atraso" />
+            </div>
+        </div>
+    }
+    <datalist id="lsMotivos">@foreach (var m in motivos) { <option value="@m"></option> }</datalist>
+    @if (puede && Model.Count > 0)
+    {
+        <div class="ls-res">
+            <b id="lsCuenta"></b>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="lsTodos">Todos presentes</button>
+            <button class="btn btn-outline-success px-3 ms-auto">💾 Guardar</button>
+            <button type="button" class="btn btn-success px-4" id="lsFinalizar">🔒 Finalizar clase</button>
+        </div>
+    }
+</form>
+
+<script>
+    (function () {
+        var f = document.getElementById('lsForm');
+        function pintar() {
+            var p = 0, a = 0, t = 0;
+            f.querySelectorAll('.ls').forEach(function (fila) {
+                var v = (fila.querySelector('input[type=radio]:checked') || {}).value;
+                fila.classList.toggle('aus', v === '1'); fila.classList.toggle('atr', v === '2');
+                var mot = fila.querySelector('.mot'); if (mot) mot.required = v === '2' && !mot.disabled;
+                if (v === '1') a++; else if (v === '2') t++; else p++;
+            });
+            var c = document.getElementById('lsCuenta');
+            if (c) c.textContent = '✅ ' + (p + t) + ' presentes' + (t ? ' (⏰ ' + t + ' atrasados)' : '') + ' · ❌ ' + a + ' ausentes';
+        }
+        f.addEventListener('change', pintar);
+        var todos = document.getElementById('lsTodos');
+        if (todos) todos.addEventListener('click', function () { f.querySelectorAll('input[value="0"]').forEach(function (r) { r.checked = true; }); pintar(); });
+        var fin = document.getElementById('lsFinalizar');
+        if (fin) fin.addEventListener('click', function () {
+            if (!f.reportValidity()) return;
+            if (!confirm('¿Finalizar la clase? Después ya no podrás modificar la lista (solo la UTP).')) return;
+            document.getElementById('lsFin').value = 'true';
+            f.submit();
+        });
+        pintar();
+    })();
+</script>

@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Cursos/Ficha.cshtml — ficha del alumno/a: todo en una página, cada bloque lleva a su detalle *@
+@* Auka.Web/Views/Cursos/Ficha.cshtml — ficha del alumno/a: todo en una página, cada bloque lleva a su detalle *@
 @using Auka.Application.Entities
 @using Auka.Web.Controllers
 @model Estudiante
@@ -79,6 +79,24 @@
     <a class="au-card fi-kpi" href="/Talleres"><small>Clubes</small><b>🌟 @clubes.Count</b><span>@(clubes.Count == 0 ? "Ver clubes del colegio" : string.Join(", ", clubes.Select(c => c.Nombre)))</span></a>
 </div>
 
+@{
+    var incid = ViewBag.Incidencias as List<(DateTime Fecha, Auka.Application.Entities.EstadoAsistencia Estado, TimeSpan? Hora, string? Obs)> ?? new();
+    var entrada = ViewBag.AtrasosEntrada as List<Auka.Application.Entities.AtrasoLlegada> ?? new();
+}
+@if (incid.Count > 0 || entrada.Count > 0)
+{
+    <div class="au-card p-3 mb-3">
+        <b class="d-block mb-2">🕒 Inasistencias y atrasos recientes</b>
+        @foreach (var x in entrada)
+        {
+            <div class="small py-1">🚪 @x.Fecha.ToString("dd-MM") · Llegó a las @x.Hora.ToString("hh\\:mm") (inspectoría) · @x.Motivo@(x.Justificado ? " · con justificativo" : "")</div>
+        }
+        @foreach (var x in incid)
+        {
+            <div class="small py-1">@(x.Estado == Auka.Application.Entities.EstadoAsistencia.Ausente ? "❌ Ausente" : x.Estado == Auka.Application.Entities.EstadoAsistencia.Atrasado ? "⏰ Atrasado" : "📄 Justificado") · @x.Fecha.ToString("dd-MM")@(x.Hora is TimeSpan h ? " · llegó " + h.ToString("hh\\:mm") : "")@(x.Obs != null ? " · " + x.Obs : "")</div>
+        }
+    </div>
+}
 <div class="fi-grid">
     <!-- Datos -->
     <div class="au-card fi-sec">

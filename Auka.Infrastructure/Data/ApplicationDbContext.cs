@@ -49,6 +49,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<AnotacionEliminada> AnotacionesEliminadas { get; set; } = null!;
     public DbSet<BitacoraPsicosocial> BitacorasPsicosociales { get; set; } = null!;
     public DbSet<Asistencia> Asistencias { get; set; } = null!;
+    public DbSet<AtrasoLlegada> AtrasosLlegada { get; set; } = null!;
     public DbSet<EventoCalendario> EventosCalendario { get; set; } = null!;
     public DbSet<AccesoExpediente> AccesosExpediente { get; set; } = null!;
     public DbSet<SetBeneficio> SetsBeneficio { get; set; } = null!;
@@ -135,7 +136,17 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Anotacion>().ToTable("Anotaciones");
         modelBuilder.Entity<AnotacionEliminada>().ToTable("AnotacionesEliminadas");
         modelBuilder.Entity<BitacoraPsicosocial>().ToTable("BitacorasPsicosociales");
-        modelBuilder.Entity<Asistencia>().ToTable("Asistencias");
+        modelBuilder.Entity<AtrasoLlegada>(e =>
+        {
+            e.ToTable("AtrasosLlegada");
+            e.HasIndex(a => new { a.ColegioId, a.Fecha });
+            e.HasOne(a => a.Estudiante).WithMany().HasForeignKey(a => a.EstudianteId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<Asistencia>(e =>
+        {
+            e.ToTable("Asistencias");
+            e.HasIndex(a => new { a.CursoId, a.Fecha });
+        });
         modelBuilder.Entity<EventoCalendario>().ToTable("EventosCalendario");
         modelBuilder.Entity<AccesoExpediente>().ToTable("AccesosExpediente");
         modelBuilder.Entity<SetBeneficio>().ToTable("SetsBeneficio");

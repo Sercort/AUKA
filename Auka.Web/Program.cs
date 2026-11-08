@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Auka.Application.Interfaces;
 using Auka.Application.Services;
 using Auka.Infrastructure.Data;
@@ -41,6 +41,7 @@ builder.Services.AddScoped<INotificacionService, NotificacionService>();
 builder.Services.AddScoped<IAccesoService, AccesoService>();   // correo con enlace para que la persona cree su contraseña
 builder.Services.AddHostedService<ReintentoCorreosService>();
 builder.Services.AddHostedService<AvisoVencimientosService>();
+builder.Services.AddHostedService<AsistenciaNoPasadaService>();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>

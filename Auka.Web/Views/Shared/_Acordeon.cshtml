@@ -1,0 +1,34 @@
+@* Auka.Web/Views/Shared/_Acordeon.cshtml — comportamiento de los paneles en acordeón (.acd).
+   Toca una tarjeta: se abre a todo el ancho y la que estaba abierta se cierra sola.
+   Recuerda cuál dejaste abierta en este navegador (si no se puede, abre la marcada con data-abrir). *@
+<script>
+    (function () {
+        document.querySelectorAll('.acd').forEach(function (acd) {
+            var clave = 'auka-acd-' + (acd.dataset.acd || 'panel');
+            var items = Array.prototype.slice.call(acd.querySelectorAll(':scope > .acd-it'));
+            function abrir(it, mover) {
+                items.forEach(function (o) {
+                    var si = o === it;
+                    o.classList.toggle('abierto', si);
+                    var b = o.querySelector('.acd-h'); if (b) b.setAttribute('aria-expanded', si ? 'true' : 'false');
+                });
+                try { localStorage.setItem(clave, it ? it.dataset.id : ''); } catch (e) { }
+                if (it && mover) setTimeout(function () { it.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 120);
+            }
+            items.forEach(function (it) {
+                var b = it.querySelector('.acd-h');
+                if (!b) return;
+                b.setAttribute('aria-expanded', 'false');
+                b.addEventListener('click', function () { abrir(it.classList.contains('abierto') ? null : it, true); });
+            });
+            var guardada = null;
+            try { guardada = localStorage.getItem(clave); } catch (e) { }
+            var inicial = (guardada !== null && guardada !== '' ? items.find(function (i) { return i.dataset.id === guardada; }) : null)
+                || (guardada === '' ? null : acd.querySelector(':scope > .acd-it[data-abrir]'));
+            if (inicial) abrir(inicial, false);
+            // Un enlace #id abre esa tarjeta
+            function porHash() { var h = location.hash.slice(1); var it = h && items.find(function (i) { return i.dataset.id === h; }); if (it) abrir(it, true); }
+            window.addEventListener('hashchange', porHash); porHash();
+        });
+    })();
+</script>

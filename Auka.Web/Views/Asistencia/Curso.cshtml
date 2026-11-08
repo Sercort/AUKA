@@ -1,0 +1,70 @@
+@* Auka.Web/Views/Asistencia/Curso.cshtml — asistencia del año de un curso, por alumno/a (bajo 85% en rojo) *@
+@using Auka.Web.Controllers
+@{
+    var curso = (Auka.Application.Entities.Curso)ViewBag.Curso;
+    ViewData["Title"] = "Asistencia " + curso.Nombre + " " + curso.Letra;
+    var alumnos = (List<(int Id, string Nombre, AsistenciaController.ResumenAlumno? R)>)ViewBag.Alumnos;
+    decimal? total = ViewBag.PorcentajeCurso;
+    var dias = (List<(DateOnly Dia, decimal Porcentaje)>)ViewBag.Dias;
+    var bajo = alumnos.Count(a => a.R?.Porcentaje < AsistenciaController.Minimo);
+}
+<style>
+    .ac-dias { display: flex; align-items: flex-end; gap: 4px; height: 90px; padding: 6px 0; }
+    .ac-dias span { flex: 1; min-width: 6px; border-radius: 4px 4px 0 0; background: #2bb673; }
+    .ac-dias span.b { background: #e0565b; }
+    .ac-t td, .ac-t th { padding: .5rem .6rem; border-bottom: 1px solid #eef2f8; }
+    .ac-t th { font-size: .74rem; text-transform: uppercase; color: var(--a-mut); }
+</style>
+<div class="au-head" style="background:linear-gradient(120deg,#12744a,#2bb673 60%,#7ddcae)">
+    <div class="ico">📊</div>
+    <div class="txt"><h2>Asistencia de @curso.Nombre @curso.Letra</h2><p>Profesor/a jefe: @(curso.ProfesorJefe != null ? curso.ProfesorJefe.Nombre + " " + curso.ProfesorJefe.Apellido : "sin asignar")</p></div>
+    <div class="acc"><a href="/Asistencia">✅ Asistencia</a></div>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
+@if (ViewBag.PuedeCompartir == true)
+{
+    <form method="post" action="/Asistencia/Compartir" class="au-card p-3 mb-3 d-flex align-items-center gap-3 flex-wrap">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="cursoId" value="@curso.Id" />
+        <input type="hidden" name="visible" value="@(curso.AsistenciaVisibleColegas ? "false" : "true")" />
+        <span style="font-size:1.4rem">@(curso.AsistenciaVisibleColegas ? "👀" : "🔒")</span>
+        <div><b>@(curso.AsistenciaVisibleColegas ? "Tus colegas pueden ver el % de asistencia de este curso" : "El % de asistencia de este curso es solo para ti, la UTP y la dirección")</b>
+            <div class="small text-muted">Como profesor/a jefe tú decides. La UTP y la dirección lo ven siempre.</div></div>
+        <button class="btn btn-outline-primary btn-sm px-3 ms-auto">@(curso.AsistenciaVisibleColegas ? "🔒 Ocultar a colegas" : "👀 Compartir con colegas")</button>
+    </form>
+}
+<div class="d-flex gap-3 flex-wrap mb-3">
+    <div class="au-card p-3" style="flex:1;min-width:180px"><div style="font-size:1.8rem;font-weight:900;color:@(total < 85m ? "#c0392b" : "#12744a")">@(total is decimal t ? t.ToString("0.#") + "%" : "—")</div><small class="text-muted fw-bold">asistencia del curso en el año</small></div>
+    <div class="au-card p-3" style="flex:1;min-width:180px"><div style="font-size:1.8rem;font-weight:900;color:@(bajo > 0 ? "#c0392b" : "#12744a")">@bajo</div><small class="text-muted fw-bold">alumnos/as bajo 85%</small></div>
+    <div class="au-card p-3" style="flex:2;min-width:260px">
+        <small class="text-muted fw-bold">Últimos 30 días (cada barra es un día)</small>
+        <div class="ac-dias">
+            @foreach (var d in dias)
+            {
+                <span class="@(d.Porcentaje < 85m ? "b" : "")" style="height:@((int)Math.Max(4, d.Porcentaje))%" title="@d.Dia.ToString("dd-MM"): @d.Porcentaje.ToString("0.#")%"></span>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="au-card p-2">
+    <table class="w-100 ac-t">
+        <thead><tr><th>Alumno/a</th><th>Asistencia</th><th>Ausencias</th><th>Atrasos</th></tr></thead>
+        <tbody>
+            @foreach (var a in alumnos.OrderBy(x => x.R?.Porcentaje ?? 101))
+            {
+                var p = a.R?.Porcentaje;
+                <tr>
+                    <td><a href="/Cursos/Ficha/@a.Id" class="fw-bold text-decoration-none">@a.Nombre</a></td>
+                    <td><b style="color:@(p < 85m ? "#c0392b" : "#12744a")">@(p is decimal v ? v.ToString("0.#") + "%" : "—")</b> @if (p < 85m) { <span class="au-chip coral">bajo 85%</span> }</td>
+                    <td>@(a.R?.Ausentes ?? 0)</td>
+                    <td>@(a.R?.Atrasos ?? 0)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

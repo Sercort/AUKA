@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Horarios/Jornada.cshtml — jornada del colegio: entrada, bloques, recreos, almuerzo y salida del viernes *@
+@* Auka.Web/Views/Horarios/Jornada.cshtml — jornada del colegio: entrada, bloques, recreos, almuerzo y salida del viernes *@
 @model List<Auka.Application.Entities.BloqueJornada>
 @using Auka.Application.Entities
 @{
@@ -45,6 +45,22 @@
     <div class="txt"><h2>Jornada del colegio</h2><p>Hora de entrada, bloques, recreos, almuerzo y salida del viernes. Es la base de todos los horarios.</p></div>
     <div class="acc"><a asp-action="Index">Volver a horarios</a></div>
 </div>
+
+@if (puede)
+{
+    <form asp-action="AplicarBloquesDobles" method="post" class="au-card p-3 mb-3 d-flex gap-3 align-items-center flex-wrap"
+          data-c="@(conClases > 0 ? $"¿Cambiar a bloques dobles? Se borran las {conClases} clases de los horarios actuales (y sus bloqueos) para armarlos de nuevo con 🪄 Generar horario." : "¿Cambiar a bloques dobles?")"
+          onsubmit="return confirm(this.dataset.c);">
+        @Html.AntiForgeryToken()
+        <span style="font-size:1.8rem">📚</span>
+        <div class="flex-grow-1">
+            <b>Bloques dobles (90 min, de recreo a recreo)</b>
+            <div class="small text-muted">08:00–09:30 clase · recreo · 09:45–11:15 clase · recreo · 11:30–13:00 clase · almuerzo · 13:45–15:15 clase. Cada bloque vale 2 horas pedagógicas.</div>
+        </div>
+        <input type="time" name="entrada" class="form-control" style="max-width:130px" value="@entrada.ToString("hh\\:mm")" title="Hora de entrada" />
+        <button class="btn btn-primary px-4">Aplicar bloques dobles</button>
+    </form>
+}
 
 <form asp-action="GuardarJornada" method="post" id="joF">
     @Html.AntiForgeryToken()

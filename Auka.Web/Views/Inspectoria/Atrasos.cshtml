@@ -1,0 +1,83 @@
+@* Auka.Web/Views/Inspectoria/Atrasos.cshtml — inspectoría registra los atrasos de la entrada (en la mañana) *@
+@model List<Auka.Web.Controllers.InspectoriaController.FilaAtraso>
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Atrasos";
+    var dia = (DateOnly)ViewBag.Fecha;
+    bool abierto = ViewBag.Abierto == true;
+    var alumnos = ViewBag.Alumnos as List<OpcionVm> ?? new();
+    var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
+<div class="au-head" style="background:linear-gradient(120deg,#8a5a00,#fb8500 60%,#ffb703)">
+    <div class="ico">🚪</div>
+    <div class="txt">
+        <h2>Atrasos de llegada</h2>
+        <p>Registra a quien llega atrasado/a en la mañana. Le aparece solo en la lista de su clase: atrasado si llegó durante la clase, o ausente por atraso si llegó después.</p>
+    </div>
+</div>
+
+<div class="d-flex gap-2 align-items-center flex-wrap mb-3">
+    <a class="btn btn-outline-secondary btn-sm" href="?fecha=@dia.AddDays(-1).ToString("yyyy-MM-dd")">‹ Día anterior</a>
+    @if (dia != AsistenciaController.Hoy) { <a class="btn btn-outline-primary btn-sm" href="?">Hoy</a> }
+    <b class="ms-2" style="text-transform:capitalize">@dia.ToString("dddd d 'de' MMMM", cl)</b>
+    <span class="au-chip sol ms-auto">🚪 @Model.Count @(Model.Count == 1 ? "atraso" : "atrasos")</span>
+</div>
+
+@if (abierto)
+{
+    <form method="post" asp-action="Registrar" class="au-card p-3 mb-3">
+        @Html.AntiForgeryToken()
+        <div class="row g-2 align-items-end">
+            <div class="col-lg-5">
+                <label class="form-label fw-bold" for="atAl">Alumno/a</label>
+                <input class="form-control" name="alumno" id="atAl" list="atLista" required autocomplete="off" placeholder="Escribe apellido, curso o RUT" />
+                <datalist id="atLista">@foreach (var a in alumnos) { <option value="@a.Nombre"></option> }</datalist>
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label fw-bold" for="atHora">Hora de llegada</label>
+                <input class="form-control" type="time" name="hora" id="atHora" value="@DateTime.Now.ToString("HH:mm")" required />
+            </div>
+            <div class="col-6 col-lg-3">
+                <label class="form-label fw-bold" for="atMot">Motivo</label>
+                <input class="form-control" name="motivo" id="atMot" list="atMotivos" placeholder="Motivo" />
+                <datalist id="atMotivos">@foreach (var m in InspectoriaController.Motivos) { <option value="@m"></option> }</datalist>
+            </div>
+            <div class="col-lg-2"><button class="btn btn-warning w-100 fw-bold">🚪 Registrar</button></div>
+            <div class="col-12"><label class="small"><input type="checkbox" name="justificado" value="true" class="form-check-input me-1" /> Trae justificativo (comunicación del apoderado/a o certificado)</label></div>
+        </div>
+    </form>
+}
+else if (dia == AsistenciaController.Hoy)
+{
+    <div class="alert alert-secondary">🌇 El registro de atrasos de la mañana se cerró a las @InspectoriaController.HoraCierre.ToString("hh\\:mm"). Queda solo para mirar.</div>
+}
+
+<div class="au-card p-2">
+    @if (Model.Count == 0)
+    {
+        <p class="text-muted p-2 mb-0">No hay atrasos registrados este día. 👏</p>
+    }
+    @foreach (var a in Model)
+    {
+        <div class="d-flex align-items-center gap-3 p-2" style="border-bottom:1px solid #eef2f8">
+            <span class="au-chip sol" style="min-width:64px;justify-content:center">@a.Hora.ToString("hh\\:mm")</span>
+            <div class="flex-grow-1"><b>@a.Nombre</b> · @a.Curso<br /><small class="text-muted">@a.Motivo@(a.Justificado ? " · ✅ con justificativo" : "")@(a.DiasMes >= 3 ? " · ⚠️ " + a.DiasMes + " atrasos este mes" : "")</small></div>
+            @if (abierto)
+            {
+                <form method="post" asp-action="Quitar" class="m-0" data-c="¿Quitar este atraso?" onsubmit="return confirm(this.dataset.c);">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@a.Id" />
+                    <button class="btn btn-sm btn-link text-danger" aria-label="Quitar">✕</button>
+                </form>
+            }
+        </div>
+    }
+</div>

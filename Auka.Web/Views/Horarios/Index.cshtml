@@ -1,4 +1,4 @@
-﻿@* Auka.Web/Views/Horarios/Index.cshtml — horarios por curso y por profesor *@
+@* Auka.Web/Views/Horarios/Index.cshtml — horarios por curso y por profesor *@
 @model IEnumerable<Auka.Application.Entities.Curso>
 @{
     ViewData["Title"] = "Horarios";
@@ -37,17 +37,16 @@
     {
         <a asp-action="Profesores">👩‍🏫 Por profesor/a</a>
     }
-    <a asp-action="Jornada">⏰ Jornada y viernes</a>
+    @if (puedeEditar)
+    {
+        <a asp-action="Jornada">⏰ Jornada y viernes</a>
+    }
     @if (puedeEditar && Model.Any())
     {
         <form method="post" action="/Horarios/GenerarHorario" class="m-0 ms-auto" data-c="¿Armar un borrador automático para todos los cursos? Solo llena los bloques vacíos; no cambia lo que ya está asignado." onsubmit="return confirm(this.dataset.c);">
             @Html.AntiForgeryToken()
             <button class="btn btn-warning px-4">🪄 Armar horarios automáticamente</button>
         </form>
-    }
-    @if (!puedeEditar)
-    {
-        <span class="au-chip align-self-center">👀 Solo lectura · los arma la UTP</span>
     }
 </div>
 

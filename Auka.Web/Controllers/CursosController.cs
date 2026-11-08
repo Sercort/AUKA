@@ -537,6 +537,11 @@ public class CursosController : Controller
         var anot = await _context.Anotaciones.AsNoTracking().Where(a => a.EstudianteId == id && a.Fecha >= ini).OrderByDescending(a => a.Fecha).ToListAsync();
         ViewBag.AsisP = asis.Count(a => a.Presente);
         ViewBag.AsisT = asis.Count;
+        // Inasistencias y atrasos con su detalle (ej. "Ausente por atraso (llegó 9:10, inspectoría)")
+        ViewBag.Incidencias = asis.Where(a => a.Estado != EstadoAsistencia.Presente).OrderByDescending(a => a.Fecha).Take(12)
+            .Select(a => (Fecha: a.Fecha, Estado: a.Estado, Hora: a.HoraLlegada, Obs: a.Observacion)).ToList();
+        ViewBag.AtrasosEntrada = await _context.AtrasosLlegada.AsNoTracking().Where(x => x.EstudianteId == id && x.Fecha >= ini)
+            .OrderByDescending(x => x.Fecha).Take(10).ToListAsync();
         ViewBag.Anotaciones = anot;
         ViewBag.Clubes = await _context.InscripcionesTaller.AsNoTracking().Where(i => i.EstudianteId == id && i.Taller != null)
             .Select(i => new OpcionVm(i.TallerId, i.Taller!.Nombre)).ToListAsync();

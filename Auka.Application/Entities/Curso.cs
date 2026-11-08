@@ -20,6 +20,8 @@ public class Curso
     public bool HorarioBloqueado { get; set; }
     // "Cortar": el profesor/a jefe no sigue con este curso el año siguiente (AUKA no lo asigna solo; la UTP elige a otro)
     public bool JefeNoSigue { get; set; }
+    // El profesor/a jefe decide si sus colegas ven el % de asistencia del curso (la UTP y la dirección lo ven siempre)
+    public bool AsistenciaVisibleColegas { get; set; } = true;
 
     public ICollection<Estudiante> Estudiantes { get; set; } = new List<Estudiante>();
 }

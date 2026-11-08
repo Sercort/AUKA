@@ -106,6 +106,14 @@
                     {
                         <a class="@(on("Cursos", "Matricular") + on("Cursos", "PeriodosMatricula"))" asp-controller="Cursos" asp-action="Matricular">📝 Matrícula</a>
                     }
+                    @if (User.IsInRole("Docente") || User.IsInRole("UTP") || User.IsInRole("Director") || User.IsInRole("SuperAdmin") || User.IsInRole("Orientadora"))
+                    {
+                        <a class="@on("Asistencia", "")" asp-controller="Asistencia" asp-action="Index">✅ Asistencia</a>
+                    }
+                    @if (User.IsInRole("Inspector"))
+                    {
+                        <a class="@on("Inspectoria", "")" asp-controller="Inspectoria" asp-action="Atrasos">🚪 Atrasos</a>
+                    }
                     <a class="@on("Talleres", "")" asp-controller="Talleres" asp-action="Index">🌟 Clubes</a>
                     <a class="@on("Horarios", "")" asp-controller="Horarios" asp-action="Index">🗓️ Horarios</a>
                     @if (esGestion)

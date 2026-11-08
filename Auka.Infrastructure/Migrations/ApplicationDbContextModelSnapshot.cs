@@ -218,8 +218,20 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<int>("AsignaturaId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("BloqueJornadaId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CerradaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CursoId")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("EnRangoColegio")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
 
                     b.Property<int>("EstudianteId")
                         .HasColumnType("integer");
@@ -227,14 +239,23 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<DateTime>("Fecha")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<TimeSpan?>("HoraLlegada")
+                        .HasColumnType("interval");
+
                     b.Property<double?>("LatitudCapturada")
                         .HasColumnType("double precision");
 
                     b.Property<double?>("LongitudCapturada")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("Observacion")
+                        .HasColumnType("text");
+
                     b.Property<bool>("Presente")
                         .HasColumnType("boolean");
+
+                    b.Property<int?>("RegistradoPorId")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -242,7 +263,48 @@ namespace Auka.Infrastructure.Migrations
 
                     b.HasIndex("EstudianteId");
 
+                    b.HasIndex("CursoId", "Fecha");
+
                     b.ToTable("Asistencias", (string)null);
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.AtrasoLlegada", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ColegioId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstudianteId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeSpan>("Hora")
+                        .HasColumnType("interval");
+
+                    b.Property<bool>("Justificado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("RegistradoPorId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstudianteId");
+
+                    b.HasIndex("ColegioId", "Fecha");
+
+                    b.ToTable("AtrasosLlegada", (string)null);
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.BitacoraPsicosocial", b =>
@@ -549,6 +611,9 @@ namespace Auka.Infrastructure.Migrations
 
                     b.Property<int>("AnioAcademico")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("AsistenciaVisibleColegas")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("CapacidadMaxima")
                         .HasColumnType("integer");
@@ -1701,6 +1766,17 @@ namespace Auka.Infrastructure.Migrations
                     b.Navigation("Curso");
 
                     b.Navigation("Docente");
+                });
+
+            modelBuilder.Entity("Auka.Application.Entities.AtrasoLlegada", b =>
+                {
+                    b.HasOne("Auka.Application.Entities.Estudiante", "Estudiante")
+                        .WithMany()
+                        .HasForeignKey("EstudianteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Estudiante");
                 });
 
             modelBuilder.Entity("Auka.Application.Entities.Asistencia", b =>

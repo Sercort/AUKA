@@ -1,0 +1,70 @@
+@* Auka.Web/Views/Asistencia/Index.cshtml — clases del día para pasar lista + carpetas de cursos con su % de asistencia *@
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Asistencia";
+    var dia = (DateOnly)ViewBag.Fecha;
+    var clases = ViewBag.Clases as List<AsistenciaController.ClaseHoy> ?? new();
+    var carpetas = ViewBag.Carpetas as Auka.Web.Models.CarpetasVm ?? new Auka.Web.Models.CarpetasVm();
+    var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
+    var esHoy = dia == AsistenciaController.Hoy;
+    var ahora = DateTime.Now.TimeOfDay;
+    var pendientes = clases.Count(c => c.EsMia && c.Registros == 0 && (!esHoy || c.Inicio <= ahora) && !AsistenciaController.Vencida(dia, c.Fin));
+}
+<style>
+    .as-dia { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .as-dia a { text-decoration: none; }
+    .as-cl { display: flex; gap: 14px; align-items: center; padding: 12px 16px; border-radius: 16px; background: #fff; border: 1px solid var(--a-line); margin-bottom: 8px; }
+    .as-cl .h { width: 70px; text-align: center; font-weight: 900; color: var(--a-navy); }
+    .as-cl .h small { display: block; color: var(--a-mut); font-weight: 700; font-size: .72rem; }
+    .as-cl .d { flex: 1; min-width: 0; }
+    .as-cl.ok { border-color: #bfe8d3; background: #f4fbf7; }
+    .as-cl.pend { border-color: #ffd98a; background: #fffaf0; }
+    .as-cl.ahora { box-shadow: 0 0 0 3px rgba(31,181,197,.35); }
+</style>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-3">@TempData["Error"]</div>
+}
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
+<div class="au-head" style="background:linear-gradient(120deg,#12744a,#2bb673 60%,#7ddcae)">
+    <div class="ico">✅</div>
+    <div class="txt">
+        <h2>Asistencia</h2>
+        <p>Pasa la lista de cada clase: presente, ausente o atrasado (con su hora de llegada). Bajo 85% de asistencia, AUKA avisa al profesor/a jefe y al apoderado/a.</p>
+    </div>
+</div>
+
+<div class="as-dia">
+    <a class="btn btn-outline-secondary btn-sm" href="?fecha=@dia.AddDays(-1).ToString("yyyy-MM-dd")">‹ Día anterior</a>
+    <form method="get" class="d-flex gap-2 m-0"><input type="date" class="form-control form-control-sm" name="fecha" value="@dia.ToString("yyyy-MM-dd")" onchange="this.form.submit()" aria-label="Fecha" /></form>
+    @if (!esHoy) { <a class="btn btn-outline-primary btn-sm" href="?">Hoy</a> }
+    @if (dia < AsistenciaController.Hoy) { <a class="btn btn-outline-secondary btn-sm" href="?fecha=@dia.AddDays(1).ToString("yyyy-MM-dd")">Día siguiente ›</a> }
+    <b class="ms-2" style="text-transform:capitalize">@dia.ToString("dddd d 'de' MMMM", cl)</b>
+    @if (pendientes > 0) { <span class="au-chip sol ms-auto">⏳ @pendientes @(pendientes == 1 ? "lista por pasar" : "listas por pasar")</span> }
+</div>
+
+<div class="mb-4">
+    @if (clases.Count == 0)
+    {
+        <div class="au-card au-vacio"><span class="e">🗓️</span><b>@(dia.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "Fin de semana: no hay clases." : "No hay clases tuyas este día.")</b></div>
+    }
+    @foreach (var c in clases)
+    {
+        var lista = c.Registros > 0;
+        var noPasada = !lista && AsistenciaController.Vencida(dia, c.Fin);
+        var enCurso = esHoy && c.Inicio <= ahora && ahora < c.Fin;
+        var cls = lista ? "ok" : (!esHoy || c.Inicio <= ahora) ? "pend" : "";
+        <div class="as-cl @cls @(enCurso ? "ahora" : "")">
+            <div class="h">@c.Inicio.ToString("hh\\:mm")<small>a @c.Fin.ToString("hh\\:mm")</small></div>
+            <div class="d"><b>@c.Curso</b> · @c.Asignatura <br /><small class="text-muted">@(lista ? "✅ Lista pasada (" + c.Registros + " de " + c.Alumnos + ")" : noPasada ? "⛔ Asistencia no pasada (se cerró sola)" : enCurso ? "🔔 Clase en curso" : esHoy && c.Inicio > ahora ? "Más tarde" : "⏳ Falta pasar la lista")</small></div>
+            <a class="btn @(lista ? "btn-outline-success" : "btn-success") btn-sm px-3" href="/Asistencia/Lista?cursoId=@c.CursoId&bloqueId=@c.BloqueId&fecha=@dia.ToString("yyyy-MM-dd")">@(lista ? "Ver o corregir" : noPasada ? "Ver" : "✅ Pasar lista")</a>
+        </div>
+    }
+</div>
+
+<h5 class="fw-bold mb-2" style="color:var(--a-navy)">📂 Asistencia por curso</h5>
+@await Html.PartialAsync("_CursosCarpetas", carpetas)

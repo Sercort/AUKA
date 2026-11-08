@@ -47,6 +47,21 @@ public class UtpController : Controller
         public int SolicitudesCambio { get; set; }
         public int InteresadosClubes { get; set; }
         public int CursosSinJefe { get; set; }
+        public int AsistenciaNoPasada { get; set; }
+        /// <summary>Día que se revisa (hoy, o el viernes si es fin de semana) y sus listas sin pasar.</summary>
+        public DateOnly DiaAsistencia { get; set; }
+        public List<Auka.Web.Services.AsistenciaNoPasada.Falta> NoPasadas { get; set; } = new();
+        public decimal? PorcentajeAsistencia { get; set; }
+
+        // ---- Para los gráficos
+        /// <summary>Promedio de las notas de cada mes del año (tendencia).</summary>
+        public List<(string Mes, decimal? Promedio)> TendenciaNotas { get; set; } = new();
+        /// <summary>Todas las notas del año (para la distribución por tramos).</summary>
+        public List<decimal> NotasAnio { get; set; } = new();
+        /// <summary>% de asistencia de los últimos días con listas pasadas.</summary>
+        public List<(DateOnly Dia, decimal? Pct)> AsistenciaDias { get; set; } = new();
+        /// <summary>% de asistencia de cada curso (de menor a mayor).</summary>
+        public List<(int Id, string Curso, decimal? Pct)> AsistenciaCursos { get; set; } = new();
         public bool EsUtp { get; set; }
     }
 
@@ -69,6 +84,10 @@ public class UtpController : Controller
             .Select(c => new { c.EstudianteId, c.AsignaturaId, Ramo = c.Asignatura!.Nombre, CursoId = c.Asignatura.CursoId, c.Nota, c.Fecha, Docente = c.Asignatura.DocenteId })
             .ToListAsync();
         vm.TotalNotas = notas.Count;
+        vm.NotasAnio = notas.Select(n => n.Nota).ToList();
+        var mesesCl = System.Globalization.CultureInfo.GetCultureInfo("es-CL").DateTimeFormat;
+        vm.TendenciaNotas = notas.Where(n => n.Fecha.Year == anio).GroupBy(n => n.Fecha.Month).OrderBy(g => g.Key)
+            .Select(g => (mesesCl.GetAbbreviatedMonthName(g.Key).TrimEnd('.'), (decimal?)Math.Round(g.Average(x => x.Nota), 1, MidpointRounding.AwayFromZero))).ToList();
         vm.NotasRojas = notas.Count(n => n.Nota < 4.0m);
         decimal R(decimal x) => Math.Round(x, 1, MidpointRounding.AwayFromZero);
 
@@ -138,6 +157,31 @@ public class UtpController : Controller
         vm.HorariosConComentario = docentes.Count(d => d.HorarioObservacion != null);
         vm.SolicitudesCambio = await _context.SolicitudesCambioHorario.CountAsync(s => s.Estado == EstadoSolicitudHorario.Pendiente);
         vm.InteresadosClubes = await _context.InteresesTaller.CountAsync(i => !i.Atendido);
+        // Listas de hoy que se cerraron solas sin pasar (y de paso se deja el aviso al día)
+        try
+        {
+            vm.DiaAsistencia = AsistenciaNoPasada.UltimoDiaHabil();
+            vm.NoPasadas = await AsistenciaNoPasada.DelDiaAsync(_context, vm.DiaAsistencia, colegioId);
+            vm.AsistenciaNoPasada = vm.NoPasadas.Count;
+            if (vm.DiaAsistencia == AsistenciaController.Hoy && vm.AsistenciaNoPasada > 0) await AsistenciaNoPasada.AvisarAsync(_context, colegioId);
+
+            // % de asistencia del año (todas las listas pasadas)
+            var ini = AsistenciaController.DiaUtc(new DateOnly(anio, 1, 1));
+            var reg = await _context.Asistencias.AsNoTracking().Where(a => a.CursoId != null && cursoIds.Contains(a.CursoId.Value) && a.Fecha >= ini)
+                .GroupBy(a => 1).Select(g => new { P = g.Count(x => x.Estado != EstadoAsistencia.Ausente), T = g.Count() }).FirstOrDefaultAsync();
+            vm.PorcentajeAsistencia = reg == null ? null : AsistenciaController.Porcentaje(reg.P, reg.T);
+
+            // Últimos 15 días con listas y % por curso
+            var hace = AsistenciaController.DiaUtc(AsistenciaController.Hoy.AddDays(-45));
+            vm.AsistenciaDias = (await _context.Asistencias.AsNoTracking().Where(a => a.CursoId != null && cursoIds.Contains(a.CursoId.Value) && a.Fecha >= hace)
+                    .GroupBy(a => a.Fecha).Select(g => new { g.Key, P = g.Count(x => x.Estado != EstadoAsistencia.Ausente), T = g.Count() }).ToListAsync())
+                .OrderBy(x => x.Key).TakeLast(15).Select(x => (DateOnly.FromDateTime(x.Key), AsistenciaController.Porcentaje(x.P, x.T))).ToList();
+            var porCurso = await _context.Asistencias.AsNoTracking().Where(a => a.CursoId != null && cursoIds.Contains(a.CursoId.Value) && a.Fecha >= ini)
+                .GroupBy(a => a.CursoId!.Value).Select(g => new { g.Key, P = g.Count(x => x.Estado != EstadoAsistencia.Ausente), T = g.Count() }).ToListAsync();
+            vm.AsistenciaCursos = porCurso.Select(x => (x.Key, nomCurso.GetValueOrDefault(x.Key, ""), AsistenciaController.Porcentaje(x.P, x.T)))
+                .OrderBy(x => x.Item3).ToList();
+        }
+        catch { /* el panel se muestra igual */ }
         return View(vm);
     }
 }

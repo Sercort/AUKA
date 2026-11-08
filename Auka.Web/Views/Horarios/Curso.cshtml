@@ -14,10 +14,6 @@
         }
     </div>
 </div>
-@if (!Model.Editable && !User.IsInRole("Estudiante") && !User.IsInRole("Apoderado"))
-{
-    <p class="small text-muted mb-2">👀 Solo lectura: lo arma la UTP (o quien el administrador autorizó).</p>
-}
 @if (TempData["Error"] != null)
 {
     <div class="alert alert-danger mb-3">@TempData["Error"]</div>

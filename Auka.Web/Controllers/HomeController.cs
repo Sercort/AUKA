@@ -30,6 +30,10 @@ public class HomeController : Controller
         if (User.IsInRole("AdminPlataforma"))
             return RedirectToAction("Index", "Plataforma");
 
+        // Profesor/a: su inicio con sus clases de hoy, listas y evaluaciones
+        if (User.IsInRole("Docente"))
+            return RedirectToAction("Index", "Docente");
+
         // UTP: su panel académico es su pantalla de inicio
         if (User.IsInRole("UTP"))
             return RedirectToAction("Index", "Utp");

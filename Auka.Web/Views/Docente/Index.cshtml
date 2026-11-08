@@ -1,0 +1,236 @@
+@* Auka.Web/Views/Docente/Index.cshtml — inicio del profesor/a.
+   Tarjetas chicas en acordeón: al tocar una se abre con su detalle y gráficos; al abrir otra, la anterior se cierra. *@
+@model Auka.Web.Controllers.DocenteController.InicioVm
+@using Auka.Web.Services
+@using Auka.Web.Controllers
+@{
+    ViewData["Title"] = "Inicio";
+    var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
+    var ahora = DateTime.Now.TimeOfDay;
+    var principal = Model.Asignaturas.FirstOrDefault();
+    var est = Ramos.Estilo(principal);
+    var hoyDia = AsistenciaController.Hoy;
+    bool Vence(AsistenciaController.ClaseHoy c) => AsistenciaController.Vencida(hoyDia, c.Fin);
+    var porPasar = Model.Hoy.Count(c => c.Registros == 0 && c.Inicio <= ahora && !Vence(c));
+    var pasadas = Model.Hoy.Count(c => c.Registros > 0);
+    string N(decimal? n) => n is decimal v ? Csv.Nota1(v) : "—";
+    int AnchoNota(decimal? n) => n is decimal v ? (int)Math.Clamp((v - 1m) / 6m * 100m, 4m, 100m) : 0;
+    int AnchoPct(decimal? p) => p is decimal v ? (int)Math.Clamp(v, 3m, 100m) : 0;
+    var hoy = DateTime.UtcNow.Date;
+    var evalDias = Enumerable.Range(0, 15).Select(i => hoy.AddDays(i)).Where(d => d.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday))
+        .Select(d => (d.ToString("ddd d", cl), Model.Evaluaciones.Count(e => e.Fecha.Date == d), "linear-gradient(180deg,#5b8def,#2459b0)")).ToList();
+    var rojas = Model.MisNotas.Count(n => n < 4.0m);
+    var horasDia = Model.HorasPorDia.Select(h => (h.Dia, h.Horas, "linear-gradient(180deg,#5fd3df,#1fb5c5)")).ToList();
+}
+
+<div class="au-head compacto" style="background:linear-gradient(120deg,@est.Color,#1fb5c5)">
+    <div class="ico">@est.Icono</div>
+    <div class="txt">
+        <h2>¡@Saludo.Ahora(), @Model.Nombre! 👋</h2>
+        <p>
+            @if (Model.Asignaturas.Count > 0)
+            {
+                <span>Profe de @string.Join(" y ", Model.Asignaturas.Take(2))@(Model.Asignaturas.Count > 2 ? " y más" : "")</span>
+            }
+            @if (Model.Jefatura != null)
+            {
+                <span> · Profesor/a jefe de <a href="/Cursos/Alumnos/@Model.JefaturaId" style="color:#fff;text-decoration:underline">@Model.Jefatura</a></span>
+            }
+            <span> · 🗓️ @Model.HorasSemana horas a la semana</span>
+        </p>
+    </div>
+    <div class="acc">
+        <a href="/Horarios/MiHorario" class="blanco">🗓️ Mi horario</a>
+    </div>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
+}
+@if (porPasar > 0)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2 py-2">⏳ <b>Tienes @porPasar @(porPasar == 1 ? "lista" : "listas") por pasar.</b> <span class="small">Se cierran solas @AsistenciaController.HorasCierre horas después de la clase.</span> <a href="/Asistencia" class="ms-auto btn btn-sm btn-warning">Pasar lista</a></div>
+}
+@if (!Model.HorarioConfirmado && !Model.HorarioBloqueado && Model.HorasSemana > 0)
+{
+    <div class="alert alert-info d-flex align-items-center gap-2 py-2">🗓️ Revisa tu horario y confirma si estás de acuerdo. <a href="/Horarios/MiHorario" class="ms-auto btn btn-sm btn-primary">Ver mi horario</a></div>
+}
+
+<div class="acd" data-acd="docente" data-cols="3">
+
+    @* ================= Clases de hoy ================= *@
+    <section class="acd-it" data-id="hoy" style="--c:@(porPasar > 0 ? "#e09a00" : "#1fb5c5")" data-abrir="@(Model.Hoy.Count > 0 ? "1" : null)">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">📅</span>
+            <span class="acd-t"><b>Mis clases de hoy</b><small style="text-transform:capitalize">@DateTime.Now.ToString("dddd d", cl)@(Model.Hoy.Count > 0 ? $" · {pasadas} de {Model.Hoy.Count} listas" : "")</small></span>
+            <span class="acd-n">@Model.Hoy.Count</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            @if (Model.Hoy.Count == 0)
+            {
+                <p class="acd-vacio">Hoy no tienes clases. 🌤️ <a href="/Horarios/MiHorario">Ver mi horario</a></p>
+            }
+            else
+            {
+                <div class="acd-lista">
+                    @foreach (var c in Model.Hoy)
+                    {
+                        var e = Ramos.Estilo(c.Asignatura);
+                        var enCurso = c.Inicio <= ahora && ahora < c.Fin;
+                        var noPasada = c.Registros == 0 && Vence(c);
+                        <div class="acd-fila" style="@(enCurso ? "background:#f0fbfc;border-radius:12px;padding-left:.4rem" : "")">
+                            <b style="width:92px">@c.Inicio.ToString("hh\\:mm")–@c.Fin.ToString("hh\\:mm")</b>
+                            <span class="acd-ic" style="width:34px;height:34px;font-size:1rem;background:@e.Fondo">@e.Icono</span>
+                            <div class="x"><b>@c.Curso</b> · @c.Asignatura<br /><small>@(c.Registros > 0 ? "✅ Lista pasada" : noPasada ? "⛔ No pasada (se cerró)" : enCurso ? "🔔 Ahora" : c.Inicio > ahora ? "Más tarde" : "⏳ Falta la lista")</small></div>
+                            @if (c.Inicio <= ahora && !noPasada)
+                            {
+                                <a class="btn btn-sm @(c.Registros > 0 ? "btn-outline-success" : "btn-success")" href="/Asistencia/Lista?cursoId=@c.CursoId&bloqueId=@c.BloqueId">@(c.Registros > 0 ? "Ver" : "Pasar lista")</a>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div></div></div>
+    </section>
+
+    @* ================= Mis notas ================= *@
+    <section class="acd-it" data-id="notas" style="--c:@Graficos.ColorNota(Model.PromedioMio)" data-abrir="@(Model.Hoy.Count == 0 ? "1" : null)">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">📊</span>
+            <span class="acd-t"><b>Mis notas</b><small>@Model.MisNotas.Count notas · @rojas rojas</small></span>
+            @Graficos.Spark(Model.TendenciaNotas.Select(t => t.Promedio).ToList(), Graficos.ColorNota(Model.PromedioMio))
+            <span class="acd-n">@N(Model.PromedioMio)</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Promedio mes a mes <a href="/Notas">Libro de notas →</a></div>
+                    @Graficos.Linea(Model.TendenciaNotas.Select(t => t.Promedio).ToList(), Model.TendenciaNotas.Select(t => t.Mes).ToList(), 1, 7, est.Color, 4)
+                </div>
+                <div>
+                    <div class="acd-sub">¿Cómo se reparten tus notas?</div>
+                    @Graficos.Columnas(Graficos.Distribucion(Model.MisNotas), 100)
+                </div>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= Mis cursos ================= *@
+    <section class="acd-it" data-id="cursos" style="--c:#2459b0">
+        <button type="button" class="acd-h">
+            @Graficos.Dona(Model.AsistenciaMia, Graficos.ColorAsistencia(Model.AsistenciaMia), null, 58)
+            <span class="acd-t"><b>Mis cursos</b><small>asistencia y promedio de cada uno</small></span>
+            <span class="acd-n">@Model.Cursos.Count</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            @if (Model.Cursos.Count == 0)
+            {
+                <p class="acd-vacio">Aún no tienes cursos en tu horario.</p>
+            }
+            else
+            {
+                <div class="acd-cols">
+                    <div>
+                        <div class="acd-sub">Promedio de tus asignaturas</div>
+                        @foreach (var c in Model.Cursos)
+                        {
+                            <div class="acd-bar"><a href="/Notas/Libro?cursoId=@c.Id">@c.Curso</a><div class="t"><span style="width:@AnchoNota(c.Promedio)%;background:@Graficos.ColorNota(c.Promedio)"></span></div><b style="color:@Graficos.ColorNota(c.Promedio)">@N(c.Promedio)</b></div>
+                        }
+                    </div>
+                    <div>
+                        <div class="acd-sub">Asistencia del año</div>
+                        @foreach (var c in Model.Cursos)
+                        {
+                            <div class="acd-bar"><a href="/Asistencia/Curso/@c.Id">@c.Curso</a><div class="t"><span style="width:@AnchoPct(c.Asistencia)%;background:@Graficos.ColorAsistencia(c.Asistencia)"></span></div><b style="color:@Graficos.ColorAsistencia(c.Asistencia)">@(c.Asistencia is decimal a ? a.ToString("0.#") + "%" : "—")</b></div>
+                        }
+                    </div>
+                </div>
+            }
+        </div></div></div>
+    </section>
+
+    @* ================= Evaluaciones ================= *@
+    <section class="acd-it" data-id="evaluaciones" style="--c:#2459b0">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">📝</span>
+            <span class="acd-t"><b>Mis evaluaciones</b><small>próximos 15 días</small></span>
+            <span class="acd-n">@Model.Evaluaciones.Count</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Cuántas hay cada día <a href="/Evaluaciones">Calendario →</a></div>
+                    @Graficos.Columnas(evalDias, 80)
+                </div>
+                <div class="acd-lista">
+                    @foreach (var ev in Model.Evaluaciones)
+                    {
+                        var e = Ramos.Estilo(ev.Ramo);
+                        <div class="acd-fila">
+                            <span class="au-chip verde" style="min-width:64px;justify-content:center;text-transform:capitalize">@ev.Fecha.ToString("ddd d", cl)</span>
+                            <div class="x"><b>@ev.Curso</b> · @e.Icono @ev.Ramo<br /><small>@(ev.Tipo ?? "Evaluación") · @ev.Titulo</small></div>
+                        </div>
+                    }
+                    @if (Model.Evaluaciones.Count == 0) { <p class="acd-vacio">No tienes evaluaciones en los próximos 15 días.</p> }
+                </div>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= Mi club ================= *@
+    <section class="acd-it" data-id="club" style="--c:#e09a00">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">🌟</span>
+            <span class="acd-t"><b>Mi club</b><small>@(Model.Clubes.Count == 0 ? "sin clubes a cargo" : string.Join(", ", Model.Clubes.Select(c => c.Nombre)))</small></span>
+            <span class="acd-n">@Model.Clubes.Sum(c => c.Integrantes)</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            @foreach (var c in Model.Clubes)
+            {
+                <div class="acd-fila">
+                    <div class="x"><a href="/Talleres/Detalle/@c.Id" class="fw-bold text-decoration-none">@c.Nombre</a><br /><small>@(c.Horario ?? "Horario por definir")</small></div>
+                    <span class="au-chip sol">🙋 @c.Integrantes integrantes</span>
+                </div>
+            }
+            @if (Model.Clubes.Count == 0) { <p class="acd-vacio">No tienes clubes a tu cargo. <a href="/Talleres">Ver clubes</a></p> }
+        </div></div></div>
+    </section>
+
+    @* ================= Mi horario ================= *@
+    <section class="acd-it" data-id="horario" style="--c:#1fb5c5">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">🗓️</span>
+            <span class="acd-t"><b>Mi horario</b><small>@(Model.HorarioBloqueado ? "🔒 aprobado por la UTP" : Model.HorarioConfirmado ? "✅ confirmado" : "⏳ falta confirmarlo")</small></span>
+            <span class="acd-n">@(Model.HorasSemana)<small style="font-size:.6rem;font-weight:800;color:var(--a-mut)"> h</small></span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-sub">Horas de clase cada día <a href="/Horarios/MiHorario">Ver mi horario →</a></div>
+            @Graficos.Columnas(horasDia, 100)
+        </div></div></div>
+    </section>
+</div>
+
+@* Vista rápida: se ve mientras no hay ninguna tarjeta abierta *@
+<div class="acd-resumen">
+    <div class="au-card">
+        <h4>📈 Mis notas mes a mes <small>promedio @N(Model.PromedioMio)</small></h4>
+        @Graficos.Linea(Model.TendenciaNotas.Select(t => t.Promedio).ToList(), Model.TendenciaNotas.Select(t => t.Mes).ToList(), 1, 7, est.Color, 4)
+    </div>
+    <div class="au-card">
+        <h4>🎯 Cómo se reparten mis notas <small>@Model.MisNotas.Count notas</small></h4>
+        @Graficos.Columnas(Graficos.Distribucion(Model.MisNotas), 96)
+    </div>
+    <div class="au-card">
+        <h4>🗓️ Mi semana <small>@Model.HorasSemana horas</small></h4>
+        @Graficos.Columnas(horasDia, 96)
+    </div>
+</div>
+
+<partial name="_Acordeon" />
