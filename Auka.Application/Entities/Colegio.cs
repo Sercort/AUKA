@@ -58,6 +58,8 @@ public class Colegio
     public string? Especialidades { get; set; }
     // false = especialidades solo en 3º y 4º medio (lo normal); true = el colegio tiene especialidades de 1º a 4º medio
     public bool EspecialidadDesdePrimeroMedio { get; set; }
+    // Metas del año que fija la dirección (JSON: asistencia %, promedio, matrícula, anotaciones negativas por mes). Ver Services/MetasDireccion.cs
+    public string? MetasDireccion { get; set; }
 
     // ---- Horarios ----
     // Los viernes se sale a esta hora (null = 13:00). Los bloques posteriores quedan bloqueados...

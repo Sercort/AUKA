@@ -1,0 +1,317 @@
+@* Auka.Web/Views/Direccion/Index.cshtml — Panel de Dirección (inicio del director/a).
+   Tarjetas en acordeón según el Marco para la Buena Dirección: metas, matrícula, asistencia, rendimiento,
+   convivencia, participación, equipo docente y el colegio hoy. Solo lectura (menos las metas). *@
+@model Auka.Web.Controllers.DireccionController.PanelVm
+@using Auka.Web.Services
+@{
+    ViewData["Title"] = "Panel de Dirección";
+    var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
+    string N(decimal? n) => n is decimal v ? Csv.Nota1(v) : "—";
+    string P(decimal? p) => p is decimal v ? v.ToString("0.#", cl) + "%" : "—";
+    int AnchoNota(decimal? n) => n is decimal v ? (int)Math.Clamp((v - 1m) / 6m * 100m, 4m, 100m) : 0;
+    int AnchoPct(decimal? p) => p is decimal v ? (int)Math.Clamp(v, 3m, 100m) : 0;
+    var m = Model.Metas;
+    var ocupacion = Model.Capacidad > 0 ? Math.Round(100m * Model.Alumnos / Model.Capacidad, 1) : (decimal?)null;
+    var carga = Model.HorasContrato > 0 ? Math.Round(100m * Model.HorasAsignadas / Model.HorasContrato, 1) : (decimal?)null;
+    var presentes = Model.Directivos.Count(d => d.Chip == "verde" || d.Chip == "teal");
+    var mesActual = DateTime.Now.Month;
+    // Avance de cada meta (0 a 100) y si se cumple
+    (int Pct, bool Ok) Avance(decimal? actual, decimal? meta, bool menorEsMejor = false)
+    {
+        if (actual == null || meta == null || meta == 0) return (0, false);
+        if (menorEsMejor) return ((int)Math.Clamp(actual.Value <= meta.Value ? 100 : meta.Value / actual.Value * 100m, 0, 100), actual <= meta);
+        return ((int)Math.Clamp(actual.Value / meta.Value * 100m, 0, 100), actual >= meta);
+    }
+    var metas = new List<(string Ico, string Nombre, string Actual, string Meta, (int Pct, bool Ok) Av)>
+    {
+        ("✅", "Asistencia del año", P(Model.AsistenciaAnio), m.Asistencia != null ? P(m.Asistencia) : "sin meta", Avance(Model.AsistenciaAnio, m.Asistencia)),
+        ("📊", "Promedio general", N(Model.Promedio), m.Promedio != null ? N(m.Promedio) : "sin meta", Avance(Model.Promedio, m.Promedio)),
+        ("👥", "Matrícula", Model.Alumnos.ToString("N0", cl), m.Matricula != null ? m.Matricula.Value.ToString("N0", cl) : "sin meta", Avance(Model.Alumnos, m.Matricula)),
+        ("📋", "Anotaciones negativas del mes", Model.NegativasMes.ToString(), m.NegativasMes != null ? "máx. " + m.NegativasMes : "sin meta", Avance(Model.NegativasMes, m.NegativasMes, true))
+    };
+    var metasOk = metas.Count(x => x.Av.Ok);
+    var negPorMes = Model.AnotacionesMeses.Select(x => (x.Mes, (int)(x.Neg ?? 0), "linear-gradient(180deg,#ef8f6c,#d64545)")).ToList();
+    var posPorMes = Model.AnotacionesMeses.Select(x => (x.Mes, (int)(x.Pos ?? 0), "linear-gradient(180deg,#5fd39a,#16915c)")).ToList();
+    var deptos = Model.PorDepartamento.Take(8).Select(x => (x.Depto.Length > 10 ? x.Depto[..10] : x.Depto, x.N, "linear-gradient(180deg,#9b8cff,#6c5ce7)")).ToList();
+}
+
+<div class="au-head compacto" style="background:linear-gradient(120deg,#1a319b,#6c5ce7 60%,#1fb5c5)">
+    <div class="ico">🧭</div>
+    <div class="txt">
+        <h2>¡@Saludo.Ahora(), @Model.Nombre! 👋</h2>
+        <p>Panel de Dirección@(string.IsNullOrEmpty(Model.Colegio) ? "" : " · " + Model.Colegio) · Toca una tarjeta para ver el detalle.</p>
+    </div>
+    <div class="acc">
+        <a href="/Direccion/ExportarAsistencia?anio=@DateTime.Now.Year&mes=@mesActual">📥 Asistencia del mes</a>
+        <a asp-controller="Utp" asp-action="Index">📈 Panel UTP</a>
+        <a asp-controller="Personal" asp-action="Index" class="blanco">👥 Personal</a>
+    </div>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3">@TempData["SuccessMessage"]<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button></div>
+}
+
+<div class="acd" data-acd="direccion">
+
+    @* ================= 1. Metas del año (visión estratégica) ================= *@
+    <section class="acd-it" data-id="metas" style="--c:#6c5ce7" data-abrir="1">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">🎯</span>
+            <span class="acd-t"><b>Metas del año</b><small>@metasOk de @metas.Count cumplidas</small></span>
+            @Graficos.Dona(metas.Count > 0 ? 100m * metasOk / metas.Count : 0, "#6c5ce7", $"{metasOk}/{metas.Count}", 54)
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Cómo vamos</div>
+                    @foreach (var x in metas)
+                    {
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small fw-bold"><span>@x.Ico @x.Nombre</span><span style="color:@(x.Av.Ok ? "#16915c" : "#d64545")">@x.Actual <span class="text-muted fw-normal">/ @x.Meta</span> @(x.Av.Ok ? "✅" : "")</span></div>
+                            <div class="acd-bar" style="grid-template-columns:1fr"><div class="t" style="height:11px"><span style="width:@x.Av.Pct%;background:@(x.Av.Ok ? "linear-gradient(90deg,#5fd39a,#16915c)" : "linear-gradient(90deg,#ffb703,#fb8500)")"></span></div></div>
+                        </div>
+                    }
+                </div>
+                <form method="post" action="/Direccion/GuardarMetas">
+                    @Html.AntiForgeryToken()
+                    <div class="acd-sub">Fijar las metas del año</div>
+                    <div class="row g-2">
+                        <div class="col-6"><label class="form-label small fw-bold mb-1" for="mA">Asistencia (%)</label><input id="mA" class="form-control form-control-sm" type="number" step="0.1" min="1" max="100" name="asistencia" value="@(m.Asistencia?.ToString(System.Globalization.CultureInfo.InvariantCulture))" /></div>
+                        <div class="col-6"><label class="form-label small fw-bold mb-1" for="mP">Promedio general</label><input id="mP" class="form-control form-control-sm" type="number" step="0.1" min="1" max="7" name="promedio" value="@(m.Promedio?.ToString(System.Globalization.CultureInfo.InvariantCulture))" /></div>
+                        <div class="col-6"><label class="form-label small fw-bold mb-1" for="mM">Matrícula</label><input id="mM" class="form-control form-control-sm" type="number" min="1" name="matricula" value="@m.Matricula" /></div>
+                        <div class="col-6"><label class="form-label small fw-bold mb-1" for="mN">Máx. negativas al mes</label><input id="mN" class="form-control form-control-sm" type="number" min="0" name="negativasMes" value="@m.NegativasMes" /></div>
+                    </div>
+                    <button class="btn btn-primary btn-sm px-4 mt-2">💾 Guardar metas</button>
+                    <small class="text-muted d-block mt-1">Las metas se muestran en verde al cumplirse. Sirven para el PME y para conversar con el equipo.</small>
+                </form>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= 2. Matrícula ================= *@
+    <section class="acd-it" data-id="matricula" style="--c:#1fb5c5">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">👥</span>
+            <span class="acd-t"><b>Matrícula</b><small>@P(ocupacion) de ocupación · @Model.Traslados traslados</small></span>
+            <span class="acd-n">@Model.Alumnos.ToString("N0", cl)</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Alumnos/as por nivel <a href="/Cursos">Cursos →</a></div>
+                    @Graficos.Columnas(Model.PorNivel, 110)
+                    <div class="gx-leyenda"><span><i style="background:#1fb5c5"></i>básica</span><span><i style="background:#6c5ce7"></i>media</span></div>
+                </div>
+                <div>
+                    <div class="acd-sub">Ocupación y movimientos</div>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        @Graficos.Dona(ocupacion, "#1fb5c5", null, 86)
+                        <div class="small"><b>@Model.Alumnos.ToString("N0", cl)</b> de <b>@Model.Capacidad.ToString("N0", cl)</b> cupos en @Model.Cursos.Count cursos</div>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="au-chip verde">🆕 @Model.Nuevos nuevos</span>
+                        <span class="au-chip teal">🔁 @Model.Traslados por traslado</span>
+                        <span class="au-chip coral">🚪 @Model.Retirados retirados</span>
+                    </div>
+                </div>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= 3. Asistencia ================= *@
+    <section class="acd-it" data-id="asistencia" style="--c:@Graficos.ColorAsistencia(Model.AsistenciaAnio)">
+        <button type="button" class="acd-h">
+            @Graficos.Dona(Model.AsistenciaAnio, Graficos.ColorAsistencia(Model.AsistenciaAnio), null, 58)
+            <span class="acd-t"><b>Asistencia</b><small>@Model.Cronicos alumnos/as bajo 85%</small></span>
+            @Graficos.Spark(Model.AsistenciaMeses.Select(x => x.Pct).ToList(), Graficos.ColorAsistencia(Model.AsistenciaAnio))
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Mes a mes</div>
+                    @Graficos.Linea(Model.AsistenciaMeses.Select(x => x.Pct).ToList(), Model.AsistenciaMeses.Select(x => x.Mes).ToList(), 60, 100, "#1fb5c5", m.Asistencia ?? 85, "%")
+                    <div class="gx-leyenda"><span><i style="background:#1fb5c5"></i>% de asistencia</span><span><i style="background:#d64545"></i>meta @P(m.Asistencia ?? 85)</span></div>
+                    <div class="acd-sub mt-3">Descargar asistencia (Excel)</div>
+                    <div class="d-flex gap-1 flex-wrap">
+                        @foreach (var x in Model.AsistenciaMeses)
+                        {
+                            var nm = Array.FindIndex(cl.DateTimeFormat.AbbreviatedMonthNames, n => n.TrimEnd('.') == x.Mes) + 1;
+                            if (nm > 0) { <a class="au-chip" href="/Direccion/ExportarAsistencia?anio=@DateTime.Now.Year&mes=@nm">📥 @x.Mes</a> }
+                        }
+                    </div>
+                </div>
+                <div>
+                    <div class="acd-sub">Ausentismo crónico (bajo 85%) <a href="/Asistencia">Asistencia →</a></div>
+                    <div class="acd-lista">
+                        @foreach (var a in Model.CronicosTop)
+                        {
+                            <div class="acd-fila">
+                                <span class="au-chip coral" style="min-width:58px;justify-content:center">@P(a.Pct)</span>
+                                <div class="x"><a href="/Cursos/Ficha/@a.Id" class="fw-bold text-decoration-none">@a.Nombre</a><br /><small>@a.Curso</small></div>
+                            </div>
+                        }
+                        @if (Model.CronicosTop.Count == 0) { <p class="acd-vacio">✅ Nadie bajo 85%.</p> }
+                    </div>
+                    @if (Model.Cronicos > Model.CronicosTop.Count) { <small class="text-muted">Y @(Model.Cronicos - Model.CronicosTop.Count) más.</small> }
+                </div>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= 4. Rendimiento ================= *@
+    <section class="acd-it" data-id="rendimiento" style="--c:@Graficos.ColorNota(Model.Promedio)">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">📊</span>
+            <span class="acd-t"><b>Rendimiento</b><small>@P(Model.Aprobacion) aprueba · @Model.EnRiesgo en riesgo</small></span>
+            <span class="acd-n">@N(Model.Promedio)</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Promedio por ciclo</div>
+                    <div class="d-flex gap-3 flex-wrap mb-2">
+                        @foreach (var c in Model.PromedioCiclo)
+                        {
+                            <div class="text-center">@Graficos.Dona(c.Prom is decimal pv ? (pv - 1m) / 6m * 100m : 0, Graficos.ColorNota(c.Prom), N(c.Prom), 78)<div class="small fw-bold mt-1">@c.Ciclo</div></div>
+                        }
+                        <div class="text-center">@Graficos.Dona(Model.Aprobacion, "#16915c", null, 78)<div class="small fw-bold mt-1">Aprueban</div></div>
+                    </div>
+                    <a class="small fw-bold" href="/Utp#riesgo">⚠️ Ver los @Model.EnRiesgo alumnos/as en riesgo de repetir →</a>
+                </div>
+                <div>
+                    <div class="acd-sub">¿Cómo se reparten las notas?</div>
+                    @Graficos.Columnas(Graficos.Distribucion(Model.Notas), 100)
+                </div>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= 5. Convivencia ================= *@
+    <section class="acd-it" data-id="convivencia" style="--c:@(Model.CursosEnAlerta > 0 ? "#d64545" : "#16915c")">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">📋</span>
+            <span class="acd-t"><b>Convivencia</b><small>este mes: @Model.NegativasMes negativas · @Model.PositivasMes positivas</small></span>
+            <span class="acd-n">@(Model.CursosEnAlerta)<small style="font-size:.6rem;font-weight:800;color:var(--a-mut)"> en alerta</small></span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div><div class="acd-sub">Anotaciones negativas por mes <a href="/Anotaciones">Libro →</a></div>@Graficos.Columnas(negPorMes, 90)</div>
+                <div><div class="acd-sub">Anotaciones positivas por mes</div>@Graficos.Columnas(posPorMes, 90)</div>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= 6. Participación ================= *@
+    <section class="acd-it" data-id="participacion" style="--c:#e09a00">
+        <button type="button" class="acd-h">
+            @Graficos.Dona(Model.EnClubes, "#e09a00", null, 58)
+            <span class="acd-t"><b>Participación</b><small>@Model.Clubes clubes · @Model.LogrosAnio logros este año</small></span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                @Graficos.Dona(Model.EnClubes, "#e09a00", null, 96)
+                <div><b>@P(Model.EnClubes)</b> de los alumnos/as participa en al menos un club.<br /><span class="text-muted small">🏆 @Model.LogrosAnio trofeos, medallas o reconocimientos este año.</span></div>
+                <a class="btn btn-outline-warning btn-sm px-3 ms-auto" href="/Talleres">🌟 Ver clubes</a>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= 7. Equipo docente (capacidades profesionales) ================= *@
+    <section class="acd-it" data-id="equipo" style="--c:#2459b0">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">👩‍🏫</span>
+            <span class="acd-t"><b>Equipo docente</b><small>@P(Model.CumplimientoListas) de listas al día · @Model.ReemplazosMes reemplazos</small></span>
+            <span class="acd-n">@Model.Docentes</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Docentes por departamento <a href="/Horarios/Profesores">Horarios →</a></div>
+                    @Graficos.Columnas(deptos, 90)
+                </div>
+                <div>
+                    <div class="acd-sub">Gestión del equipo</div>
+                    <div class="d-flex gap-3 flex-wrap mb-2">
+                        <div class="text-center">@Graficos.Dona(Model.CumplimientoListas, Graficos.ColorAsistencia(Model.CumplimientoListas), null, 72)<div class="small fw-bold mt-1">Listas pasadas<br /><span class="text-muted fw-normal">@Model.ListasPasadasMes de @Model.ListasProgramadasMes este mes</span></div></div>
+                        <div class="text-center">@Graficos.Dona(carga, "#2459b0", null, 72)<div class="small fw-bold mt-1">Horas asignadas<br /><span class="text-muted fw-normal">@Model.HorasAsignadas de @Model.HorasContrato por contrato</span></div></div>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        @if (Model.SinJefe > 0) { <span class="au-chip coral">👩‍🏫 @Model.SinJefe cursos sin profe jefe</span> } else { <span class="au-chip verde">✅ Todos los cursos con profe jefe</span> }
+                        @if (Model.ProfesSinNotas > 0) { <a class="au-chip sol" href="/Utp#atrasados">⏰ @Model.ProfesSinNotas sin notas en 30 días</a> }
+                        <span class="au-chip">🔁 @Model.ReemplazosMes reemplazos este mes</span>
+                    </div>
+                </div>
+            </div>
+        </div></div></div>
+    </section>
+
+    @* ================= 8. El colegio hoy ================= *@
+    <section class="acd-it" data-id="hoy" style="--c:#16915c">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">🏫</span>
+            <span class="acd-t"><b>El colegio hoy</b><small>@Model.IniciadasHoy de @Model.ClasesHoy clases iniciadas · @Model.AtrasosHoy atrasos</small></span>
+            <span class="acd-n">@(presentes)<small style="font-size:.6rem;font-weight:800;color:var(--a-mut)"> directivos</small></span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            <div class="acd-cols">
+                <div>
+                    <div class="acd-sub">Hoy</div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="au-chip verde">🟢 @Model.IniciadasHoy clases iniciadas</span>
+                        <span class="au-chip">🗓️ @Model.ClasesHoy clases en el horario</span>
+                        <span class="au-chip sol">🚪 @Model.AtrasosHoy atrasos en la entrada</span>
+                        <span class="au-chip teal">📝 @Model.EvaluacionesHoy evaluaciones</span>
+                    </div>
+                    <a class="small fw-bold d-block mt-2" href="/Utp#encurso">Ver las clases en curso →</a>
+                </div>
+                <div>
+                    <div class="acd-sub">Equipo directivo</div>
+                    <div class="acd-lista">
+                        @foreach (var d in Model.Directivos)
+                        {
+                            <div class="acd-fila">
+                                <div class="x"><a href="/Horarios/Profesor/@d.Id" class="fw-bold text-decoration-none">@d.Nombre</a><br /><small>@d.Cargo</small></div>
+                                <span class="au-chip @d.Chip" style="font-size:.7rem">@d.Estado</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div></div></div>
+    </section>
+</div>
+
+@* Vista rápida: cursos de un vistazo (se ve mientras no hay tarjeta abierta) *@
+<div class="acd-resumen" style="grid-template-columns:1fr">
+    <div class="au-card">
+        <h4>🏫 Cursos de un vistazo <small>asistencia y promedio del año</small></h4>
+        <div class="table-responsive" style="max-height:420px;overflow:auto">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Curso</th><th style="width:30%">Asistencia</th><th style="width:30%">Promedio</th><th class="text-end">Alumnos/as</th></tr></thead>
+                <tbody>
+                    @foreach (var c in Model.Cursos)
+                    {
+                        <tr>
+                            <td><a href="/Cursos/Alumnos/@c.Id" class="fw-bold text-decoration-none">@c.Curso</a>@if (c.SinJefe) { <span class="au-chip coral ms-1" style="font-size:.62rem">sin jefe</span> }</td>
+                            <td><div class="acd-bar" style="grid-template-columns:1fr 50px"><div class="t"><span style="width:@AnchoPct(c.Asistencia)%;background:@Graficos.ColorAsistencia(c.Asistencia)"></span></div><b style="color:@Graficos.ColorAsistencia(c.Asistencia)">@P(c.Asistencia)</b></div></td>
+                            <td><div class="acd-bar" style="grid-template-columns:1fr 40px"><div class="t"><span style="width:@AnchoNota(c.Promedio)%;background:@Graficos.ColorNota(c.Promedio)"></span></div><b style="color:@Graficos.ColorNota(c.Promedio)">@N(c.Promedio)</b></div></td>
+                            <td class="text-end">@c.Alumnos<span class="text-muted">/@c.Capacidad</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<partial name="_Acordeon" />

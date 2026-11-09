@@ -648,6 +648,9 @@ namespace Auka.Infrastructure.Migrations
                     b.Property<bool>("EspecialidadDesdePrimeroMedio")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("MetasDireccion")
+                        .HasColumnType("text");
+
                     b.Property<bool>("PsicosocialAdministrador")
                         .HasColumnType("boolean");
 

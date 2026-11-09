@@ -38,7 +38,11 @@ public class HomeController : Controller
         if (User.IsInRole("UTP"))
             return RedirectToAction("Index", "Utp");
 
-        // Administrador del colegio y director: panel de gestión del colegio (Plan Premium)
+        // Director/a: su Panel de Dirección (metas, asistencia, rendimiento, convivencia, equipo y el colegio hoy)
+        if (User.IsInRole("Director"))
+            return RedirectToAction("Index", "Direccion");
+
+        // Administrador del colegio: panel de gestión del colegio (Plan Premium)
         if (User.IsInRole("SuperAdmin") || User.IsInRole("Director"))
             return View("PanelAdmin", await ArmarPanelAdminAsync());
 
