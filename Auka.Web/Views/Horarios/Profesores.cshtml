@@ -145,67 +145,92 @@
     <p class="small text-muted">La asignatura de cada docente se toma de lo que escribiste en <a href="/Personal">Personal</a> (el departamento se completa solo). Aquí puedes ajustar el departamento y las horas de contrato; se guardan solos.</p>
 }
 
-@foreach (var g in porDepto)
-{
-    <div class="hp-grupo"><h3>📚 @g.Key</h3><span class="au-chip">@g.Count()</span></div>
-    <div class="hp-grid">
-        @foreach (var u in g)
-        {
-            var h = horas.TryGetValue(u.Id, out var n) ? n : 0;
-            <div class="au-card hp">
-                <a asp-action="Profesor" asp-route-id="@u.Id" class="av" style="background:@colores[k++ % colores.Length];text-decoration:none">@(u.Nombre.Length > 0 ? u.Nombre[..1] : "")@(u.Apellido.Length > 0 ? u.Apellido[..1] : "")</a>
-                <div class="d">
-                    <a asp-action="Profesor" asp-route-id="@u.Id" style="text-decoration:none;color:inherit"><b>@u.Nombre @u.Apellido</b></a>
-                    @if (!string.IsNullOrWhiteSpace(u.Asignaturas))
+<p class="small text-muted mb-2">Toca un departamento para ver a sus docentes; al abrir otro, el anterior se cierra.</p>
+<div class="acd" data-acd="horarios-profes" data-cols="3">
+    @foreach (var g in porDepto)
+    {
+        var est = Auka.Web.Services.Ramos.Estilo(g.Key);
+        var horasG = g.Sum(u => horas.GetValueOrDefault(u.Id));
+        var pendG = g.Count(u => horas.GetValueOrDefault(u.Id) > 0 && !u.HorarioBloqueado);
+        <section class="acd-it" data-id="d-@(Auka.Web.Services.Csv.Clave(g.Key).Replace(" ", "-"))" style="--c:@est.Color">
+            <button type="button" class="acd-h">
+                <span class="acd-ic">@(g.Key.StartsWith("Sin") ? "📂" : est.Icono)</span>
+                <span class="acd-t"><b>@g.Key</b><small>@horasG horas de clase@(puede ? (pendG > 0 ? " · " + pendG + " sin aprobar" : " · todo aprobado") : "")</small></span>
+                <span class="acd-n">@g.Count()</span>
+                <span class="acd-fl">▾</span>
+            </button>
+            <div class="acd-b"><div><div class="acd-in">
+                <div class="hp-grid">
+                    @foreach (var u in g)
                     {
-                        <small>📖 @u.Asignaturas</small>
-                    }
-                    @{
-                        var exc = u.HorasContrato is > 0 && h > u.HorasContrato;
-                        var pctC = u.HorasContrato is > 0 ? Math.Min(100, h * 100 / u.HorasContrato.Value) : 0;
-                    }
-                    <small>🗓️ @h @(u.HorasContrato is > 0 ? "de " + u.HorasContrato : "") horas @(exc ? "· ⚠️ se pasa" : "") · @EstadoHorario(u, h)</small>
-                    @if (u.HorasContrato is > 0)
-                    {
-                        <div class="carga"><i class="@(exc ? "exc" : "")" style="width:@pctC%"></i></div>
-                    }
-                    @if (cursosDe.TryGetValue(u.Id, out var cs))
-                    {
-                        <div class="cs">@foreach (var c in cs) { <span>@c</span> }</div>
-                    }
-                    @if (puede)
-                    {
-                        <div class="ed">
-                            <select class="form-select hp-depto" data-id="@u.Id" aria-label="Departamento" style="flex:1;min-width:130px">
-                                <option value="">Sin departamento</option>
-                                @foreach (var d in HorariosController.Departamentos.Union(string.IsNullOrEmpty(u.Departamento) ? Array.Empty<string>() : new[] { u.Departamento! }))
-                                {
-                                    <option value="@d" selected="@(u.Departamento == d)">@d</option>
-                                }
-                            </select>
-                            <input type="number" min="1" max="60" class="form-control hp-horas" data-id="@u.Id" value="@u.HorasContrato" placeholder="Horas" title="Horas de contrato a la semana" />
+                        var h = horas.TryGetValue(u.Id, out var n) ? n : 0;
+                    <div class="au-card hp">
+                        <a asp-action="Profesor" asp-route-id="@u.Id" class="av" style="background:@colores[k++ % colores.Length];text-decoration:none">@(u.Nombre.Length > 0 ? u.Nombre[..1] : "")@(u.Apellido.Length > 0 ? u.Apellido[..1] : "")</a>
+                        <div class="d">
+                            <a asp-action="Profesor" asp-route-id="@u.Id" style="text-decoration:none;color:inherit"><b>@u.Nombre @u.Apellido</b></a>
+                            @if (!string.IsNullOrWhiteSpace(u.Asignaturas))
+                            {
+                                <small>📖 @u.Asignaturas</small>
+                            }
+                            @{
+                                var exc = u.HorasContrato is > 0 && h > u.HorasContrato;
+                                var pctC = u.HorasContrato is > 0 ? Math.Min(100, h * 100 / u.HorasContrato.Value) : 0;
+                            }
+                            <small>🗓️ @h @(u.HorasContrato is > 0 ? "de " + u.HorasContrato : "") horas @(exc ? "· ⚠️ se pasa" : "") · @EstadoHorario(u, h)</small>
+                            @if (u.HorasContrato is > 0)
+                            {
+                                <div class="carga"><i class="@(exc ? "exc" : "")" style="width:@pctC%"></i></div>
+                            }
+                            @if (cursosDe.TryGetValue(u.Id, out var cs))
+                            {
+                                <div class="cs">@foreach (var c in cs) { <span>@c</span> }</div>
+                            }
+                            @if (puede)
+                            {
+                                <div class="ed">
+                                    <select class="form-select hp-depto" data-id="@u.Id" aria-label="Departamento" style="flex:1;min-width:130px">
+                                        <option value="">Sin departamento</option>
+                                        @foreach (var d in HorariosController.Departamentos.Union(string.IsNullOrEmpty(u.Departamento) ? Array.Empty<string>() : new[] { u.Departamento! }))
+                                        {
+                                            <option value="@d" selected="@(u.Departamento == d)">@d</option>
+                                        }
+                                    </select>
+                                    <input type="number" min="1" max="60" class="form-control hp-horas" data-id="@u.Id" value="@u.HorasContrato" placeholder="Horas" title="Horas de contrato a la semana" />
+                                </div>
+                            }
                         </div>
+                    </div>
                     }
                 </div>
-            </div>
-        }
-    </div>
-}
-
-@foreach (var g in otros)
-{
-    <div class="hp-grupo"><h3>🏛️ @g.Key</h3><span class="au-chip">@g.Count()</span></div>
-    <div class="hp-grid">
-        @foreach (var u in g)
-        {
-            var h = horas.TryGetValue(u.Id, out var n) ? n : 0;
-            <a class="au-card hp" asp-action="Profesor" asp-route-id="@u.Id">
-                <span class="av" style="background:@colores[k++ % colores.Length]">@(u.Nombre.Length > 0 ? u.Nombre[..1] : "")@(u.Apellido.Length > 0 ? u.Apellido[..1] : "")</span>
-                <div class="d"><b>@u.Nombre @u.Apellido</b><small>@(h > 0 ? $"🗓️ {h} bloques de clase" : "Sin clases asignadas")</small></div>
-            </a>
-        }
-    </div>
-}
+            </div></div></div>
+        </section>
+    }
+    @foreach (var g in otros)
+    {
+        <section class="acd-it" data-id="o-@(Auka.Web.Services.Csv.Clave(g.Key).Replace(" ", "-"))" style="--c:#6c5ce7">
+            <button type="button" class="acd-h">
+                <span class="acd-ic">🏛️</span>
+                <span class="acd-t"><b>@g.Key</b><small>equipo directivo y apoyo</small></span>
+                <span class="acd-n">@g.Count()</span>
+                <span class="acd-fl">▾</span>
+            </button>
+            <div class="acd-b"><div><div class="acd-in">
+                <div class="hp-grid">
+                    @foreach (var u in g)
+                    {
+                        var h = horas.TryGetValue(u.Id, out var n) ? n : 0;
+                        <a class="au-card hp" asp-action="Profesor" asp-route-id="@u.Id">
+                            <span class="av" style="background:@colores[k++ % colores.Length]">@(u.Nombre.Length > 0 ? u.Nombre[..1] : "")@(u.Apellido.Length > 0 ? u.Apellido[..1] : "")</span>
+                            @{ var estU = Auka.Web.Services.JornadaPersonal.Estado(u); }
+                            <div class="d"><b>@u.Nombre @u.Apellido</b><small>@(h > 0 ? $"🗓️ {h} horas de clase" : "Jornada en el colegio")</small><span class="au-chip @estU.Chip mt-1" style="font-size:.68rem">@estU.Texto</span></div>
+                        </a>
+                    }
+                </div>
+            </div></div></div>
+        </section>
+    }
+</div>
+<partial name="_Acordeon" />
 
 @if (puede)
 {

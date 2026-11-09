@@ -74,8 +74,13 @@ public class DocenteController : Controller
         var registros = await _context.Asistencias.AsNoTracking().Where(a => a.CursoId != null && cursoIds.Contains(a.CursoId.Value) && a.Fecha == fechaUtc)
             .GroupBy(a => new { a.CursoId, a.BloqueJornadaId }).Select(g => new { g.Key.CursoId, g.Key.BloqueJornadaId, N = g.Count() }).ToListAsync();
         var alumnos = await _context.Estudiantes.Where(e => cursoIds.Contains(e.CursoId)).GroupBy(e => e.CursoId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);
+        var sesiones = await ClasesEnCurso.DelDiaAsync(_context, colegioId, hoy);
+        var reemplazos = await ClasesEnCurso.ReemplazosAsync(_context, colegioId, hoy);
         vm.Hoy = deHoy.Select(c => new AsistenciaController.ClaseHoy(c.CursoId, $"{c.Curso!.Nombre} {c.Curso.Letra}".Trim(), c.BloqueJornadaId, c.Bloque!.HoraInicio, c.Bloque.HoraFin, c.Asignatura,
-            registros.FirstOrDefault(r => r.CursoId == c.CursoId && r.BloqueJornadaId == c.BloqueJornadaId)?.N ?? 0, alumnos.GetValueOrDefault(c.CursoId), true)).ToList();
+            registros.FirstOrDefault(r => r.CursoId == c.CursoId && r.BloqueJornadaId == c.BloqueJornadaId)?.N ?? 0, alumnos.GetValueOrDefault(c.CursoId),
+            !(reemplazos.TryGetValue((c.CursoId, c.BloqueJornadaId), out var rr) && rr.ProfesorId != yo),
+            sesiones.TryGetValue((c.CursoId, c.BloqueJornadaId), out var se) ? ClasesEnCurso.Texto(se) : null,
+            reemplazos.TryGetValue((c.CursoId, c.BloqueJornadaId), out var r2) ? r2.Nombre : null)).ToList();
 
         // Próximas evaluaciones de sus ramos en sus cursos (15 días)
         var hoyUtc = DateTime.UtcNow.Date;

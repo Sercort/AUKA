@@ -76,7 +76,7 @@
 <div class="au-head">
     <div class="ico">📋</div>
     <div class="txt">
-        <h2>@Model.Nombre @Model.Letra</h2>
+        <h2>@Model.Nombre @Model.Letra @if ((ViewBag.EspecialidadCurso as string) is string espC) { <span style="font-size:.6em;font-weight:800;background:rgba(255,255,255,.22);border-radius:999px;padding:.2rem .7rem;vertical-align:middle">@(espC.StartsWith("Científico") ? "📘" : "🛠️") @espC</span> }</h2>
         <p>Nómina @Model.AnioAcademico · @(Model.ProfesorJefe != null ? $"Profesor/a jefe: {Model.ProfesorJefe.Nombre} {Model.ProfesorJefe.Apellido}" : "Aún sin profesor/a jefe")</p>
     </div>
     <div class="acc">

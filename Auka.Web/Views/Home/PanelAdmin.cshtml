@@ -111,6 +111,15 @@
             <small style="opacity:.85;font-weight:700;letter-spacing:.06em">@fecha.ToUpper()</small>
             <h2>@Model.Colegio</h2>
             <p>¡@Auka.Web.Services.Saludo.Ahora(), @nombre! Este es el resumen de tu colegio.</p>
+            @if (User.IsInRole("SuperAdmin") || User.IsInRole("Administrador"))
+            {
+                <form method="post" action="/Horarios/Presencia" class="d-flex gap-2 flex-wrap mt-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="volver" value="/" />
+                    <button class="btn btn-light btn-sm rounded-pill px-3 fw-bold" name="enColegio" value="true">🟢 Estoy en el colegio</button>
+                    <button class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold" name="enColegio" value="false">⚪ No estoy</button>
+                </form>
+            }
         </div>
         <div class="pa-acc">
             <a asp-controller="Personal" asp-action="Index" class="blanco">+ Personal</a>
@@ -120,6 +129,7 @@
                 <a asp-controller="Talleres" asp-action="Crear">+ Club</a>
             }
             <a asp-controller="Horarios" asp-action="Index">Horarios</a>
+            <a href="/Horarios/Profesor/@User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value">🕘 Mi jornada</a>
             @if (Model.PsicoAdmin)
             {
                 <a asp-controller="Administracion" asp-action="Index">💙 Resumen psicosocial</a>

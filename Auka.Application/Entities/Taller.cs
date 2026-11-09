@@ -110,3 +110,30 @@ public class InscripcionTaller
     public DateTime FechaUtc { get; set; } = DateTime.UtcNow;
     public int? InscritoPorId { get; set; }   // quién lo inscribió (usuario)
 }
+
+/// <summary>
+/// Solicitud del profesor/a a la UTP sobre su club: inscribir a un alumno/a cuando el club está lleno o es de otro nivel,
+/// o aumentar el cupo. Queda el historial dentro del club (pendientes, aprobadas y rechazadas).
+/// </summary>
+public class SolicitudClub
+{
+    public int Id { get; set; }
+    public int ColegioId { get; set; }
+    public int TallerId { get; set; }
+    /// <summary>"Inscripcion" o "Cupo".</summary>
+    public string Tipo { get; set; } = "Inscripcion";
+    public int? EstudianteId { get; set; }
+    /// <summary>Cupo que se pide (solo para "Cupo").</summary>
+    public int? CupoPedido { get; set; }
+    /// <summary>Por qué no se pudo directo: "Cupo completo (20)", "Es para Media; 5º Básico A no corresponde".</summary>
+    public string? Bloqueo { get; set; }
+    public string? Comentario { get; set; }
+    public EstadoSolicitudClub Estado { get; set; } = EstadoSolicitudClub.Pendiente;
+    public int PedidaPorId { get; set; }
+    public DateTime PedidaUtc { get; set; } = DateTime.UtcNow;
+    public int? ResueltaPorId { get; set; }
+    public DateTime? ResueltaUtc { get; set; }
+    public string? Respuesta { get; set; }
+}
+
+public enum EstadoSolicitudClub { Pendiente = 0, Aprobada = 1, Rechazada = 2 }

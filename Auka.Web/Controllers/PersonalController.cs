@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -352,12 +352,15 @@ public class PersonalController : Controller
         var hasher = new PasswordHasher<string>();
         var errores = new List<string>();
         var credenciales = new List<object>();
-        int creados = 0, omitidos = 0;
+        int creados = 0, omitidos = 0, actualizados = 0;
         var vistosCorreo = new HashSet<string>();
         var vistosRut = new HashSet<string>();
 
         var ruts = (await _context.Usuarios.Where(u => u.ColegioId == colegioId).Select(u => u.Rut).ToListAsync())
             .Select(r => r.Replace(".", "").Replace(" ", "").ToUpperInvariant()).ToHashSet();
+        // Si el RUT ya existe se ACTUALIZAN sus datos (nombre, correo personal, teléfono, asignaturas). No cambia su correo de acceso, rol ni clave.
+        var existentes = (await _context.Usuarios.Where(u => u.ColegioId == colegioId && u.Rol != RolUsuario.Estudiante && u.Rol != RolUsuario.Apoderado).ToListAsync())
+            .GroupBy(u => u.Rut.Replace(".", "").Replace(" ", "").ToUpperInvariant()).ToDictionary(g => g.Key, g => g.First());
         var correosExistentes = (await _context.Usuarios.IgnoreQueryFilters().Select(u => u.Email.ToLower()).ToListAsync()).ToHashSet();
 
         for (int i = 1; i < lineas.Count; i++)
@@ -385,7 +388,21 @@ public class PersonalController : Controller
             if (rol == null) { errores.Add($"Fila {fila}: no reconozco el cargo \"{rolTxt}\"."); continue; }
             if (!PuedeAsignarRol(rol.Value, out var errRol)) { errores.Add($"Fila {fila} ({nombre} {apellido}): {errRol}"); continue; }
 
-            if (ruts.Contains(rut) || !vistosRut.Add(rut)) { omitidos++; errores.Add($"Fila {fila}: el RUT {rut} ya existe en este colegio (se omitió)."); continue; }
+            if (!vistosRut.Add(rut)) { omitidos++; errores.Add($"Fila {fila}: el RUT {rut} está repetido en la planilla (se omitió)."); continue; }
+            if (ruts.Contains(rut))
+            {
+                if (!existentes.TryGetValue(rut, out var ya)) { omitidos++; errores.Add($"Fila {fila}: el RUT {rut} ya existe en este colegio como alumno/a o apoderado/a (se omitió)."); continue; }
+                ya.Nombre = nombre; ya.Apellido = apellido;
+                if (!string.IsNullOrWhiteSpace(Celda(p, iPer))) ya.EmailPersonal = Celda(p, iPer).ToLowerInvariant();
+                if (!string.IsNullOrWhiteSpace(Celda(p, iTel))) ya.Telefono = Celda(p, iTel);
+                if (ya.Rol == RolUsuario.Docente && !string.IsNullOrWhiteSpace(Celda(p, iAsi)))
+                {
+                    ya.Asignaturas = Celda(p, iAsi);
+                    ya.Departamento = HorariosController.DepartamentoDesde(ya.Asignaturas, null);
+                }
+                actualizados++;
+                continue;
+            }
             if (correosExistentes.Contains(correo) || !vistosCorreo.Add(correo)) { omitidos++; errores.Add($"Fila {fila}: el correo {correo} ya está registrado (se omitió)."); continue; }
 
             var clave = GenerarClave();
@@ -414,8 +431,8 @@ public class PersonalController : Controller
             creados++;
         }
 
-        if (creados > 0) await _context.SaveChangesAsync();
-        return Json(new { creados, omitidos, totalErrores = errores.Count, errores = errores.Take(30), credenciales });
+        if (creados + actualizados > 0) await _context.SaveChangesAsync();
+        return Json(new { creados, actualizados, omitidos, totalErrores = errores.Count, errores = errores.Take(30), credenciales });
     }
 
     // 5. POST: DESACTIVAR
@@ -480,7 +497,7 @@ public class PersonalController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = "SuperAdmin,Administrador,Director,UTP")]
-    public async Task<IActionResult> RestablecerClave(int id)
+    public async Task<IActionResult> RestablecerClave(int id, string? volver)
     {
         var colegioId = ColegioActual();
         var user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id && (u.ColegioId == colegioId || colegioId == 0));
@@ -495,6 +512,6 @@ public class PersonalController : Controller
         user.Activo = true;
         await _context.SaveChangesAsync();
         TempData["SuccessMessage"] = $"🔑 Nueva clave de {user.Nombre} {user.Apellido}: correo {user.Email} · clave provisoria {clave} (anótala: no se vuelve a mostrar).";
-        return RedirectToAction(nameof(Index));
+        return volver == "editar" ? RedirectToAction(nameof(Editar), new { id }) : RedirectToAction(nameof(Index));
     }
 }

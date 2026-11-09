@@ -8,6 +8,8 @@
     var cl = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
     var esHoy = dia == AsistenciaController.Hoy;
     var ahora = DateTime.Now.TimeOfDay;
+    var corrige = User.IsInRole("UTP");
+    var docentes = ViewBag.Docentes as List<OpcionVm> ?? new();
     var pendientes = clases.Count(c => c.EsMia && c.Registros == 0 && (!esHoy || c.Inicio <= ahora) && !AsistenciaController.Vencida(dia, c.Fin));
 }
 <style>
@@ -36,7 +38,42 @@
         <h2>Asistencia</h2>
         <p>Pasa la lista de cada clase: presente, ausente o atrasado (con su hora de llegada). Bajo 85% de asistencia, AUKA avisa al profesor/a jefe y al apoderado/a.</p>
     </div>
+    @if (User.IsInRole("UTP") || User.IsInRole("SuperAdmin"))
+    {
+        <div class="acc"><a href="#" class="blanco" data-bs-toggle="modal" data-bs-target="#mImpAsis">📥 Importar asistencia</a></div>
+    }
 </div>
+
+@if (User.IsInRole("UTP") || User.IsInRole("SuperAdmin"))
+{
+    <div class="modal fade" id="mImpAsis" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <form class="modal-content" asp-action="Importar" method="post" enctype="multipart/form-data" onsubmit="var b=this.querySelector('button.btn-primary'); if(b.disabled) return false; b.disabled=true; b.textContent='Importando… no cierres'; return true;">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h5 class="modal-title fw-bold">📥 Importar asistencia (historial)</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <ol class="mb-3">
+                        <li>Columnas: <b>Fecha; Nivel; Letra; RUT; Estado; Hora llegada; Motivo</b>.</li>
+                        <li>Cada fecha y curso que aparece queda como <b>lista pasada para todo el curso</b>: quien no viene en la planilla queda <b>presente</b>.</li>
+                        <li>Pon solo a los que faltaron o llegaron tarde (Estado: <b>Ausente</b>, <b>Atrasado</b> o <b>Justificado</b>). Una fila con el RUT vacío marca el día con todos presentes.</li>
+                    </ol>
+                    <button type="button" class="btn btn-outline-primary btn-sm px-3 mb-3" id="asPlantilla">📄 Descargar plantilla</button>
+                    <input type="file" name="archivo" accept=".csv" class="form-control" required />
+                    <small class="text-muted d-block mt-2">No pisa listas ya pasadas (ese curso y día se salta) y no manda avisos, porque es historial.</small>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary px-4">Importar</button></div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('asPlantilla').addEventListener('click', function () {
+            var t = '\uFEFFFecha;Nivel;Letra;RUT;Estado;Hora llegada;Motivo\r\n02-03-2026;1º Básico;A;;;;\r\n03-03-2026;1º Básico;A;25.833.676-3;Ausente;;\r\n03-03-2026;1º Básico;A;23.500.160-8;Atrasado;08:20;Control médico\r\n';
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([t], { type: 'text/csv;charset=utf-8' }));
+            a.download = 'plantilla_asistencia.csv'; a.click();
+        });
+    </script>
+}
 
 <div class="as-dia">
     <a class="btn btn-outline-secondary btn-sm" href="?fecha=@dia.AddDays(-1).ToString("yyyy-MM-dd")">‹ Día anterior</a>
@@ -60,8 +97,39 @@
         var cls = lista ? "ok" : (!esHoy || c.Inicio <= ahora) ? "pend" : "";
         <div class="as-cl @cls @(enCurso ? "ahora" : "")">
             <div class="h">@c.Inicio.ToString("hh\\:mm")<small>a @c.Fin.ToString("hh\\:mm")</small></div>
-            <div class="d"><b>@c.Curso</b> · @c.Asignatura <br /><small class="text-muted">@(lista ? "✅ Lista pasada (" + c.Registros + " de " + c.Alumnos + ")" : noPasada ? "⛔ Asistencia no pasada (se cerró sola)" : enCurso ? "🔔 Clase en curso" : esHoy && c.Inicio > ahora ? "Más tarde" : "⏳ Falta pasar la lista")</small></div>
-            <a class="btn @(lista ? "btn-outline-success" : "btn-success") btn-sm px-3" href="/Asistencia/Lista?cursoId=@c.CursoId&bloqueId=@c.BloqueId&fecha=@dia.ToString("yyyy-MM-dd")">@(lista ? "Ver o corregir" : noPasada ? "Ver" : "✅ Pasar lista")</a>
+            <div class="d"><b>@c.Curso</b> · @c.Asignatura
+                @if (c.Reemplazo != null) { <span class="au-chip sol ms-1">🔁 Reemplazo: @c.Reemplazo</span> }
+                <br /><small class="text-muted">@(lista ? "✅ Lista pasada (" + c.Registros + " de " + c.Alumnos + ")" : noPasada ? "⛔ Asistencia no pasada (se cerró sola)" : enCurso ? "🔔 Clase en curso" : esHoy && c.Inicio > ahora ? "Más tarde" : "⏳ Falta pasar la lista")</small>
+                @if (c.Sesion != null) { <small class="d-block fw-bold" style="color:#16915c">@c.Sesion</small> }
+                @if (corrige && esHoy && !lista && !noPasada)
+                {
+                    <details class="mt-1">
+                        <summary class="small fw-bold" style="cursor:pointer;color:var(--a-navy)">🔁 Asignar reemplazo</summary>
+                        <form method="post" action="/Asistencia/AsignarReemplazo" class="d-flex gap-2 flex-wrap mt-1">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="cursoId" value="@c.CursoId" /><input type="hidden" name="bloqueId" value="@c.BloqueId" /><input type="hidden" name="fecha" value="@dia.ToString("yyyy-MM-dd")" />
+                            <select name="profesorId" class="form-select form-select-sm" style="max-width:240px" aria-label="Profesor/a de reemplazo">
+                                <option value="0">— Sin reemplazo (vuelve al titular) —</option>
+                                @foreach (var d in docentes) { <option value="@d.Id">@d.Nombre</option> }
+                            </select>
+                            <input name="motivo" class="form-control form-control-sm" style="max-width:220px" maxlength="200" placeholder="Motivo (ej. licencia)" aria-label="Motivo" />
+                            <button class="btn btn-sm btn-warning px-3">Guardar</button>
+                        </form>
+                    </details>
+                }
+            </div>
+            @if (c.EsMia && esHoy && !lista && !noPasada && c.Inicio.Add(TimeSpan.FromMinutes(-10)) <= ahora && c.Sesion == null)
+            {
+                <form method="post" action="/Asistencia/IniciarClase" class="m-0">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="cursoId" value="@c.CursoId" /><input type="hidden" name="bloqueId" value="@c.BloqueId" />
+                    <button class="btn btn-success btn-sm px-3">▶️ Iniciar clase</button>
+                </form>
+            }
+            else
+            {
+                <a class="btn @(lista ? "btn-outline-success" : "btn-success") btn-sm px-3" href="/Asistencia/Lista?cursoId=@c.CursoId&bloqueId=@c.BloqueId&fecha=@dia.ToString("yyyy-MM-dd")">@(lista ? "Ver o corregir" : noPasada ? "Ver" : c.Sesion != null && c.EsMia ? "📋 Volver a la lista" : "✅ Pasar lista")</a>
+            }
         </div>
     }
 </div>

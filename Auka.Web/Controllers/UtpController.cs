@@ -52,6 +52,9 @@ public class UtpController : Controller
         public DateOnly DiaAsistencia { get; set; }
         public List<Auka.Web.Services.AsistenciaNoPasada.Falta> NoPasadas { get; set; } = new();
         public decimal? PorcentajeAsistencia { get; set; }
+        /// <summary>Clases de este momento (bloque actual) con su estado: iniciada, sin iniciar, reemplazo.</summary>
+        public List<(int CursoId, int BloqueId, string Hora, string Curso, string Ramo, string Profesor, string Estado, bool Iniciada)> ClasesAhora { get; set; } = new();
+        public int IniciadasHoy { get; set; }
 
         // ---- Para los gráficos
         /// <summary>Promedio de las notas de cada mes del año (tendencia).</summary>
@@ -157,6 +160,30 @@ public class UtpController : Controller
         vm.HorariosConComentario = docentes.Count(d => d.HorarioObservacion != null);
         vm.SolicitudesCambio = await _context.SolicitudesCambioHorario.CountAsync(s => s.Estado == EstadoSolicitudHorario.Pendiente);
         vm.InteresadosClubes = await _context.InteresesTaller.CountAsync(i => !i.Atendido);
+
+        // ---- Clases en curso (▶️ Iniciar clase del profesor/a)
+        try
+        {
+            var hoyD = AsistenciaController.Hoy;
+            var ahoraT = DateTime.Now.TimeOfDay;
+            var dowH = (int)hoyD.DayOfWeek;
+            var sesiones = await ClasesEnCurso.DelDiaAsync(_context, colegioId, hoyD);
+            var reemp = await ClasesEnCurso.ReemplazosAsync(_context, colegioId, hoyD);
+            vm.IniciadasHoy = sesiones.Count;
+            var ahora = await _context.ClasesHorario.AsNoTracking().Include(c => c.Bloque).Include(c => c.Curso).Include(c => c.Profesor)
+                .Where(c => c.Dia == dowH && cursoIds.Contains(c.CursoId) && c.Bloque != null).ToListAsync();
+            vm.ClasesAhora = ahora.Where(c => c.Bloque!.HoraInicio <= ahoraT && ahoraT < c.Bloque.HoraFin)
+                .OrderBy(c => Niveles.Orden(c.Curso!.Nombre)).ThenBy(c => c.Curso!.Letra)
+                .Select(c =>
+                {
+                    var key = (c.CursoId, c.BloqueJornadaId);
+                    var prof = reemp.TryGetValue(key, out var r) ? $"{r.Nombre} (reemplazo)" : c.Profesor != null ? $"{c.Profesor.Nombre} {c.Profesor.Apellido}" : "sin profesor/a";
+                    var ini = sesiones.TryGetValue(key, out var s);
+                    return (c.CursoId, c.BloqueJornadaId, $"{c.Bloque!.HoraInicio:hh\\:mm}", $"{c.Curso!.Nombre} {c.Curso.Letra}".Trim(), c.Asignatura, prof,
+                        ini ? ClasesEnCurso.Texto(s!) : (ahoraT - c.Bloque.HoraInicio).TotalMinutes > 10 ? "⏳ Sin iniciar" : "Empezando", ini);
+                }).ToList();
+        }
+        catch { /* el panel se muestra igual */ }
         // Listas de hoy que se cerraron solas sin pasar (y de paso se deja el aviso al día)
         try
         {

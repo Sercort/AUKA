@@ -20,6 +20,10 @@
     .hg .c { height: 66px; border-radius: 14px; background: #f6f9fd; border: 1.5px dashed #dbe4f0; padding: .45rem .55rem; vertical-align: top; position: relative; }
     .hg .c.llena { border: 0; }
     .hg .c b { display: block; font-size: .84rem; line-height: 1.15; }
+    .hg .hg-iniciar { display: inline-block; margin-top: .35rem; background: #16915c; color: #fff !important; font-weight: 900; font-size: .74rem; padding: .25rem .6rem; border-radius: 999px; text-decoration: none; box-shadow: 0 4px 10px rgba(22,145,92,.3); animation: hgPulso 1.6s ease-in-out infinite; }
+    .hg .hg-iniciada { display: block; margin-top: .3rem; font-size: .7rem; font-weight: 900; color: #0f6b44; background: rgba(255,255,255,.75); border-radius: 8px; padding: .1rem .4rem; }
+    .hg .hg-luego { display: inline-block; margin-top: .3rem; font-size: .7rem; font-weight: 800; opacity: .8; }
+    @@keyframes hgPulso { 50% { box-shadow: 0 0 0 6px rgba(22,145,92,.15); } }
     .hg .c span { display: block; font-size: .72rem; opacity: .85; margin-top: .15rem; }
     .hg .c.ed { cursor: pointer; transition: transform .15s, box-shadow .15s; }
     .hg .c.ed:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(20,35,58,.12); }
@@ -97,6 +101,34 @@
                                     <b>@cel.Asignatura</b>
                                     @if (!string.IsNullOrEmpty(cel.Detalle)) { <span>@(Model.PorProfesor ? "🏫 " : "👩‍🏫 ")@cel.Detalle</span> }
                                     @if (!string.IsNullOrEmpty(cel.Sala)) { <span>🚪 @cel.Sala</span> }
+                                    @{ var hoyG = dia == (int)DateTime.Now.DayOfWeek; var cursoG = cel.CursoId ?? Model.CursoId ?? 0; }
+                                    @if (hoyG && Model.Iniciadas.TryGetValue((cursoG, b.Id), out var iniG))
+                                    {
+                                        <span class="hg-iniciada">@iniG</span>
+                                    }
+                                    @* Mi horario: la clase de hoy se inicia desde aquí y se abre la lista del curso *@
+                                    @if (Model.PorProfesor && Model.EsPropio && cel.CursoId != null && hoyG)
+                                    {
+                                        var ahoraG = DateTime.Now.TimeOfDay;
+                                        var vencidaG = Auka.Web.Controllers.AsistenciaController.Vencida(Auka.Web.Controllers.AsistenciaController.Hoy, b.HoraFin);
+                                        var yaIniciada = Model.Iniciadas.ContainsKey((cel.CursoId.Value, b.Id));
+                                        if (yaIniciada && !vencidaG)
+                                        {
+                                            <a class="hg-iniciar" href="/Asistencia/Lista?cursoId=@cel.CursoId&bloqueId=@b.Id" onclick="event.stopPropagation()">📋 Ver la lista</a>
+                                        }
+                                        else if (ahoraG >= b.HoraInicio.Add(TimeSpan.FromMinutes(-10)) && !vencidaG)
+                                        {
+                                            <form method="post" action="/Asistencia/IniciarClase" class="m-0" onclick="event.stopPropagation()">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="cursoId" value="@cel.CursoId" /><input type="hidden" name="bloqueId" value="@b.Id" />
+                                                <button class="hg-iniciar border-0">@(ahoraG < b.HoraFin ? "▶️ Iniciar clase" : "📋 Pasar lista")</button>
+                                            </form>
+                                        }
+                                        else if (ahoraG < b.HoraInicio)
+                                        {
+                                            <span class="hg-luego">Hoy · a las @b.HoraInicio.ToString("hh\\:mm")</span>
+                                        }
+                                    }
                                 </td>
                             }
                             else
@@ -269,11 +301,13 @@
                     $('hgF').querySelector('button[type=submit]').style.display = lock ? 'none' : '';
                     $('hgMover').style.display = td.dataset.asig ? '' : 'none';
                     $('hgDia').value = td.dataset.dia; $('hgBloque').value = td.dataset.bloque;
+                    $('hgProf').innerHTML = opcionesOriginales; $('hgProf').dataset.rehecho = '';
                     $('hgAsig').value = td.dataset.asig || ''; $('hgProf').value = td.dataset.prof || ''; $('hgSala').value = td.dataset.sala || '';
                     var hora = td.parentElement.querySelector('td.h').firstChild.textContent.trim();
                     $('hgT').textContent = dias[+td.dataset.dia] + ' · ' + hora;
                     $('hgMsg').innerHTML = ''; $('hgSug').innerHTML = ''; $('hgForzar').value = 'false'; $('hgBorrar').style.display = td.dataset.asig && !lock ? '' : 'none';
                     marcarOcupados(td.dataset.dia, td.dataset.bloque);
+                    if (td.dataset.asig && !lock) sugerir();
                     modal().show();
                     setTimeout(function () { $('hgAsig').focus(); }, 300);
                 });
@@ -281,12 +315,14 @@
             var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
             // Marca en la lista quién ya está ocupado a esa hora (en otro curso)
             var original = {};
+            var opcionesOriginales = $('hgProf').innerHTML;
             Array.prototype.forEach.call($('hgProf').options, function (o) { original[o.value] = o.textContent; });
             var marcarOcupados = function (dia, bloque) {
-                Array.prototype.forEach.call($('hgProf').options, function (o) { o.textContent = original[o.value]; });
+                if (!$('hgProf').dataset.rehecho) Array.prototype.forEach.call($('hgProf').options, function (o) { o.textContent = original[o.value]; });
                 fetch('/Horarios/Ocupados?cursoId=@Model.CursoId&dia=' + dia + '&bloqueId=' + bloque, { credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })
                     .then(function (d) {
+                        if ($('hgProf').dataset.rehecho) return;   // ya está ordenada por asignatura (trae quién está ocupado)
                         Array.prototype.forEach.call($('hgProf').options, function (o) {
                             if (d.profesores[o.value]) o.textContent = '⛔ ' + original[o.value] + ' — ocupado en ' + d.profesores[o.value];
                         });
@@ -313,9 +349,27 @@
                     else $('hgSug').innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small">Este curso aún no tiene profesor/a jefe: asígnalo en la nómina del curso.</div>';
                     return;
                 }
-                fetch('/Horarios/Sugeridos?dia=' + $('hgDia').value + '&bloqueId=' + $('hgBloque').value + '&asignatura=' + encodeURIComponent(a), { credentials: 'same-origin' })
+                // La lista de profesores se ordena para esa asignatura: los que la hacen, del ciclo del curso y libres, primero
+                var actual = $('hgProf').value;
+                fetch('/Horarios/ProfesoresPara?cursoId=@Model.CursoId&dia=' + $('hgDia').value + '&bloqueId=' + $('hgBloque').value + '&asignatura=' + encodeURIComponent(a), { credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })
-                    .then(function (l) { $('hgSug').innerHTML = botones(l, 'Libres a esta hora para ' + a + ':'); })
+                    .then(function (d) {
+                        var html = '<option value="">Sin asignar</option>';
+                        [0, 1, 2].forEach(function (g) {
+                            var ps = d.lista.filter(function (p) { return p.grupo === g; });
+                            if (!ps.length) return;
+                            html += '<optgroup label="' + esc(d.titulos[g]) + '">' + ps.map(function (p) {
+                                return '<option value="' + p.id + '">' + (g === 0 ? '✅ ' : g === 1 ? '⏳ ' : '') + esc(p.nombre) + ' — ' + esc(p.detalle) + '</option>';
+                            }).join('') + '</optgroup>';
+                        });
+                        $('hgProf').innerHTML = html; $('hgProf').dataset.rehecho = '1';
+                        var rec = d.lista.filter(function (p) { return p.grupo === 0; });
+                        if (actual && $('hgProf').querySelector('option[value="' + actual + '"]')) $('hgProf').value = actual;
+                        else if (rec.length) $('hgProf').value = rec[0].id;
+                        $('hgSug').innerHTML = rec.length
+                            ? '<div class="alert alert-success py-1 px-2 mb-0 small">✅ ' + rec.length + ' docente' + (rec.length === 1 ? '' : 's') + ' de ' + esc(a) + ' libre' + (rec.length === 1 ? '' : 's') + ' a esta hora, arriba en la lista' + (actual ? '' : ' (ya elegí el primero)') + '.</div>'
+                            : '<div class="alert alert-warning py-1 px-2 mb-0 small">⚠️ No hay docentes de ' + esc(a) + ' de este ciclo libres a esta hora. Elige a otro de la lista o agrega docentes en Personal.</div>';
+                    })
                     .catch(function () { });
             };
             $('hgAsig').addEventListener('change', sugerir);

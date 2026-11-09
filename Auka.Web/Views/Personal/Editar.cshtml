@@ -11,6 +11,28 @@
                     <h4 class="mb-0 fw-bold">✏️ Editar Funcionario / Docente</h4>
                 </div>
                 <div class="card-body p-4">
+                    @if (TempData["SuccessMessage"] != null)
+                    {
+                        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+                    }
+                    @if (TempData["Error"] != null)
+                    {
+                        <div class="alert alert-danger">@TempData["Error"]</div>
+                    }
+                    @* Acciones rápidas: clave provisoria y horario (también se llega aquí desde el buscador de arriba) *@
+                    <div class="d-flex gap-2 flex-wrap mb-4 p-3 rounded-4" style="background:#f4f7fc">
+                        <form asp-action="RestablecerClave" asp-route-id="@Model.Id" method="post" class="m-0" onsubmit="return confirm('Se generará una clave provisoria nueva y la anterior dejará de servir. ¿Continuar?');">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="volver" value="editar" />
+                            <button class="btn btn-warning rounded-pill px-4 fw-bold">🔑 Crear clave provisoria</button>
+                        </form>
+                        @if (Model.Rol == Auka.Application.Entities.RolUsuario.Docente || Model.Rol == Auka.Application.Entities.RolUsuario.UTP || Model.Rol == Auka.Application.Entities.RolUsuario.Director)
+                        {
+                            <a href="/Horarios/Profesor/@Model.Id" class="btn btn-outline-primary rounded-pill px-4">🗓️ Ver su horario</a>
+                        }
+                        <a href="/Personal?ver=@Uri.EscapeDataString(Model.Rut)" class="btn btn-outline-secondary rounded-pill px-4">👥 Ir al listado del personal</a>
+                        <small class="text-muted w-100">La clave provisoria se muestra una sola vez: anótala y entrégasela. Al entrar, AUKA le pide cambiarla.</small>
+                    </div>
                     <form asp-action="Editar" method="post">
                         @Html.AntiForgeryToken()
                         <input type="hidden" asp-for="Id" />

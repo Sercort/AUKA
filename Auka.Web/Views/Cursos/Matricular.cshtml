@@ -124,7 +124,7 @@
                     </select>
                 </div>
                 <div class="col-md-6 mt-oculto" id="bEsp">
-                    <label class="form-label">Especialidad <span class="text-muted fw-normal">(3º y 4º medio técnico-profesional)</span></label>
+                    <label class="form-label">Especialidad <span class="text-muted fw-normal">(@(ViewBag.EspDesdePrimero == true ? "1º a 4º" : "3º y 4º") medio técnico-profesional)</span></label>
                     <div class="d-flex gap-2">
                         <select name="especialidad" id="esp" class="form-select">
                             <option value="">Científico-humanista / sin especialidad</option>
@@ -216,7 +216,9 @@
     var interno = function (m) { return !m || /auka\.cl$/i.test(m); };
 
     // ---- Mostrar u ocultar secciones según el tipo y el nivel ----
-    var esMedioTP = function (n) { n = (n || '').toLowerCase().replace('°', 'º'); return /^(3|4|iii|iv)\s*º?\s*medio/.test(n); };
+    // Niveles con especialidad: 3º y 4º medio; también 1º y 2º si el colegio tiene especialidades desde 1º medio
+    var espDesdePrimero = @(ViewBag.EspDesdePrimero == true ? "true" : "false");
+    var esMedioTP = function (n) { n = (n || '').toLowerCase().replace('°', 'º'); return (espDesdePrimero ? /^(1|2|3|4|i|ii|iii|iv)\s*º?\s*medio/ : /^(3|4|iii|iv)\s*º?\s*medio/).test(n); };
     var actualizar = function () {
         var t = tipo();
         $('bTras').classList.toggle('mt-oculto', t !== 'Traslado');

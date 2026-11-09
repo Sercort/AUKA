@@ -134,6 +134,24 @@ else
     <small class="text-muted">Se aplica al crear los cursos del año siguiente. Siempre se puede cambiar el profesor/a jefe a mano en cada curso.</small>
 </form>
 
+@{ bool espDesde1 = ViewBag.EspDesdePrimero == true; }
+<form asp-action="GuardarNivelesEspecialidad" method="post" class="au-card pm-form mb-3">
+    @Html.AntiForgeryToken()
+    <h4>🛠️ Especialidades técnico-profesionales</h4>
+    <p class="text-muted small mb-2">¿En qué niveles tiene especialidades el colegio? En esos cursos, el profesor/a jefe es de la especialidad; si no alcanzan, queda un profe de enseñanza media (nunca de básica).</p>
+    <div class="pm-roles">
+        <label>
+            <input type="radio" class="form-check-input mt-1" name="desdePrimero" value="false" checked="@(!espDesde1)" />
+            <span><b>3º y 4º medio</b><small>Lo más común: 1º y 2º medio son formación general.</small></span>
+        </label>
+        <label>
+            <input type="radio" class="form-check-input mt-1" name="desdePrimero" value="true" checked="@espDesde1" />
+            <span><b>De 1º a 4º medio</b><small>Liceos técnicos con especialidad desde 1º medio.</small></span>
+        </label>
+    </div>
+    <div class="d-flex justify-content-end mt-2"><button class="btn btn-primary px-4">Guardar</button></div>
+</form>
+
 <form asp-action="AbrirMatricula" method="post" class="au-card pm-form" id="pmForm">
     @Html.AntiForgeryToken()
     <h4 id="pmTitulo">➕ Abrir un período de matrícula</h4>

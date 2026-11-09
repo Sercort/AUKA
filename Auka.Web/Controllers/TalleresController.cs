@@ -120,6 +120,21 @@ public class TalleresController : Controller
             : new Dictionary<int, decimal>();
         // Alumnos y apoderados no ven la lista completa de integrantes (datos de otros niños)
         ViewBag.VeIntegrantes = !(User.IsInRole("Estudiante") || User.IsInRole("Apoderado"));
+
+        // Historial de solicitudes a la UTP (lo ven el profesor/a del club y la UTP)
+        ViewBag.EsUtp = EsUtp();
+        if (ViewBag.EsUtp == true || ViewBag.PuedeInscribir == true)
+        {
+            var sol = await _context.SolicitudesClub.AsNoTracking().Where(s => s.TallerId == id).OrderBy(s => s.Estado != EstadoSolicitudClub.Pendiente).ThenByDescending(s => s.PedidaUtc).Take(50).ToListAsync();
+            var ids = sol.SelectMany(s => new[] { s.PedidaPorId, s.ResueltaPorId ?? 0 }).Distinct().ToList();
+            var personas = await _context.Usuarios.AsNoTracking().Where(u => ids.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Nombre + " " + u.Apellido);
+            var estIds = sol.Where(s => s.EstudianteId != null).Select(s => s.EstudianteId!.Value).ToList();
+            var alumnos = await _context.Estudiantes.AsNoTracking().Where(e => estIds.Contains(e.Id))
+                .Select(e => new { e.Id, N = e.Usuario!.Nombre + " " + e.Usuario.Apellido + " · " + (e.Curso != null ? e.Curso.Nombre + " " + e.Curso.Letra : "") }).ToDictionaryAsync(x => x.Id, x => x.N);
+            ViewBag.Solicitudes = sol.Select(s => new SolicitudClubVm(s.Id, s.Tipo, s.EstudianteId != null ? alumnos.GetValueOrDefault(s.EstudianteId.Value, "Alumno/a") : null,
+                s.CupoPedido, s.Bloqueo, s.Comentario, s.Estado, personas.GetValueOrDefault(s.PedidaPorId, ""), s.PedidaUtc,
+                s.ResueltaPorId != null ? personas.GetValueOrDefault(s.ResueltaPorId.Value, "") : null, s.ResueltaUtc, s.Respuesta)).ToList();
+        }
         return View(taller);
     }
 
@@ -132,27 +147,25 @@ public class TalleresController : Controller
         if (taller == null || !await Permisos.PuedeAsync(_context, User, Permisos.Inscribir, taller.DocenteId)) return Forbid();
         q = (q ?? "").Trim().ToLower();
         if (q.Length < 2 && cursoId == null) return Json(Array.Empty<object>());
-        var qRut = Rut.Normalizar(q);
-        var buscaRut = qRut.Length >= 4 && qRut.Any(char.IsDigit);
-
+        // Sin importar mayúsculas, tildes ni errores de tipeo; nombre y apellido juntos o una sola palabra
+        var palabras = Buscador.Palabras(q);
+        var rut = Buscador.EsRut(q) ? Buscador.RutPlano(q) : null;
         var inscritos = await _context.InscripcionesTaller.AsNoTracking().Where(i => i.TallerId == tallerId).Select(i => i.EstudianteId).ToListAsync();
-        var lista = await _context.Estudiantes.AsNoTracking()
-            .Where(e => e.ColegioId == colegioId && e.Usuario != null && e.Usuario.Activo && e.Curso != null && e.Curso.Nombre != "Pacientes"
-                && (cursoId == null || e.CursoId == cursoId)
-                && (q.Length < 2 || e.Usuario.Nombre.ToLower().Contains(q) || e.Usuario.Apellido.ToLower().Contains(q)
-                    || (e.Usuario.Nombre + " " + e.Usuario.Apellido).ToLower().Contains(q)
-                    || (buscaRut && e.Usuario.Rut.Replace(".", "").Replace("-", "").ToUpper().Contains(qRut))))
-            .OrderBy(e => e.Usuario!.Apellido).ThenBy(e => e.Usuario!.Nombre)
-            .Take(cursoId == null ? 12 : 60)
-            .Select(e => new { id = e.Id, nombre = e.Usuario!.Nombre + " " + e.Usuario.Apellido, rut = e.Usuario.Rut, curso = (e.Curso!.Nombre + " " + e.Curso.Letra).Trim() })
+        var todos = await _context.Estudiantes.AsNoTracking()
+            .Where(e => e.ColegioId == colegioId && e.Usuario != null && e.Usuario.Activo && e.Curso != null && e.Curso.Nombre != "Pacientes" && (cursoId == null || e.CursoId == cursoId))
+            .Select(e => new { id = e.Id, nombre = e.Usuario!.Nombre + " " + e.Usuario.Apellido, ap = e.Usuario.Apellido, rut = e.Usuario.Rut, curso = (e.Curso!.Nombre + " " + e.Curso.Letra).Trim() })
             .ToListAsync();
+        var lista = todos
+            .Select(a => (a, s: q.Length < 2 ? 1 : rut != null ? (Buscador.RutPlano(a.rut).Contains(rut) ? 10 : 0) : Buscador.Puntaje(palabras, a.nombre)))
+            .Where(x => x.s > 0).OrderByDescending(x => x.s).ThenBy(x => x.a.ap)
+            .Take(cursoId == null ? 12 : 60).Select(x => x.a).ToList();
         return Json(lista.Select(a => new { a.id, a.nombre, a.rut, a.curso, inscrito = inscritos.Contains(a.id) }));
     }
 
     // 4. Inscribir alumno/a
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Inscribir(int tallerId, int estudianteId)
+    public async Task<IActionResult> Inscribir(int tallerId, int estudianteId, bool forzar = false)
     {
         var colegioId = ColegioId();
         var taller = await _context.Talleres.FirstOrDefaultAsync(t => t.Id == tallerId && t.ColegioId == colegioId);
@@ -162,15 +175,132 @@ public class TalleresController : Controller
         if (est == null) return Json(new { ok = false, error = "Alumno/a no encontrado." });
         if (await _context.InscripcionesTaller.AnyAsync(i => i.TallerId == tallerId && i.EstudianteId == estudianteId)) return Json(new { ok = true, ya = true });
         var n = await _context.InscripcionesTaller.CountAsync(i => i.TallerId == tallerId);
-        if (taller.Cupo is > 0 && n >= taller.Cupo) return Json(new { ok = false, error = $"El club ya completó su cupo ({taller.Cupo})." });
-        // Niveles, temporada y choques con sus clases (mandan) o con otros clubes
+        // Temporada y choques con sus clases (mandan) o con otros clubes: eso no se salta nunca
         var sesiones = await _context.SesionesTaller.AsNoTracking().Where(x => x.TallerId == tallerId).ToListAsync();
-        var motivo = await Clubes.PuedeInscribirAsync(_context, taller, sesiones, est);
+        var motivo = await Clubes.PuedeInscribirAsync(_context, taller, sesiones, est, ignorarNivel: true);
         if (motivo != null) return Json(new { ok = false, error = motivo });
+        // Club lleno u otro nivel: el profesor/a se lo pide a la UTP; la UTP puede inscribir igual
+        var bloqueo = taller.Cupo is > 0 && n >= taller.Cupo ? $"El club ya completó su cupo ({taller.Cupo})." : Clubes.NivelNoCorresponde(taller, est.Curso);
+        if (bloqueo != null)
+        {
+            var decide = EsUtp();
+            if (!(forzar && decide))
+            {
+                var pendiente = await _context.SolicitudesClub.AnyAsync(s => s.TallerId == tallerId && s.EstudianteId == estudianteId && s.Estado == EstadoSolicitudClub.Pendiente);
+                return Json(new { ok = false, error = bloqueo, solicitable = !decide && !pendiente, forzable = decide, pendiente });
+            }
+        }
 
         _context.InscripcionesTaller.Add(new InscripcionTaller { ColegioId = colegioId, TallerId = tallerId, EstudianteId = estudianteId, FechaUtc = DateTime.UtcNow, InscritoPorId = UsuarioId() });
         await _context.SaveChangesAsync();
         return Json(new { ok = true });
+    }
+
+    /// <summary>La UTP (o la administración) decide las solicitudes de los clubes.</summary>
+    private bool EsUtp() => User.IsInRole("UTP") || User.IsInRole("Administrador") || User.IsInRole("SuperAdmin");
+
+    private async Task AvisarAsync(IEnumerable<int> usuarios, string titulo, string mensaje, string enlace)
+    {
+        var colegioId = ColegioId();
+        foreach (var u in usuarios.Distinct())
+            _context.Notificaciones.Add(new Notificacion { ColegioId = colegioId, UsuarioId = u, Titulo = titulo, Mensaje = mensaje, Enlace = enlace, CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo });
+        await Task.CompletedTask;
+    }
+
+    private async Task<List<int>> UtpsAsync() =>
+        await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == ColegioId() && u.Activo && u.Rol == RolUsuario.UTP).Select(u => u.Id).ToListAsync();
+
+    // 4b. El profesor/a pide a la UTP inscribir a un alumno/a (club lleno u otro nivel)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SolicitarInscripcion(int tallerId, int estudianteId, string? comentario)
+    {
+        var colegioId = ColegioId();
+        var taller = await _context.Talleres.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tallerId && t.ColegioId == colegioId);
+        if (taller == null) return Json(new { ok = false, error = "El club no existe." });
+        if (!await Permisos.PuedeAsync(_context, User, Permisos.Inscribir, taller.DocenteId)) return Json(new { ok = false, error = "No tienes permiso en este club." });
+        var est = await _context.Estudiantes.AsNoTracking().Include(e => e.Curso).Include(e => e.Usuario).FirstOrDefaultAsync(e => e.Id == estudianteId && e.ColegioId == colegioId);
+        if (est == null) return Json(new { ok = false, error = "Alumno/a no encontrado." });
+        if (await _context.SolicitudesClub.AnyAsync(s => s.TallerId == tallerId && s.EstudianteId == estudianteId && s.Estado == EstadoSolicitudClub.Pendiente))
+            return Json(new { ok = true, ya = true });
+        var n = await _context.InscripcionesTaller.CountAsync(i => i.TallerId == tallerId);
+        var bloqueo = taller.Cupo is > 0 && n >= taller.Cupo ? $"Cupo completo ({taller.Cupo})" : Clubes.NivelNoCorresponde(taller, est.Curso) ?? "Sin bloqueo";
+        _context.SolicitudesClub.Add(new SolicitudClub { ColegioId = colegioId, TallerId = tallerId, Tipo = "Inscripcion", EstudianteId = estudianteId, Bloqueo = bloqueo,
+            Comentario = string.IsNullOrWhiteSpace(comentario) ? null : comentario.Trim(), PedidaPorId = UsuarioId(), PedidaUtc = DateTime.UtcNow });
+        var alumno = $"{est.Usuario?.Nombre} {est.Usuario?.Apellido} ({est.Curso?.Nombre} {est.Curso?.Letra})".Trim();
+        await AvisarAsync(await UtpsAsync(), $"📨 Solicitud de club: {taller.Nombre}", $"{User.Identity?.Name} pide inscribir a {alumno}. {bloqueo}.", $"/Talleres/Detalle/{tallerId}#solicitudes");
+        await _context.SaveChangesAsync();
+        return Json(new { ok = true });
+    }
+
+    // 4c. El profesor/a pide aumentar el cupo
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SolicitarCupo(int tallerId, int cupo, string? comentario)
+    {
+        var colegioId = ColegioId();
+        var taller = await _context.Talleres.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tallerId && t.ColegioId == colegioId);
+        if (taller == null) return NotFound();
+        if (!await Permisos.PuedeAsync(_context, User, Permisos.Inscribir, taller.DocenteId)) return RedirectToAction("AccesoDenegado", "Account");
+        if (cupo <= 0 || (taller.Cupo is > 0 && cupo <= taller.Cupo))
+        {
+            TempData["Error"] = $"El nuevo cupo tiene que ser mayor que el actual ({taller.Cupo}).";
+            return RedirectToAction(nameof(Detalle), new { id = tallerId });
+        }
+        if (await _context.SolicitudesClub.AnyAsync(s => s.TallerId == tallerId && s.Tipo == "Cupo" && s.Estado == EstadoSolicitudClub.Pendiente))
+        {
+            TempData["Error"] = "Ya hay una solicitud de cupo esperando respuesta de la UTP.";
+            return RedirectToAction(nameof(Detalle), new { id = tallerId });
+        }
+        _context.SolicitudesClub.Add(new SolicitudClub { ColegioId = colegioId, TallerId = tallerId, Tipo = "Cupo", CupoPedido = cupo, Bloqueo = $"Cupo actual {taller.Cupo?.ToString() ?? "sin límite"}",
+            Comentario = string.IsNullOrWhiteSpace(comentario) ? null : comentario.Trim(), PedidaPorId = UsuarioId(), PedidaUtc = DateTime.UtcNow });
+        await AvisarAsync(await UtpsAsync(), $"📨 Más cupo para {taller.Nombre}", $"{User.Identity?.Name} pide subir el cupo de {taller.Cupo} a {cupo}.", $"/Talleres/Detalle/{tallerId}#solicitudes");
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = "📨 Solicitud enviada a la UTP. Te avisaremos cuando responda.";
+        return RedirectToAction(nameof(Detalle), new { id = tallerId });
+    }
+
+    // 4d. La UTP aprueba o rechaza (queda en el historial del club)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResolverSolicitud(int id, bool aprobar, string? respuesta)
+    {
+        if (!EsUtp()) return RedirectToAction("AccesoDenegado", "Account");
+        var colegioId = ColegioId();
+        var s = await _context.SolicitudesClub.FirstOrDefaultAsync(x => x.Id == id && x.ColegioId == colegioId);
+        if (s == null) return NotFound();
+        var taller = await _context.Talleres.FirstOrDefaultAsync(t => t.Id == s.TallerId && t.ColegioId == colegioId);
+        if (taller == null) return NotFound();
+        if (s.Estado != EstadoSolicitudClub.Pendiente) return RedirectToAction(nameof(Detalle), new { id = s.TallerId });
+
+        string resumen;
+        if (aprobar && s.Tipo == "Cupo")
+        {
+            taller.Cupo = s.CupoPedido;
+            resumen = $"El cupo de «{taller.Nombre}» ahora es {s.CupoPedido}.";
+        }
+        else if (aprobar && s.EstudianteId != null)
+        {
+            var est = await _context.Estudiantes.Include(e => e.Curso).FirstOrDefaultAsync(e => e.Id == s.EstudianteId && e.ColegioId == colegioId);
+            if (est == null) { TempData["Error"] = "El alumno/a ya no está en el colegio."; return RedirectToAction(nameof(Detalle), new { id = s.TallerId }); }
+            var sesiones = await _context.SesionesTaller.AsNoTracking().Where(x => x.TallerId == taller.Id).ToListAsync();
+            var choque = await Clubes.PuedeInscribirAsync(_context, taller, sesiones, est, ignorarNivel: true);
+            if (choque != null) { TempData["Error"] = "No se puede aprobar: " + choque; return RedirectToAction(nameof(Detalle), new { id = s.TallerId }); }
+            if (!await _context.InscripcionesTaller.AnyAsync(i => i.TallerId == taller.Id && i.EstudianteId == est.Id))
+                _context.InscripcionesTaller.Add(new InscripcionTaller { ColegioId = colegioId, TallerId = taller.Id, EstudianteId = est.Id, FechaUtc = DateTime.UtcNow, InscritoPorId = UsuarioId() });
+            resumen = $"Se inscribió al alumno/a en «{taller.Nombre}».";
+        }
+        else resumen = $"La UTP no aprobó la solicitud en «{taller.Nombre}».";
+
+        s.Estado = aprobar ? EstadoSolicitudClub.Aprobada : EstadoSolicitudClub.Rechazada;
+        s.ResueltaPorId = UsuarioId();
+        s.ResueltaUtc = DateTime.UtcNow;
+        s.Respuesta = string.IsNullOrWhiteSpace(respuesta) ? null : respuesta.Trim();
+        await AvisarAsync(new[] { s.PedidaPorId }, aprobar ? "✅ Solicitud de club aprobada" : "❌ Solicitud de club no aprobada",
+            resumen + (s.Respuesta != null ? " Comentario: " + s.Respuesta : ""), $"/Talleres/Detalle/{taller.Id}#solicitudes");
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = aprobar ? "✅ " + resumen : "Solicitud rechazada. Se le avisó al profesor/a.";
+        return RedirectToAction(nameof(Detalle), new { id = taller.Id });
     }
 
     // 5. Quitar alumno/a del club
@@ -228,6 +358,9 @@ public class TalleresController : Controller
         if (taller.FechaInicio != null && taller.FechaFin != null && taller.FechaFin < taller.FechaInicio) errSes.Add("La fecha de término es antes del inicio.");
         if (ModelState.IsValid && docente != null && errSes.Count == 0)
             errSes.AddRange(await Clubes.ChoquesClubAsync(_context, colegioId, null, docente.Id, taller.Lugar, taller.FechaInicio, taller.FechaFin, sesiones));
+        // Máximo 2 clubes por profesor/a y sin pasar sus horas de contrato
+        if (ModelState.IsValid && docente != null && errSes.Count == 0 && await Clubes.LimiteDocenteAsync(_context, colegioId, docente.Id, null, sesiones) is string lim)
+            errSes.Add(lim);
         foreach (var e in errSes) ModelState.AddModelError(string.Empty, e);
 
         if (ModelState.IsValid && docente != null)
@@ -293,6 +426,7 @@ public class TalleresController : Controller
         lugar = string.IsNullOrWhiteSpace(lugar) ? null : lugar.Trim();
         if (fechaInicio != null && fechaFin != null && fechaFin < fechaInicio) errores.Add("La fecha de término es antes del inicio.");
         if (errores.Count == 0) errores.AddRange(await Clubes.ChoquesClubAsync(_context, colegioId, t.Id, t.DocenteId, lugar, fechaInicio, fechaFin, nuevas));
+        if (errores.Count == 0 && t.DocenteId != null && await Clubes.LimiteDocenteAsync(_context, colegioId, t.DocenteId.Value, t.Id, nuevas) is string lim) errores.Add(lim);
 
         // Las clases mandan: si con el nuevo horario algún integrante queda con choque, no se cambia
         if (errores.Count == 0)
@@ -385,6 +519,9 @@ public class TalleresController : Controller
 
             var choques = await Clubes.ChoquesClubAsync(_context, colegioId, t?.Id, doc?.Id ?? t?.DocenteId, lugar, fIni, fFin, sesiones);
             if (choques.Count > 0) { errores.Add($"«{nombre}» no se cargó: {string.Join(" ", choques.Take(3))}"); continue; }
+            var profeClub = doc?.Id ?? t?.DocenteId;
+            if (profeClub != null && await Clubes.LimiteDocenteAsync(_context, colegioId, profeClub.Value, t?.Id, sesiones) is string limite)
+            { errores.Add($"«{nombre}» no se cargó: {limite}"); continue; }
 
             if (t == null)
             {
@@ -614,6 +751,8 @@ public class TalleresController : Controller
     }
 }
 
+public record SolicitudClubVm(int Id, string Tipo, string? Alumno, int? CupoPedido, string? Bloqueo, string? Comentario, EstadoSolicitudClub Estado,
+    string PedidaPor, DateTime PedidaUtc, string? ResueltaPor, DateTime? ResueltaUtc, string? Respuesta);
 public record IntegranteVm(int Id, int EstudianteId, string Nombre, string Rut, string Curso, DateTime FechaUtc);
 
 public record InteresadoVm(int Id, int EstudianteId, string Nombre, string Curso, string Nivel, int? TallerId, string? Categoria, string? Comentario, DateTime CreadoUtc);

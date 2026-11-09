@@ -1,9 +1,13 @@
-﻿@* Auka.Web/Views/Shared/_CursosCarpetas.cshtml
+@* Auka.Web/Views/Shared/_CursosCarpetas.cshtml
    Cursos como carpetas: primero el nivel (1º Básico, 2º Básico...), y al abrirlo sus cursos (A, B, C...).
    Lo usan Cursos, Anotaciones y Horarios. Los niveles y letras salen solos de los cursos que tenga el colegio. *@
 @model Auka.Web.Models.CarpetasVm
 @using Auka.Web.Services
+@inject Auka.Infrastructure.Data.ApplicationDbContext Db
 @{
+    // Especialidad de cada curso de media, para mostrarla al lado de la letra ("B · Mecánica Automotriz")
+    var esps = await Jefaturas.EtiquetasAsync(Db, Model.Cursos.Select(c => c.Id));
+    string Corta(string e) => e.StartsWith("Científico") ? "CH" : e.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
     var tonos = new[] { "t1", "t2", "t3", "t4", "t5", "t6" };
     var ciclos = Model.Cursos
         .GroupBy(c => Niveles.Ciclo(c.Nivel))
@@ -39,7 +43,7 @@
     .cf-cu .est.alerta { color: #a12d2a; } .cf-cu .est.atencion { color: #b45d00; } .cf-cu .est.destacado { color: #12744a; }
     .cf-cu.alerta { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #ef6f6c; }
     .cf-fo .le { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: auto; padding-top: .6rem; }
-    .cf-fo .le span { background: rgba(255,255,255,.92); color: var(--a-navy); font-weight: 900; font-size: .75rem; min-width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; padding: 0 .3rem; }
+    .cf-fo .le span { background: rgba(255,255,255,.92); color: var(--a-navy); font-weight: 900; font-size: .75rem; min-width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: .2rem; padding: 0 .3rem; }
     .cf-panel { display: none; margin-top: 16px; background: #fff; border: 1px solid var(--a-line); border-radius: 22px; padding: 18px; box-shadow: var(--a-sombra); }
     .cf-panel.on { display: block; animation: cfAbre .25s ease both; }
     @@keyframes cfAbre { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
@@ -51,6 +55,8 @@
     .cf-cu:hover { transform: translateY(-3px); box-shadow: 0 14px 28px rgba(20,35,58,.18); color: #fff; }
     .cf-cu::after { content: ""; position: absolute; right: -30px; bottom: -40px; width: 110px; height: 110px; border-radius: 50%; background: rgba(255,255,255,.14); }
     .cf-cu .letra { font-size: 1.9rem; font-weight: 900; line-height: 1; }
+    .cf-cu .esp-cu { display: inline-block; margin-top: .3rem; font-size: .74rem; font-weight: 800; background: rgba(255,255,255,.25); border-radius: 999px; padding: .12rem .55rem; }
+    .le small.esp { font-size: .62rem; font-weight: 800; opacity: .9; }
     .cf-cu .lin { font-size: .8rem; opacity: .92; margin-top: .2rem; position: relative; }
     .cf-cu .pie { margin-top: auto; display: flex; justify-content: space-between; align-items: end; font-size: .78rem; position: relative; gap: .3rem; flex-wrap: wrap; }
     .cf-cu .pie b { font-size: 1.3rem; line-height: 1; }
@@ -94,7 +100,7 @@
                     <span class="le">
                         @foreach (var c in n.Cursos)
                         {
-                            <span>@(string.IsNullOrWhiteSpace(c.Letra) ? "•" : c.Letra)</span>
+                            <span title="@(esps.TryGetValue(c.Id, out var et0) ? et0 : null)">@(string.IsNullOrWhiteSpace(c.Letra) ? "•" : c.Letra)@if (esps.TryGetValue(c.Id, out var et1)) {<small class="esp"> @Corta(et1)</small>}</span>
                         }
                     </span>
                 </button>
@@ -111,11 +117,15 @@
                             var pct = c.Capacidad > 0 ? Math.Min(100, c.Alumnos * 100 / c.Capacidad) : 0;
                             <a class="cf-cu @tono @(c.Estado == "alerta" ? "alerta" : "")" href="@c.Url" title="@c.EstadoTexto">
                                 <span class="letra">@(string.IsNullOrWhiteSpace(c.Letra) ? n.Nombre : c.Letra)</span>
+                                @if (esps.TryGetValue(c.Id, out var etC))
+                                {
+                                    <span class="esp-cu">@(etC.StartsWith("Científico") ? "📘" : "🛠️") @etC</span>
+                                }
                                 @if (c.Estado != null)
                                 {
                                     <span class="est @c.Estado">@(c.Estado == "alerta" ? "🔴 En alerta" : c.Estado == "atencion" ? "🟠 Atención" : "⭐ Destacado")</span>
                                 }
-                                <span class="lin">@(n.Nombre + " " + c.Letra + (string.IsNullOrEmpty(c.Linea) ? "" : " · " + c.Linea))</span>
+                                <span class="lin">@(n.Nombre + " " + c.Letra + (esps.TryGetValue(c.Id, out var etL) ? " · " + etL : "") + (string.IsNullOrEmpty(c.Linea) ? "" : " · " + c.Linea))</span>
                                 <span class="pie">
                                     <span><b>@c.Alumnos</b> alumnos/as</span>
                                     @if (!string.IsNullOrEmpty(c.Etiqueta1) || !string.IsNullOrEmpty(c.Etiqueta2))

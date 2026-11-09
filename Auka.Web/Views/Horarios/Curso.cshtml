@@ -62,6 +62,11 @@
                 <input type="hidden" name="rehacer" value="true" />
                 <button class="btn btn-outline-primary btn-sm px-3" title="Rehace lo que no está bloqueado">🔄 Rehacer lo no bloqueado</button>
             </form>
+            <form method="post" action="/Horarios/CompletarProfesores" class="m-0">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="cursoId" value="@Model.CursoId" />
+                <button class="btn btn-outline-success btn-sm px-3" title="Pone profesor/a en los bloques que no tienen">🧩 Completar profesores</button>
+            </form>
         }
 @if (User.IsInRole("UTP"))
         {

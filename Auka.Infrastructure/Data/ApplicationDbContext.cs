@@ -40,6 +40,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<InteresTaller> InteresesTaller { get; set; } = null!;
     public DbSet<SalidaTaller> SalidasTaller { get; set; } = null!;
     public DbSet<LogroTaller> LogrosTaller { get; set; } = null!;
+    public DbSet<SolicitudClub> SolicitudesClub { get; set; } = null!;
     public DbSet<MatriculaAnual> MatriculasAnuales { get; set; } = null!;
     public DbSet<BloqueJornada> BloquesJornada { get; set; } = null!;
     public DbSet<ClaseHorario> ClasesHorario { get; set; } = null!;
@@ -50,6 +51,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<BitacoraPsicosocial> BitacorasPsicosociales { get; set; } = null!;
     public DbSet<Asistencia> Asistencias { get; set; } = null!;
     public DbSet<AtrasoLlegada> AtrasosLlegada { get; set; } = null!;
+    public DbSet<SesionClase> SesionesClase { get; set; } = null!;
+    public DbSet<ReemplazoClase> ReemplazosClase { get; set; } = null!;
     public DbSet<EventoCalendario> EventosCalendario { get; set; } = null!;
     public DbSet<AccesoExpediente> AccesosExpediente { get; set; } = null!;
     public DbSet<SetBeneficio> SetsBeneficio { get; set; } = null!;
@@ -119,6 +122,7 @@ public class ApplicationDbContext : DbContext
         });
         modelBuilder.Entity<SalidaTaller>(e => { e.ToTable("SalidasTaller"); e.HasIndex(x => new { x.EstudianteId, x.AvisadoMejora }); });
         modelBuilder.Entity<LogroTaller>(e => { e.ToTable("LogrosTaller"); e.HasIndex(x => x.TallerId); });
+        modelBuilder.Entity<SolicitudClub>(e => { e.ToTable("SolicitudesClub"); e.HasIndex(x => x.TallerId); e.HasIndex(x => new { x.ColegioId, x.Estado }); });
         modelBuilder.Entity<SesionTaller>(e =>
         {
             e.ToTable("SesionesTaller");
@@ -136,6 +140,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Anotacion>().ToTable("Anotaciones");
         modelBuilder.Entity<AnotacionEliminada>().ToTable("AnotacionesEliminadas");
         modelBuilder.Entity<BitacoraPsicosocial>().ToTable("BitacorasPsicosociales");
+        modelBuilder.Entity<SesionClase>(e => { e.ToTable("SesionesClase"); e.HasIndex(x => new { x.ColegioId, x.Fecha }); e.HasIndex(x => new { x.CursoId, x.BloqueJornadaId, x.Fecha }); });
+        modelBuilder.Entity<ReemplazoClase>(e => { e.ToTable("ReemplazosClase"); e.HasIndex(x => new { x.CursoId, x.BloqueJornadaId, x.Fecha }); e.HasIndex(x => new { x.ProfesorId, x.Fecha }); });
         modelBuilder.Entity<AtrasoLlegada>(e =>
         {
             e.ToTable("AtrasosLlegada");

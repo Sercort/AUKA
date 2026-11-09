@@ -1,4 +1,4 @@
-﻿@using Auka.Application.Entities
+@using Auka.Application.Entities
 @model IEnumerable<Usuario>
 
 @{
@@ -70,8 +70,18 @@
                         </li>
                     </ul>
                 </div>
-                @* En el Plan Premium se usa el buscador de arriba (busca personal, alumnos y cursos). Este queda solo en el Plan Psicosocial. *@
-                @if (soloPsico)
+                @* Premium: buscador instantáneo de la tabla (sin mayúsculas, tildes ni errores). Psicosocial: el buscador de siempre. *@
+                @if (!soloPsico)
+                {
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">🔍</span>
+                        <input type="search" id="perBuscar" class="form-control" placeholder="Escribe un nombre, apellido, RUT o asignatura…" autocomplete="off" value="@ViewBag.SearchTerm" aria-label="Buscar en el personal" />
+                    </div>
+                    <small class="text-muted" id="perCuenta"></small>
+                </div>
+                }
+                else
                 {
                 <div class="col-md-6">
                     <form method="get" asp-action="Index">
@@ -116,7 +126,7 @@
                         {
                             @foreach (var item in Model)
                             {
-                                <tr>
+                                <tr data-buscar="@($"{item.Nombre} {item.Apellido} {item.Rut} {item.Email} {item.Asignaturas} {item.CargoInstitucional}")" data-rut="@item.Rut">
                                     <td class="ps-4 text-primary fw-bold">@item.Rut</td>
                                     <td>
                                         <div class="fw-bold text-dark">
@@ -347,6 +357,42 @@
 </div>
 
 <script>
+    // Buscador instantáneo del personal: cualquier palabra (nombre o apellido), sin mayúsculas ni tildes y con errores de tipeo
+    (function () {
+        var q = document.getElementById('perBuscar'); if (!q) return;
+        var filas = Array.prototype.slice.call(document.querySelectorAll('tr[data-buscar]'));
+        var cuenta = document.getElementById('perCuenta');
+        function norm(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[.\-]/g, ''); }
+        function dist(a, b) {
+            var d = [], i, j; for (i = 0; i <= a.length; i++) d[i] = [i]; for (j = 0; j <= b.length; j++) d[0][j] = j;
+            for (i = 1; i <= a.length; i++) for (j = 1; j <= b.length; j++)
+                d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            return d[a.length][b.length];
+        }
+        function calza(b, p) {
+            if (p.indexOf(b) === 0) return 3;
+            if (b.length >= 3 && p.indexOf(b) >= 0) return 2;
+            if (b.length < 3) return 0;
+            var tol = b.length <= 4 ? 1 : 2;
+            return Math.min(dist(b, p), p.length > b.length ? dist(b, p.slice(0, b.length)) : 99) <= tol ? 1 : 0;
+        }
+        filas.forEach(function (f) { f._p = norm(f.dataset.buscar).split(/\s+/).filter(Boolean); });
+        function filtrar() {
+            var bs = norm(q.value).split(/\s+/).filter(Boolean), vis = 0;
+            filas.forEach(function (f) {
+                var pts = 0;
+                bs.forEach(function (b) { var m = 0; f._p.forEach(function (p) { m = Math.max(m, calza(b, p)); }); pts += m; });
+                var ok = !bs.length || pts > 0;
+                f.style.display = ok ? '' : 'none'; if (ok) vis++;
+            });
+            cuenta.textContent = bs.length ? vis + ' de ' + filas.length + ' funcionarios/as' : '';
+        }
+        q.addEventListener('input', filtrar);
+        if (q.value) filtrar();
+        // Viene desde el buscador de arriba (?ver=RUT): se marca y se baja a esa fila
+        var rut = new URLSearchParams(location.search).get('ver');
+        if (rut) { var f = filas.find(function (x) { return x.dataset.rut === rut; }); if (f) { f.classList.add('table-warning'); setTimeout(function () { f.scrollIntoView({ block: 'center' }); }, 200); } }
+    })();
 (function () {
     var $ = function (i) { return document.getElementById(i); };
     var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -369,6 +415,7 @@
             .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); })
             .then(function (j) {
                 var h = '<span class="badge bg-success me-1">' + j.creados + ' creados/as</span>' +
+                    (j.actualizados ? '<span class="badge bg-primary me-1">' + j.actualizados + ' actualizados/as</span>' : '') +
                     (j.omitidos ? '<span class="badge bg-secondary me-1">' + j.omitidos + ' omitidos/as</span>' : '') +
                     (j.totalErrores ? '<span class="badge bg-danger">' + j.totalErrores + ' con observación</span>' : '');
                 if (j.errores && j.errores.length) h += '<ul class="small mt-2 mb-0">' + j.errores.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';

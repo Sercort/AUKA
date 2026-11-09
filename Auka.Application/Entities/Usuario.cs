@@ -48,6 +48,11 @@ public class Usuario
     public bool HorarioBloqueado { get; set; }
     // Si el docente no está de acuerdo con su horario, aquí queda lo que le complica
     public string? HorarioObservacion { get; set; }
+    // Jornada en el colegio de directivos y personal sin clases (la arma el administrador): JSON con entrada y salida por día
+    public string? JornadaPersonal { get; set; }
+    // "Estoy en el colegio" / "No estoy" (botón del administrador); vale solo por el día en que se marcó
+    public bool? EnColegio { get; set; }
+    public DateTime? EnColegioUtc { get; set; }
     public string? Asignaturas { get; set; }
 
     public int ColegioId { get; set; }

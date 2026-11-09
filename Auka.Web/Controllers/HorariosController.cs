@@ -26,7 +26,7 @@ public class HorariosController : Controller
     {
         "Lenguaje y Comunicación", "Matemática", "Historia, Geografía y Cs. Sociales", "Ciencias Naturales", "Biología", "Química", "Física",
         "Inglés", "Educación Física y Salud", "Artes Visuales", "Música", "Tecnología", "Orientación", "Religión", "Filosofía",
-        "Educación Ciudadana", "Consejo de Curso", "Especialidad TP", "Taller"
+        "Educación Ciudadana", "Consejo de Curso", "Orientación y Consejo de Curso", "Especialidad TP", "Taller"
     };
 
     public static readonly string[] Departamentos =
@@ -274,7 +274,7 @@ public class HorariosController : Controller
                     .Select(x => x.EstudianteId).ToListAsync();
             vm.ClubesFuera = await Auka.Web.Services.Clubes.DeAlumnosAsync(_context, colegioId, ids, conNombre: User.IsInRole("Apoderado") && ids.Count > 1);
         }
-        vm.Titulo = $"{curso.Nombre} {curso.Letra}".Trim();
+        vm.Titulo = await Jefaturas.NombreConEspecialidadAsync(_context, curso);   // "4º Medio B · Mecánica Automotriz"
         vm.Subtitulo = curso.ProfesorJefe != null ? $"Profesor/a jefe: {curso.ProfesorJefe.Nombre} {curso.ProfesorJefe.Apellido}" : "Horario semanal del curso";
         vm.CursoId = id;
         var col = (vm.ViernesSalida, vm.ViernesTarde);
@@ -557,18 +557,21 @@ public class HorariosController : Controller
     private static List<(string Asig, int Horas)> PlanDe(string nivel, string? especialidad)
     {
         var o = Niveles.Orden(nivel);   // 0 prekínder, 1 kínder, 2..9 = 1º..8º básico, 10..13 = 1º..4º medio
-        if (o <= 1) return new() { ("Lenguaje y Comunicación", 8), ("Matemática", 6), ("Ciencias Naturales", 4), ("Educación Física y Salud", 4), ("Artes Visuales", 4), ("Música", 2), ("Orientación", 1) };
-        if (o >= 2 && o <= 7) return new() { ("Lenguaje y Comunicación", 8), ("Matemática", 6), ("Historia, Geografía y Cs. Sociales", 3), ("Ciencias Naturales", 3), ("Inglés", 2), ("Educación Física y Salud", 4), ("Artes Visuales", 2), ("Música", 2), ("Tecnología", 1), ("Religión", 2), ("Orientación", 1) };
-        if (o == 8 || o == 9) return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 6), ("Historia, Geografía y Cs. Sociales", 4), ("Ciencias Naturales", 4), ("Inglés", 3), ("Educación Física y Salud", 2), ("Artes Visuales", 2), ("Música", 2), ("Tecnología", 1), ("Religión", 2), ("Orientación", 1), ("Consejo de Curso", 1) };
-        if (o == 10 || o == 11) return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 7), ("Historia, Geografía y Cs. Sociales", 4), ("Biología", 2), ("Química", 2), ("Física", 2), ("Inglés", 4), ("Educación Física y Salud", 2), ("Artes Visuales", 2), ("Tecnología", 2), ("Orientación", 1), ("Consejo de Curso", 1) };
+        if (o <= 1) return new() { ("Lenguaje y Comunicación", 8), ("Matemática", 6), ("Ciencias Naturales", 4), ("Educación Física y Salud", 4), ("Artes Visuales", 4), ("Música", 2), ("Orientación y Consejo de Curso", 2) };
+        if (o >= 2 && o <= 7) return new() { ("Lenguaje y Comunicación", 8), ("Matemática", 6), ("Historia, Geografía y Cs. Sociales", 3), ("Ciencias Naturales", 3), ("Inglés", 2), ("Educación Física y Salud", 4), ("Artes Visuales", 2), ("Música", 2), ("Tecnología", 1), ("Religión", 2), ("Orientación y Consejo de Curso", 2) };
+        if (o == 8 || o == 9) return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 6), ("Historia, Geografía y Cs. Sociales", 4), ("Ciencias Naturales", 4), ("Inglés", 3), ("Educación Física y Salud", 2), ("Artes Visuales", 2), ("Música", 2), ("Tecnología", 1), ("Religión", 2), ("Orientación y Consejo de Curso", 2) };
+        // 1º y 2º medio con especialidad (colegios TP desde 1º medio): Artes y Tecnología se reemplazan por la especialidad
+        if ((o == 10 || o == 11) && !string.IsNullOrWhiteSpace(especialidad))
+            return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 7), ("Historia, Geografía y Cs. Sociales", 4), ("Biología", 2), ("Química", 2), ("Física", 2), ("Inglés", 4), ("Educación Física y Salud", 2), ("Orientación y Consejo de Curso", 2), ($"Especialidad TP - {especialidad}", 4) };
+        if (o == 10 || o == 11) return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 7), ("Historia, Geografía y Cs. Sociales", 4), ("Biología", 2), ("Química", 2), ("Física", 2), ("Inglés", 4), ("Educación Física y Salud", 2), ("Artes Visuales", 2), ("Tecnología", 2), ("Orientación y Consejo de Curso", 2) };
         // 3º y 4º medio TP: primero la formación general (ramos comunes) y al final la especialidad,
         // para que si la jornada no alcanza, lo que se recorte sean horas de especialidad y no los ramos básicos.
         if (o >= 12 && !string.IsNullOrWhiteSpace(especialidad))
             return new() { ("Lenguaje y Comunicación", 3), ("Matemática", 3), ("Inglés", 2), ("Educación Ciudadana", 2), ("Filosofía", 2),
                            ("Ciencias para la Ciudadanía", 2), ("Historia, Geografía y Cs. Sociales", 2), ("Educación Física y Salud", 2),
-                           ("Orientación", 1), ("Consejo de Curso", 1), ($"Especialidad TP - {especialidad}", 18) };
-        if (o >= 12) return new() { ("Lenguaje y Comunicación", 3), ("Matemática", 3), ("Educación Ciudadana", 2), ("Filosofía", 2), ("Ciencias para la Ciudadanía", 2), ("Inglés", 2), ("Educación Física y Salud", 2), ("Biología", 3), ("Química", 3), ("Física", 3), ("Historia, Geografía y Cs. Sociales", 3), ("Orientación", 1), ("Consejo de Curso", 1) };
-        return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 6), ("Orientación", 1) };
+                           ("Orientación y Consejo de Curso", 2), ($"Especialidad TP - {especialidad}", 18) };
+        if (o >= 12) return new() { ("Lenguaje y Comunicación", 3), ("Matemática", 3), ("Educación Ciudadana", 2), ("Filosofía", 2), ("Ciencias para la Ciudadanía", 2), ("Inglés", 2), ("Educación Física y Salud", 2), ("Biología", 3), ("Química", 3), ("Física", 3), ("Historia, Geografía y Cs. Sociales", 3), ("Orientación y Consejo de Curso", 2) };
+        return new() { ("Lenguaje y Comunicación", 6), ("Matemática", 6), ("Orientación y Consejo de Curso", 2) };
     }
 
     /// <summary>
@@ -601,6 +604,9 @@ public class HorariosController : Controller
             await _context.SaveChangesAsync();
         }
 
+        // Todos los cursos con profesor/a jefe (Orientación y Consejo de Curso son suyos). En 3º y 4º TP, de la especialidad.
+        var jefes = await Jefaturas.AsignarAsync(_context, colegioId, anio, corregirTp: false, cursos.Where(c => c.ProfesorJefeId == null).Select(c => c.Id));
+
         var existentes = await _context.ClasesHorario.Where(c => c.ColegioId == colegioId).ToListAsync();
         var cursoOcupado = existentes.Select(c => (c.CursoId, c.Dia, c.BloqueJornadaId)).ToHashSet();
         var profOcupado = existentes.Where(c => c.ProfesorId != null).Select(c => (c.ProfesorId!.Value, c.Dia, c.BloqueJornadaId)).ToHashSet();
@@ -612,6 +618,8 @@ public class HorariosController : Controller
             .Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente && !u.HorarioBloqueado)
             .Select(u => new { u.Id, u.Asignaturas, u.Departamento, u.HorasContrato }).ToListAsync();
         int Tope(int id) { var h = docentes.FirstOrDefault(d => d.Id == id)?.HorasContrato ?? 0; return h > 0 ? h : 38; }
+        // Ciclo de cada docente (básica / media): por sus clases y su jefatura; se va completando al armar
+        var ciclos = (await Jefaturas.DocentesAsync(_context, colegioId, anio)).ToDictionary(d => d.Id, d => d.Ciclos);
 
         int asignados = 0, sinProfesor = 0, sinEspacio = 0;
         var faltan = new Dictionary<string, int>();
@@ -641,10 +649,14 @@ public class HorariosController : Controller
                 {
                     var depto = DeptoDe(asig);
                     var clave = asig.StartsWith("Especialidad TP - ") ? asig["Especialidad TP - ".Length..].ToLower() : asig.ToLower()[..Math.Min(asig.Length, 6)];
+                    var cicloCurso = Niveles.Ciclo(curso.Nombre);
                     candidatos = docentes.Where(d =>
                             (d.Asignaturas != null && d.Asignaturas.ToLower().Contains(clave))
                             || (!asig.StartsWith("Especialidad") && depto != null && (d.Departamento == depto || DeptoDe(d.Asignaturas) == depto)))
-                        .OrderBy(d => carga.GetValueOrDefault(d.Id)).Select(d => d.Id).ToList();
+                        // 1º el profesor/a jefe (así ve más días a su curso), 2º los del mismo ciclo, 3º menos carga
+                        .OrderBy(d => d.Id == curso.ProfesorJefeId ? 0 : 1)
+                        .ThenBy(d => ciclos.TryGetValue(d.Id, out var cs) && cs.Count > 0 && !cs.Contains(cicloCurso) ? 1 : 0)
+                        .ThenBy(d => carga.GetValueOrDefault(d.Id)).Select(d => d.Id).ToList();
                 }
 
                 var restantes = horas;
@@ -674,6 +686,8 @@ public class HorariosController : Controller
                     {
                         profOcupado.Add((prof.Value, dia, bl.Id));
                         carga[prof.Value] = carga.GetValueOrDefault(prof.Value) + vale;
+                        if (!ciclos.TryGetValue(prof.Value, out var cp)) ciclos[prof.Value] = cp = new HashSet<string>();
+                        cp.Add(Niveles.Ciclo(curso.Nombre));
                         // El mismo profesor/a sigue con las demás horas de esta asignatura en este curso
                         candidatos = candidatos.OrderBy(c => c == prof ? 0 : 1).ThenBy(c => carga.GetValueOrDefault(c)).ToList();
                     }
@@ -685,6 +699,8 @@ public class HorariosController : Controller
         _context.ClasesHorario.AddRange(nuevos);
         await _context.SaveChangesAsync();
         var msg = $"🪄 Borrador listo: {asignados} bloques asignados en {cursos.Count} {(cursos.Count == 1 ? "curso" : "cursos")}.";
+        if (jefes.Asignados > 0) msg += $" Se asignaron {jefes.Asignados} profesores/as jefe que faltaban.";
+        if (jefes.Faltan.Count > 0) msg += $" ⚠️ Sin profesor/a jefe: {string.Join("; ", jefes.Faltan.Take(6))}. Agrega docentes en Personal.";
         if (sinProfesor > 0) msg += $" {sinProfesor} quedaron sin profesor/a (falta personal o asignatura en Personal): " + string.Join(", ", faltan.OrderByDescending(x => x.Value).Take(6).Select(x => $"{x.Key} ({x.Value})")) + ".";
         if (sinEspacio > 0) msg += $" {sinEspacio} horas no cupieron en la jornada.";
         if (cursosBloqueados > 0) msg += $" {cursosBloqueados} {(cursosBloqueados == 1 ? "curso bloqueado no se tocó" : "cursos bloqueados no se tocaron")}.";
@@ -694,6 +710,139 @@ public class HorariosController : Controller
         else msg += " Revísalo y ajústalo tocando cada bloque.";
         TempData["SuccessMessage"] = msg;
         return cursoId != null ? Redirect($"/Horarios/Curso/{cursoId}") : RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Completa los bloques que tienen asignatura pero no profesor/a: busca a quien hace esa asignatura, es del ciclo del curso,
+    /// está libre a esa hora y no pasa sus horas de contrato. Prefiere a quien ya la hace en ese curso y al profesor/a jefe.
+    /// Orientación y Consejo de Curso → profesor/a jefe. No toca cursos ni docentes con horario bloqueado.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CompletarProfesores(int? cursoId)
+    {
+        if (!await PuedeEditarAsync()) return RedirectToAction("AccesoDenegado", "Account");
+        var colegioId = ColegioId();
+        var anio = DateTime.Now.Year;
+        await Jefaturas.AsignarAsync(_context, colegioId, anio, corregirTp: false,
+            await _context.Cursos.Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio && c.ProfesorJefeId == null && (cursoId == null || c.Id == cursoId)).Select(c => c.Id).ToListAsync());
+        var cursos = await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio && !c.HorarioBloqueado && (cursoId == null || c.Id == cursoId))
+            .ToDictionaryAsync(c => c.Id);
+        var todas = await _context.ClasesHorario.Where(c => c.ColegioId == colegioId).ToListAsync();
+        var valor = await ValorBloquesAsync(colegioId);
+        int V(int b) => valor.GetValueOrDefault(b, 1);
+        var docentes = (await Jefaturas.DocentesAsync(_context, colegioId, anio)).ToDictionary(d => d.Id);
+        var bloqueados = (await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.HorarioBloqueado).Select(u => u.Id).ToListAsync()).ToHashSet();
+        var carga = todas.Where(c => c.ProfesorId != null).GroupBy(c => c.ProfesorId!.Value).ToDictionary(g => g.Key, g => g.Sum(x => V(x.BloqueJornadaId)));
+        var ocupado = todas.Where(c => c.ProfesorId != null).Select(c => (c.ProfesorId!.Value, c.Dia, c.BloqueJornadaId)).ToHashSet();
+        int Tope(int id) => docentes.TryGetValue(id, out var d) && d.HorasContrato is > 0 ? d.HorasContrato.Value : 38;
+
+        int completados = 0;
+        var faltan = new Dictionary<string, int>();
+        foreach (var cl in todas.Where(c => c.ProfesorId == null && cursos.ContainsKey(c.CursoId) && !string.IsNullOrWhiteSpace(c.Asignatura))
+                     .OrderBy(c => Niveles.Orden(cursos[c.CursoId].Nombre)).ThenBy(c => c.CursoId).ThenBy(c => c.Dia))
+        {
+            var curso = cursos[cl.CursoId];
+            var ciclo = Niveles.Ciclo(curso.Nombre);
+            var vale = V(cl.BloqueJornadaId);
+            var mismoRamo = todas.Where(x => x.CursoId == cl.CursoId && x.ProfesorId != null && x.Asignatura == cl.Asignatura).Select(x => x.ProfesorId!.Value).ToHashSet();
+            IEnumerable<Jefaturas.Docente> cand = EsDeJefatura(cl.Asignatura)
+                ? docentes.Values.Where(d => d.Id == curso.ProfesorJefeId)
+                : docentes.Values.Where(d => Jefaturas.Hace(d, cl.Asignatura) && Jefaturas.DelCiclo(d, ciclo));
+            var elegido = cand.Where(d => !bloqueados.Contains(d.Id) && !ocupado.Contains((d.Id, cl.Dia, cl.BloqueJornadaId)) && carga.GetValueOrDefault(d.Id) + vale <= Tope(d.Id))
+                .OrderBy(d => mismoRamo.Contains(d.Id) ? 0 : 1)
+                .ThenBy(d => d.Id == curso.ProfesorJefeId ? 0 : 1)
+                .ThenBy(d => d.Ciclos.Contains(ciclo) ? 0 : 1)
+                .ThenBy(d => carga.GetValueOrDefault(d.Id))
+                .FirstOrDefault();
+            if (elegido == null) { faltan[cl.Asignatura] = faltan.GetValueOrDefault(cl.Asignatura) + 1; continue; }
+            cl.ProfesorId = elegido.Id; cl.ModificadaUtc = DateTime.UtcNow;
+            ocupado.Add((elegido.Id, cl.Dia, cl.BloqueJornadaId));
+            carga[elegido.Id] = carga.GetValueOrDefault(elegido.Id) + vale;
+            elegido.Ciclos.Add(ciclo);
+            completados++;
+        }
+        await _context.SaveChangesAsync();
+        var msg = completados == 0 && faltan.Count == 0 ? "✅ Todos los bloques ya tienen profesor/a."
+            : $"👩‍🏫 Se completaron {completados} bloques con profesor/a.";
+        if (faltan.Count > 0)
+            msg += $" ⚠️ Siguen sin profesor/a {faltan.Values.Sum()} bloques: " + string.Join(", ", faltan.OrderByDescending(x => x.Value).Take(8).Select(x => $"{x.Key} ({x.Value})"))
+                + ". Faltan docentes de esas asignaturas (o ya completaron sus horas): agrégalos en Personal y vuelve a apretar el botón.";
+        TempData["SuccessMessage"] = msg;
+        return cursoId != null ? Redirect($"/Horarios/Curso/{cursoId}") : RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Asigna profesor/a jefe a los cursos que no tienen y, en 3º y 4º medio TP, cambia a quien no es de la especialidad.
+    /// Orientación y Consejo de Curso pasan al nuevo jefe. Si no alcanza el personal, dice qué falta.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AsignarJefes()
+    {
+        if (!await PuedeEditarAsync()) return RedirectToAction("AccesoDenegado", "Account");
+        var r = await Jefaturas.AsignarAsync(_context, ColegioId(), DateTime.Now.Year, corregirTp: true);
+        var msg = r.Asignados + r.Corregidos == 0 && r.Faltan.Count == 0
+            ? "✅ Todos los cursos ya tienen profesor/a jefe y en enseñanza media son profes de media o de especialidad."
+            : $"👩‍🏫 Profesores/as jefe: {r.Asignados} asignados, {r.Corregidos} cambiados (profe de básica en media o de especialidad en básica)."
+              + (r.Cambios.Count > 0 ? " " + string.Join(" · ", r.Cambios.Take(12)) + (r.Cambios.Count > 12 ? " …" : "") : "")
+              + (r.Faltan.Count > 0 ? $" ⚠️ Quedan sin jefe: {string.Join("; ", r.Faltan)}. Agrega docentes en Personal y vuelve a apretar el botón." : "");
+        TempData["SuccessMessage"] = msg;
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Profesores/as para una asignatura en un bloque, ordenados: primero los que la hacen, son del ciclo del curso
+    /// (básica / media) y están libres; después los que la hacen pero están ocupados o son de otro ciclo; al final el resto.
+    /// Orientación y Consejo de Curso → el profesor/a jefe.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> ProfesoresPara(int cursoId, int dia, int bloqueId, string? asignatura)
+    {
+        var colegioId = ColegioId();
+        var curso = await _context.Cursos.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cursoId && c.ColegioId == colegioId);
+        if (curso == null) return Json(Array.Empty<object>());
+        var ciclo = Niveles.Ciclo(curso.Nombre);
+        var asig = (asignatura ?? "").Trim();
+        var docentes = await Jefaturas.DocentesAsync(_context, colegioId, curso.AnioAcademico);
+        var horas = await HorasProfesoresAsync(colegioId);
+        var ocupados = (await _context.ClasesHorario.AsNoTracking().Include(c => c.Curso)
+                .Where(c => c.ColegioId == colegioId && c.Dia == dia && c.BloqueJornadaId == bloqueId && c.ProfesorId != null && c.CursoId != cursoId)
+                .Select(c => new { P = c.ProfesorId!.Value, Curso = c.Curso!.Nombre + " " + c.Curso.Letra }).ToListAsync())
+            .GroupBy(x => x.P).ToDictionary(g => g.Key, g => g.First().Curso.Trim());
+        var yaLaHacen = asig.Length == 0 ? new HashSet<int>() : (await _context.ClasesHorario.AsNoTracking()
+            .Where(c => c.ColegioId == colegioId && c.ProfesorId != null && c.Asignatura.ToLower() == asig.ToLower()).Select(c => c.ProfesorId!.Value).Distinct().ToListAsync()).ToHashSet();
+        var jefatura = EsDeJefatura(asig);
+        var corto = ciclo.Replace("Educación ", "");
+
+        var lista = docentes.Select(d =>
+        {
+            var hace = asig.Length > 0 && (jefatura ? d.Id == curso.ProfesorJefeId : Jefaturas.Hace(d, asig, yaLaHacen));
+            var delCiclo = Jefaturas.DelCiclo(d, ciclo);
+            var ocupado = ocupados.TryGetValue(d.Id, out var en) ? en : null;
+            var h = horas.GetValueOrDefault(d.Id);
+            var lleno = d.HorasContrato is > 0 && h >= d.HorasContrato;
+            var grupo = hace && delCiclo && ocupado == null && !lleno ? 0 : hace ? 1 : 2;
+            var nota = ocupado != null ? $"⛔ ocupado en {ocupado}" : lleno ? "completó su contrato" : !delCiclo ? $"hace clases en {string.Join(" y ", d.Ciclos.Select(c => c.Replace("Educación ", "")))}" : "libre";
+            return new
+            {
+                id = d.Id, grupo, jefe = d.Id == curso.ProfesorJefeId,
+                nombre = d.Nombre + (d.Id == curso.ProfesorJefeId ? " (profe jefe)" : ""),
+                detalle = $"{d.Asignaturas ?? d.Departamento ?? "Docente"} · {h}{(d.HorasContrato is > 0 ? "/" + d.HorasContrato : "")} h · {nota}",
+                orden = h
+            };
+        })
+        .OrderBy(x => x.grupo).ThenBy(x => x.jefe ? 0 : 1).ThenBy(x => x.orden).ToList();
+        return Json(new
+        {
+            titulos = new[]
+            {
+                jefatura ? "👩‍🏫 Profesor/a jefe del curso" : $"✅ Hacen {asig} en {corto} y están libres",
+                jefatura ? "—" : $"⏳ Hacen {asig}, pero están ocupados, completos o son de otro ciclo",
+                "Otros docentes"
+            },
+            lista
+        });
     }
 
     // ---------------------------------------------------------------- Horarios del personal
@@ -1101,6 +1250,12 @@ public class HorariosController : Controller
         vm.PuedeAprobar = User.IsInRole("UTP");
         // Clubes a su cargo (van fuera del horario de clases)
         vm.ClubesFuera = await Auka.Web.Services.Clubes.DelDocenteAsync(_context, colegioId, id);
+        // Directivos y personal sin clases: su jornada en el colegio (la arma el administrador) y si está en el colegio
+        ViewBag.UsaJornada = JornadaPersonal.UsaJornada(u.Rol);
+        ViewBag.Jornada = JornadaPersonal.Leer(u.JornadaPersonal);
+        ViewBag.Estado = JornadaPersonal.Estado(u);
+        ViewBag.PuedeJornada = EsAdministrador() && JornadaPersonal.UsaJornada(u.Rol);
+        ViewBag.PuedePresencia = u.Id == UsuarioId() && EsAdministrador();
         vm.MisBloques = vm.EsPropio
             ? clases.OrderBy(c => c.Dia).ThenBy(c => vm.Bloques.FindIndex(b => b.Id == c.BloqueJornadaId))
                 .Select(c => $"{Dias[c.Dia - 1]} {vm.Bloques.FirstOrDefault(b => b.Id == c.BloqueJornadaId)?.HoraInicio.ToString("hh\\:mm")} · {c.Asignatura} · {c.Curso?.Nombre} {c.Curso?.Letra}".Trim()).ToList()
@@ -1110,6 +1265,53 @@ public class HorariosController : Controller
             .Where(x => x.ProfesorConsultadoId == id && (x.Estado == EstadoSolicitudHorario.Pendiente || x.CreadaUtc >= DateTime.UtcNow.AddDays(-30)))
             .OrderBy(x => x.Estado).ThenByDescending(x => x.CreadaUtc).Take(10).ToListAsync();
         return View("Profesor", vm);
+    }
+
+    private bool EsAdministrador() => User.IsInRole("SuperAdmin") || User.IsInRole("Administrador");
+
+    /// <summary>
+    /// El administrador del colegio arma la jornada del director/a, la UTP, la suya y del resto del personal sin clases:
+    /// entrada y salida de cada día (vacío = ese día no viene) y una nota opcional.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GuardarJornadaPersonal(int usuarioId, string[]? entrada, string[]? salida, string? nota)
+    {
+        if (!EsAdministrador()) return RedirectToAction("AccesoDenegado", "Account");
+        var colegioId = ColegioId();
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == usuarioId && x.ColegioId == colegioId);
+        if (u == null || !JornadaPersonal.UsaJornada(u.Rol)) return NotFound();
+        var d = new JornadaPersonal.Datos { Nota = string.IsNullOrWhiteSpace(nota) ? null : nota.Trim()[..Math.Min(nota.Trim().Length, 200)] };
+        for (var i = 0; i < 6; i++)
+        {
+            var e = entrada?.ElementAtOrDefault(i); var s = salida?.ElementAtOrDefault(i);
+            if (TimeSpan.TryParse(e, out var te) && TimeSpan.TryParse(s, out var ts))
+            {
+                if (ts <= te) { TempData["Error"] = $"{JornadaPersonal.NombresDia[i + 1]}: la salida tiene que ser después de la entrada."; return RedirectToAction(nameof(Profesor), new { id = usuarioId }); }
+                d.Dias.Add(new JornadaPersonal.Dia(i + 1, te.ToString("hh\\:mm"), ts.ToString("hh\\:mm")));
+            }
+        }
+        u.JornadaPersonal = JornadaPersonal.Escribir(d);
+        if (u.Id != UsuarioId())
+            _context.Notificaciones.Add(new Notificacion { ColegioId = colegioId, UsuarioId = u.Id, Titulo = "🕘 Tu jornada en el colegio se actualizó",
+                Mensaje = "El administrador del colegio registró tu horario de entrada y salida.", Enlace = $"/Horarios/Profesor/{u.Id}", CreadaEnUtc = DateTime.UtcNow, EstadoCorreo = EstadoEnvioCorreo.SinCorreo });
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = $"🕘 Jornada de {u.Nombre} {u.Apellido} guardada.";
+        return RedirectToAction(nameof(Profesor), new { id = usuarioId });
+    }
+
+    /// <summary>Botón del administrador: "Estoy en el colegio" / "No estoy". Vale por hoy.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Presencia(bool enColegio, string? volver)
+    {
+        if (!EsAdministrador()) return RedirectToAction("AccesoDenegado", "Account");
+        var u = await _context.Usuarios.FirstOrDefaultAsync(x => x.Id == UsuarioId());
+        if (u == null) return NotFound();
+        u.EnColegio = enColegio; u.EnColegioUtc = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        TempData["PanelOk"] = TempData["SuccessMessage"] = enColegio ? "🟢 Quedó marcado que estás en el colegio." : "⚪ Quedó marcado que hoy no estás en el colegio.";
+        return LocalRedirect(Url.IsLocalUrl(volver) ? volver! : $"/Horarios/Profesor/{u.Id}");
     }
 
     /// <summary>Atajo: el docente ve su horario; el alumno/a (o su apoderado/a) el de su curso.</summary>
@@ -1158,12 +1360,15 @@ public class HorariosController : Controller
         foreach (var c in clases)
             vm.Celdas[(c.Dia, c.BloqueJornadaId)] = new CeldaVm(c.Asignatura,
                 porProfesor ? $"{c.Curso?.Nombre} {c.Curso?.Letra}".Trim() : (c.Profesor != null ? $"{c.Profesor.Nombre} {c.Profesor.Apellido}" : null),
-                c.Sala, c.ProfesorId, c.ProfesorId != null && bloqueados.Contains(c.ProfesorId.Value));
+                c.Sala, c.ProfesorId, c.ProfesorId != null && bloqueados.Contains(c.ProfesorId.Value), c.CursoId);
+        // Clases iniciadas hoy (todos las ven en el horario: UTP, inspectoría, alumnos/as y apoderados/as)
+        vm.Iniciadas = (await ClasesEnCurso.DelDiaAsync(_context, colegioId, AsistenciaController.Hoy))
+            .ToDictionary(x => x.Key, x => ClasesEnCurso.Texto(x.Value));
         return vm;
     }
 }
 
-public record CeldaVm(string Asignatura, string? Detalle, string? Sala, int? ProfesorId, bool Bloqueada = false);
+public record CeldaVm(string Asignatura, string? Detalle, string? Sala, int? ProfesorId, bool Bloqueada = false, int? CursoId = null);
 
 public class GrillaVm
 {
@@ -1186,6 +1391,8 @@ public class GrillaVm
     public int? ProfesorId { get; set; }
     public int? ProfesorJefeId { get; set; }
     public bool EsPropio { get; set; }
+    /// <summary>Hoy: (curso, bloque) → "🟢 Clase iniciada 09:47" / "✔️ Clase finalizada".</summary>
+    public Dictionary<(int Curso, int Bloque), string> Iniciadas { get; set; } = new();
     public int? HorasContrato { get; set; }
     public int Horas { get; set; }
     public DateTime? ConfirmadoUtc { get; set; }

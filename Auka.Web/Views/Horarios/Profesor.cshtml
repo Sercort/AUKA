@@ -16,6 +16,72 @@
 {
     <div class="alert alert-success mb-3">@TempData["SuccessMessage"]</div>
 }
+@* ---- Jornada en el colegio (directivos y personal sin clases): la arma el administrador; botón "Estoy en el colegio" *@
+@if (ViewBag.UsaJornada == true)
+{
+    var jor = (Auka.Web.Services.JornadaPersonal.Datos)ViewBag.Jornada;
+    var est = ((string Texto, string Chip))ViewBag.Estado;
+    bool puedeJor = ViewBag.PuedeJornada == true;
+    bool puedePres = ViewBag.PuedePresencia == true;
+    <div class="au-card p-3 mb-3">
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <h3 class="m-0" style="font-size:1.1rem;font-weight:900;color:var(--a-navy)">🕘 Jornada en el colegio</h3>
+            <span class="au-chip @est.Chip">@est.Texto</span>
+            @if (puedePres)
+            {
+                <form method="post" action="/Horarios/Presencia" class="m-0 ms-auto d-flex gap-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="volver" value="/Horarios/Profesor/@Model.ProfesorId" />
+                    <button class="btn btn-success btn-sm px-3" name="enColegio" value="true">🟢 Estoy en el colegio</button>
+                    <button class="btn btn-outline-secondary btn-sm px-3" name="enColegio" value="false">⚪ No estoy</button>
+                </form>
+            }
+        </div>
+        @if (puedeJor)
+        {
+            <form method="post" action="/Horarios/GuardarJornadaPersonal">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="usuarioId" value="@Model.ProfesorId" />
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-2" style="max-width:560px">
+                        <thead><tr><th>Día</th><th>Entrada</th><th>Salida</th></tr></thead>
+                        <tbody>
+                            @for (var d = 1; d <= 6; d++)
+                            {
+                                var dj = jor.Dias.FirstOrDefault(x => x.D == d);
+                                <tr>
+                                    <td class="fw-bold">@Auka.Web.Services.JornadaPersonal.NombresDia[d]</td>
+                                    <td><input type="time" class="form-control form-control-sm" name="entrada" value="@dj?.Entrada" aria-label="Entrada" /></td>
+                                    <td><input type="time" class="form-control form-control-sm" name="salida" value="@dj?.Salida" aria-label="Salida" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <input class="form-control form-control-sm mb-2" style="max-width:560px" name="nota" maxlength="200" value="@jor.Nota" placeholder="Nota (opcional): ej. martes en reunión de directores, fuera del colegio" />
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button class="btn btn-primary btn-sm px-4">💾 Guardar jornada</button>
+                    <small class="text-muted">Deja vacío el día que no viene. Lo ven todos en Horarios › Por profesor/a.</small>
+                </div>
+            </form>
+        }
+        else if (jor.Dias.Count == 0)
+        {
+            <p class="text-muted small mb-0">Aún no tiene jornada registrada: la arma el administrador del colegio.</p>
+        }
+        else
+        {
+            <div class="d-flex gap-2 flex-wrap">
+                @foreach (var dj in jor.Dias.OrderBy(x => x.D))
+                {
+                    <span class="au-chip">@Auka.Web.Services.JornadaPersonal.NombresDia[dj.D] @dj.Entrada–@dj.Salida</span>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(jor.Nota)) { <small class="text-muted d-block mt-2">📝 @jor.Nota</small> }
+        }
+    </div>
+}
+
 @{
     var confirmado = Model.ConfirmadoUtc != null && (Model.UltimoCambioUtc == null || Model.ConfirmadoUtc >= Model.UltimoCambioUtc);
     var cambio = Model.ConfirmadoUtc != null && !confirmado;

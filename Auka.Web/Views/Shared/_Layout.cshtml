@@ -56,8 +56,9 @@
                 <form class="au-search" asp-controller="Busqueda" asp-action="Index" method="get" role="search">
                     <span class="lupa">🔍</span>
                     <input type="search" name="query" value="@(ctrl == "Busqueda" ? Context.Request.Query["query"].ToString() : "")"
-                           placeholder="Busca un alumno, RUT, curso o profesor" aria-label="Buscar en AUKA" required />
+                           placeholder="Busca un alumno, RUT, curso o profesor" aria-label="Buscar en AUKA" required autocomplete="off" id="auBuscar" />
                     <button type="submit">Buscar</button>
+                    <div class="au-sug" id="auSug" role="listbox" aria-label="Sugerencias"></div>
                 </form>
 
                 <div class="au-right">
@@ -241,6 +242,48 @@
                     return f0.apply(this, arguments).finally(function () { cargas = Math.max(0, cargas - 1); if (!cargas) cargando(false); });
                 };
             }
+        })();
+    </script>
+    @* Buscador de arriba: muestra sugerencias mientras se escribe (sin importar mayúsculas, tildes ni errores) *@
+    <script>
+        (function () {
+            var q = document.getElementById('auBuscar'), caja = document.getElementById('auSug');
+            if (!q || !caja) return;
+            var t = null, sel = -1, items = [], ultima = '';
+            var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+            function cerrar() { caja.classList.remove('on'); sel = -1; }
+            function marcar() { caja.querySelectorAll('.op').forEach(function (o, i) { o.classList.toggle('sel', i === sel); }); }
+            function pintar(lista) {
+                items = lista; sel = -1;
+                if (!lista.length) { caja.innerHTML = '<div class="nada">No encontramos coincidencias. Prueba solo con el nombre o solo con el apellido.</div>'; caja.classList.add('on'); return; }
+                caja.innerHTML = lista.map(function (x, i) {
+                    var tag = x.u ? 'a href="' + esc(x.u) + '"' : 'div';
+                    return '<' + tag + ' class="op" role="option" data-i="' + i + '"><span class="ic">' + x.i + '</span><span class="tx"><b>' + esc(x.t) + '</b><small>' + esc(x.s) + '</small></span></' + (x.u ? 'a' : 'div') + '>';
+                }).join('') + '<button type="submit" class="todos">🔍 Ver todos los resultados de «' + esc(q.value.trim()) + '»</button>';
+                caja.classList.add('on');
+            }
+            q.addEventListener('input', function () {
+                clearTimeout(t);
+                var v = q.value.trim();
+                if (v.length < 2) { cerrar(); return; }
+                t = setTimeout(function () {
+                    ultima = v;
+                    fetch('/Busqueda/Sugerir?q=' + encodeURIComponent(v), { credentials: 'same-origin' })
+                        .then(function (r) { return r.ok ? r.json() : []; })
+                        .then(function (l) { if (v === ultima) pintar(l); })
+                        .catch(function () { });
+                }, 220);
+            });
+            q.addEventListener('keydown', function (e) {
+                var ops = caja.querySelectorAll('.op');
+                if (!caja.classList.contains('on') || !ops.length) return;
+                if (e.key === 'ArrowDown') { sel = Math.min(ops.length - 1, sel + 1); marcar(); e.preventDefault(); }
+                else if (e.key === 'ArrowUp') { sel = Math.max(-1, sel - 1); marcar(); e.preventDefault(); }
+                else if (e.key === 'Enter' && sel >= 0 && items[sel] && items[sel].u) { location.href = items[sel].u; e.preventDefault(); }
+                else if (e.key === 'Escape') cerrar();
+            });
+            document.addEventListener('click', function (e) { if (!e.target.closest('.au-search')) cerrar(); });
+            q.addEventListener('focus', function () { if (caja.innerHTML && q.value.trim().length >= 2) caja.classList.add('on'); });
         })();
     </script>
     @await RenderSectionAsync("Scripts", required: false)

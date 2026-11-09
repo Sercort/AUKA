@@ -43,7 +43,15 @@
     }
     @if (puedeEditar && Model.Any())
     {
-        <form method="post" action="/Horarios/GenerarHorario" class="m-0 ms-auto" data-c="¿Armar un borrador automático para todos los cursos? Solo llena los bloques vacíos; no cambia lo que ya está asignado." onsubmit="return confirm(this.dataset.c);">
+        <form method="post" action="/Horarios/AsignarJefes" class="m-0 ms-auto" data-c="¿Revisar los profesores/as jefe? Se asigna a los cursos que no tienen: en cursos con especialidad, primero un profe de la especialidad y si no hay, uno de media; en media nunca uno solo de básica. Orientación y Consejo de Curso pasan al profesor/a jefe." onsubmit="return confirm(this.dataset.c);">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-outline-primary px-4">👩‍🏫 Asignar profes jefe</button>
+        </form>
+        <form method="post" action="/Horarios/CompletarProfesores" class="m-0" data-c="¿Completar los bloques que no tienen profesor/a? Se elige a quien hace esa asignatura, es del ciclo del curso, está libre y no pasa sus horas." onsubmit="return confirm(this.dataset.c);">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-outline-success px-4">🧩 Completar profesores</button>
+        </form>
+        <form method="post" action="/Horarios/GenerarHorario" class="m-0" data-c="¿Armar un borrador automático para todos los cursos? Solo llena los bloques vacíos; no cambia lo que ya está asignado." onsubmit="return confirm(this.dataset.c);">
             @Html.AntiForgeryToken()
             <button class="btn btn-warning px-4">🪄 Armar horarios automáticamente</button>
         </form>

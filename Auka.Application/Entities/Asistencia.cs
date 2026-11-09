@@ -56,3 +56,35 @@ public class Asistencia
     public int AsignaturaId { get; set; }
     public Asignatura? Asignatura { get; set; }
 }
+
+/// <summary>
+/// Clase iniciada: el profesor/a (o su reemplazo) aprieta "Iniciar clase" y se abre la lista; al "Finalizar clase" se cierra.
+/// Todos ven qué clases están en curso (UTP, inspectoría, alumnos/as y apoderados/as en el horario); solo la inicia quien la hace.
+/// </summary>
+public class SesionClase
+{
+    public int Id { get; set; }
+    public int ColegioId { get; set; }
+    public int CursoId { get; set; }
+    public int BloqueJornadaId { get; set; }
+    public DateTime Fecha { get; set; }            // día (mediodía UTC, igual que la asistencia)
+    public int ProfesorId { get; set; }            // quien la inició (titular o reemplazo)
+    public DateTime InicioUtc { get; set; }
+    public DateTime? FinUtc { get; set; }
+    public bool Reemplazo { get; set; }
+}
+
+/// <summary>La UTP asigna un profesor/a de reemplazo para una clase de un día: solo él/ella puede iniciarla y pasar la lista.</summary>
+public class ReemplazoClase
+{
+    public int Id { get; set; }
+    public int ColegioId { get; set; }
+    public int CursoId { get; set; }
+    public int BloqueJornadaId { get; set; }
+    public DateTime Fecha { get; set; }            // día (mediodía UTC)
+    public int ProfesorId { get; set; }            // reemplazo
+    public int? TitularId { get; set; }
+    public string? Motivo { get; set; }
+    public int AsignadoPorId { get; set; }
+    public DateTime CreadoUtc { get; set; } = DateTime.UtcNow;
+}

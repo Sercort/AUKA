@@ -278,3 +278,16 @@ body.au-app::after { width: 460px; height: 460px; left: -170px; bottom: -170px; 
 @keyframes gxSube { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .gx-leyenda { display: flex; gap: .8rem; flex-wrap: wrap; font-size: .74rem; font-weight: 700; color: var(--a-mut); margin-top: 6px; }
 .gx-leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: .3rem; vertical-align: -1px; }
+
+/* Sugerencias del buscador de arriba */
+.au-sug { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--a-line); border-radius: 18px; box-shadow: 0 18px 40px rgba(20,35,58,.16); padding: 6px; z-index: 1050; max-height: 70vh; overflow: auto; }
+.au-sug.on { display: block; animation: gxAparece .18s ease both; }
+.au-sug .op { display: flex; gap: .7rem; align-items: center; padding: .55rem .7rem; border-radius: 12px; text-decoration: none; color: var(--a-ink); cursor: pointer; }
+.au-sug .op:hover, .au-sug .op.sel { background: #f0f6ff; }
+.au-sug .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #eef3ff; flex-shrink: 0; }
+.au-sug .tx { min-width: 0; line-height: 1.2; }
+.au-sug .tx b { display: block; font-size: .9rem; color: var(--a-navy); }
+.au-sug .tx small { display: block; font-size: .74rem; color: var(--a-mut); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.au-sug .nada { padding: .8rem; font-size: .85rem; color: var(--a-mut); }
+.au-sug .todos { position: static !important; display: block; width: 100%; margin-top: 4px; border: 0; border-radius: 12px !important; padding: .55rem !important; background: #f4f7fc !important; color: var(--a-navy) !important; font-weight: 800; font-size: .82rem; text-align: center; }
+.au-sug .todos:hover { background: #e8effb !important; }

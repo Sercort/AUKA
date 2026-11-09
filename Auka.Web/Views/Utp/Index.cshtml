@@ -100,6 +100,37 @@
         </section>
     }
 
+    @* ================= Clases en curso (▶️ Iniciar clase) ================= *@
+    @{ var iniciadasAhora = Model.ClasesAhora.Count(x => x.Iniciada); var sinIniciar = Model.ClasesAhora.Count(x => x.Estado.StartsWith("⏳")); }
+    <section class="acd-it" data-id="encurso" style="--c:@(sinIniciar > 0 ? "#e09a00" : "#16915c")">
+        <button type="button" class="acd-h">
+            <span class="acd-ic">🟢</span>
+            <span class="acd-t"><b>Clases en curso</b><small>@(Model.ClasesAhora.Count == 0 ? "no hay clases en este momento" : $"{iniciadasAhora} de {Model.ClasesAhora.Count} iniciadas" + (sinIniciar > 0 ? $" · {sinIniciar} sin iniciar" : "")) · @Model.IniciadasHoy hoy</small></span>
+            <span class="acd-n">@iniciadasAhora</span>
+            <span class="acd-fl">▾</span>
+        </button>
+        <div class="acd-b"><div><div class="acd-in">
+            @if (Model.ClasesAhora.Count == 0)
+            {
+                <p class="acd-vacio">En este momento no hay clases (recreo, almuerzo o fuera de la jornada). Hoy se han iniciado @Model.IniciadasHoy clases.</p>
+            }
+            else
+            {
+                <div class="acd-sub">Bloque de las @Model.ClasesAhora[0].Hora <a href="/Asistencia">Asistencia del día →</a></div>
+                <div class="acd-lista">
+                    @foreach (var c in Model.ClasesAhora.OrderBy(x => x.Iniciada).ThenBy(x => Niveles.Orden(x.Curso)))
+                    {
+                        <div class="acd-fila">
+                            <span class="au-chip @(c.Iniciada ? "verde" : c.Estado.StartsWith("⏳") ? "sol" : "")" style="min-width:150px;justify-content:center">@c.Estado</span>
+                            <div class="x"><b>@c.Curso</b> · @c.Ramo<br /><small>@c.Profesor</small></div>
+                            <a class="btn btn-outline-primary btn-sm px-2" href="/Asistencia/Lista?cursoId=@c.CursoId&bloqueId=@c.BloqueId">Ver lista</a>
+                        </div>
+                    }
+                </div>
+            }
+        </div></div></div>
+    </section>
+
     @* ================= Asistencia ================= *@
     <section class="acd-it" data-id="asistencia" style="--c:@Graficos.ColorAsistencia(Model.PorcentajeAsistencia)">
         <button type="button" class="acd-h">

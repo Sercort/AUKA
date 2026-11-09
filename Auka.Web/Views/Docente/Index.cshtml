@@ -83,10 +83,22 @@
                         <div class="acd-fila" style="@(enCurso ? "background:#f0fbfc;border-radius:12px;padding-left:.4rem" : "")">
                             <b style="width:92px">@c.Inicio.ToString("hh\\:mm")–@c.Fin.ToString("hh\\:mm")</b>
                             <span class="acd-ic" style="width:34px;height:34px;font-size:1rem;background:@e.Fondo">@e.Icono</span>
-                            <div class="x"><b>@c.Curso</b> · @c.Asignatura<br /><small>@(c.Registros > 0 ? "✅ Lista pasada" : noPasada ? "⛔ No pasada (se cerró)" : enCurso ? "🔔 Ahora" : c.Inicio > ahora ? "Más tarde" : "⏳ Falta la lista")</small></div>
-                            @if (c.Inicio <= ahora && !noPasada)
+                            <div class="x"><b>@c.Curso</b> · @c.Asignatura@if (c.Sesion != null) {<small class="d-block fw-bold" style="color:#16915c">@c.Sesion</small>}<br /><small>@(c.Registros > 0 ? "✅ Lista pasada" : noPasada ? "⛔ No pasada (se cerró)" : enCurso ? "🔔 Ahora" : c.Inicio > ahora ? "Más tarde" : "⏳ Falta la lista")</small></div>
+                            @if (!c.EsMia)
                             {
-                                <a class="btn btn-sm @(c.Registros > 0 ? "btn-outline-success" : "btn-success")" href="/Asistencia/Lista?cursoId=@c.CursoId&bloqueId=@c.BloqueId">@(c.Registros > 0 ? "Ver" : "Pasar lista")</a>
+                                <span class="au-chip sol">🔁 La hace @c.Reemplazo</span>
+                            }
+                            else if (c.Inicio.Add(TimeSpan.FromMinutes(-10)) <= ahora && !noPasada && c.Registros == 0 && c.Sesion == null)
+                            {
+                                <form method="post" action="/Asistencia/IniciarClase" class="m-0">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="cursoId" value="@c.CursoId" /><input type="hidden" name="bloqueId" value="@c.BloqueId" />
+                                    <button class="btn btn-sm btn-success">@(ahora < c.Fin ? "▶️ Iniciar clase" : "📋 Pasar lista")</button>
+                                </form>
+                            }
+                            else if (c.Inicio.Add(TimeSpan.FromMinutes(-10)) <= ahora && !noPasada)
+                            {
+                                <a class="btn btn-sm @(c.Registros > 0 ? "btn-outline-success" : "btn-success")" href="/Asistencia/Lista?cursoId=@c.CursoId&bloqueId=@c.BloqueId">@(c.Registros > 0 ? "Ver lista" : "📋 Volver a la lista")</a>
                             }
                         </div>
                     }

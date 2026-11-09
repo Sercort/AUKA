@@ -22,6 +22,10 @@
     var promedios = ViewBag.Promedios as Dictionary<int, decimal> ?? new();
     var ganados = logros.Where(l => Auka.Web.Services.Clubes.Resultado(l.Resultado).Gana).ToList();
     var animo = Auka.Web.Services.Clubes.Animo(logros);
+    bool esUtp = ViewBag.EsUtp == true;
+    var solicitudes = ViewBag.Solicitudes as List<SolicitudClubVm>;
+    var pendientes = solicitudes?.Count(x => x.Estado == Auka.Application.Entities.EstadoSolicitudClub.Pendiente) ?? 0;
+    var clS = System.Globalization.CultureInfo.GetCultureInfo("es-CL");
 }
 <style>
     .ta-grid { display: grid; grid-template-columns: 320px 1fr; gap: 18px; align-items: start; }
@@ -104,8 +108,12 @@
             }
         </div>
 
-        @if (puede && !lleno)
+        @if (puede)
         {
+            if (lleno)
+            {
+                <div class="alert alert-warning py-2 small mt-2 mb-2">El club está lleno. Igual puedes buscar al alumno/a: @(esUtp ? "como UTP puedes inscribirlo igual." : "se le enviará una solicitud a la UTP para que lo apruebe.")</div>
+            }
             <div class="ta-inscribir">
                 <select id="taCurso" class="form-select" aria-label="Elegir curso">
                     <option value="">Todos los cursos</option>
@@ -245,7 +253,69 @@
     }
 </div>
 
-@if (puede && !lleno)
+@* ---- Solicitudes a la UTP: historial del club (pendientes arriba) *@
+@if (solicitudes != null && (solicitudes.Count > 0 || (puede && !esUtp)))
+{
+    <div class="au-card p-3 mt-3" id="solicitudes">
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <h3 class="m-0" style="font-size:1.1rem;font-weight:900;color:var(--a-navy)">📨 Solicitudes a la UTP</h3>
+            @if (pendientes > 0) { <span class="au-chip sol">⏳ @pendientes pendiente@(pendientes == 1 ? "" : "s")</span> }
+            @if (puede && !esUtp)
+            {
+                <button type="button" class="btn btn-outline-primary btn-sm px-3 ms-auto" data-bs-toggle="collapse" data-bs-target="#cupoForm">📈 Pedir más cupo</button>
+            }
+        </div>
+        @if (puede && !esUtp)
+        {
+            <form asp-action="SolicitarCupo" method="post" class="collapse mb-3" id="cupoForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="tallerId" value="@Model.Id" />
+                <div class="row g-2 align-items-end">
+                    <div class="col-sm-3"><label class="form-label small fw-bold mb-1" for="cupoN">Nuevo cupo</label><input class="form-control" type="number" id="cupoN" name="cupo" min="@((Model.Cupo ?? 0) + 1)" value="@((Model.Cupo ?? integrantes.Count) + 5)" required /></div>
+                    <div class="col-sm-6"><label class="form-label small fw-bold mb-1" for="cupoC">¿Por qué?</label><input class="form-control" id="cupoC" name="comentario" maxlength="300" placeholder="Ej: hay 8 alumnos interesados esperando" /></div>
+                    <div class="col-sm-3"><button class="btn btn-primary w-100">📨 Enviar a la UTP</button></div>
+                </div>
+                <small class="text-muted">Cupo actual: @(Model.Cupo?.ToString() ?? "sin límite") · @integrantes.Count integrantes.</small>
+            </form>
+        }
+        @if (solicitudes.Count == 0)
+        {
+            <p class="text-muted small mb-0">Aún no hay solicitudes. Si el club está lleno o el alumno/a es de otro nivel, al inscribirlo te aparece el botón para pedírselo a la UTP.</p>
+        }
+        @foreach (var x in solicitudes)
+        {
+            var (chip, txt) = x.Estado switch
+            {
+                Auka.Application.Entities.EstadoSolicitudClub.Aprobada => ("verde", "✅ Aprobada"),
+                Auka.Application.Entities.EstadoSolicitudClub.Rechazada => ("coral", "❌ No aprobada"),
+                _ => ("sol", "⏳ Pendiente")
+            };
+            <div class="d-flex gap-2 align-items-start py-2" style="border-bottom:1px solid #eef2f8">
+                <span class="au-chip @chip" style="min-width:110px;justify-content:center">@txt</span>
+                <div class="flex-grow-1 small">
+                    <b>@(x.Tipo == "Cupo" ? $"📈 Subir el cupo a {x.CupoPedido}" : $"🙋 Inscribir a {x.Alumno}")</b>
+                    <div class="text-muted">@x.Bloqueo · pedida por @x.PedidaPor el @x.PedidaUtc.ToLocalTime().ToString("dd-MM-yyyy HH:mm", clS)@(x.Comentario != null ? " · «" + x.Comentario + "»" : "")</div>
+                    @if (x.ResueltaUtc != null)
+                    {
+                        <div class="text-muted">Respondió @x.ResueltaPor el @x.ResueltaUtc.Value.ToLocalTime().ToString("dd-MM-yyyy HH:mm", clS)@(x.Respuesta != null ? ": «" + x.Respuesta + "»" : "")</div>
+                    }
+                    @if (esUtp && x.Estado == Auka.Application.Entities.EstadoSolicitudClub.Pendiente)
+                    {
+                        <form asp-action="ResolverSolicitud" method="post" class="d-flex gap-2 flex-wrap mt-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@x.Id" />
+                            <input class="form-control form-control-sm" style="max-width:320px" name="respuesta" maxlength="300" placeholder="Comentario para el profesor/a (opcional)" aria-label="Comentario" />
+                            <button class="btn btn-success btn-sm px-3" name="aprobar" value="true">✅ Aprobar</button>
+                            <button class="btn btn-outline-danger btn-sm px-3" name="aprobar" value="false">No aprobar</button>
+                        </form>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (puede)
 {
     <script>
         (function () {
@@ -273,13 +343,38 @@
             res.addEventListener('click', function (e) {
                 var b = e.target.closest('[data-ins]'); if (!b) return;
                 b.disabled = true; b.textContent = 'Inscribiendo…';
-                var fd = new FormData(); fd.append('tallerId', '@Model.Id'); fd.append('estudianteId', b.getAttribute('data-ins')); fd.append('__RequestVerificationToken', token);
-                fetch('/Talleres/Inscribir', { method: 'POST', body: fd, credentials: 'same-origin' })
-                    .then(function (r) { return r.json(); })
-                    .then(function (d) {
-                        if (d.ok) { location.reload(); }
-                        else { msg.innerHTML = '<div class="alert alert-danger py-2">' + esc(d.error) + '</div>'; b.disabled = false; b.textContent = 'Inscribir'; }
+                var est = b.getAttribute('data-ins');
+                inscribir(est, false, b);
+            });
+            function post(url, datos) {
+                var fd = new FormData(); fd.append('__RequestVerificationToken', token);
+                Object.keys(datos).forEach(function (k) { fd.append(k, datos[k]); });
+                return fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); });
+            }
+            function inscribir(est, forzar, b) {
+                post('/Talleres/Inscribir', { tallerId: '@Model.Id', estudianteId: est, forzar: forzar ? 'true' : 'false' }).then(function (d) {
+                    if (d.ok) { location.reload(); return; }
+                    if (b) { b.disabled = false; b.textContent = 'Inscribir'; }
+                    var html = '<div class="alert alert-warning py-2"><b>' + esc(d.error) + '</b>';
+                    if (d.pendiente) html += '<div class="small mt-1">⏳ Ya hay una solicitud esperando respuesta de la UTP.</div>';
+                    if (d.solicitable) html += '<div class="d-flex gap-2 flex-wrap mt-2"><input class="form-control form-control-sm" style="max-width:320px" id="taCom" maxlength="300" placeholder="¿Por qué? (opcional)" aria-label="Comentario">' +
+                        '<button type="button" class="btn btn-primary btn-sm px-3" data-sol="' + est + '">📨 Pedir a la UTP</button></div>';
+                    if (d.forzable) html += '<div class="mt-2"><button type="button" class="btn btn-warning btn-sm px-3" data-forzar="' + est + '">Inscribir igual (como UTP)</button></div>';
+                    msg.innerHTML = html + '</div>';
+                });
+            }
+            msg.addEventListener('click', function (e) {
+                var s = e.target.closest('[data-sol]'), f = e.target.closest('[data-forzar]');
+                if (f) { f.disabled = true; inscribir(f.getAttribute('data-forzar'), true, null); }
+                if (s) {
+                    s.disabled = true; s.textContent = 'Enviando…';
+                    var c = document.getElementById('taCom');
+                    post('/Talleres/SolicitarInscripcion', { tallerId: '@Model.Id', estudianteId: s.getAttribute('data-sol'), comentario: c ? c.value : '' }).then(function (d) {
+                        msg.innerHTML = d.ok ? '<div class="alert alert-success py-2">📨 Solicitud enviada a la UTP. Queda en el historial del club y te avisaremos cuando responda.</div>'
+                            : '<div class="alert alert-danger py-2">' + esc(d.error) + '</div>';
+                        if (d.ok) setTimeout(function () { location.reload(); }, 1400);
                     });
+                }
             });
         })();
     </script>

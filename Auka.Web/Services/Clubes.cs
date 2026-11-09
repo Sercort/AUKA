@@ -153,13 +153,49 @@ public static class Clubes
     /// ¿Puede este alumno/a estar en el club? Revisa temporada, niveles, sus clases (mandan) y sus otros clubes.
     /// Devuelve null si puede, o el motivo si no.
     /// </summary>
-    public static async Task<string?> PuedeInscribirAsync(ApplicationDbContext db, Taller taller, List<SesionTaller> sesiones, Estudiante est)
+    /// <summary>Máximo de clubes activos a cargo de un mismo profesor/a (para no sobrecargarlo).</summary>
+    public const int MaxClubesPorDocente = 2;
+
+    /// <summary>
+    /// ¿Puede este profesor/a tomar este club? Máximo 2 clubes activos, y sus horas de clase más las de sus clubes
+    /// no pueden pasar sus horas de contrato (en horas pedagógicas de 45 min). Devuelve el motivo si no puede.
+    /// </summary>
+    public static async Task<string?> LimiteDocenteAsync(ApplicationDbContext db, int colegioId, int docenteId, int? tallerId, IEnumerable<SesionTaller> sesiones)
     {
-        if (Terminado(taller)) return "El club ya terminó su temporada.";
-        var curso = est.Curso ?? await db.Cursos.AsNoTracking().FirstOrDefaultAsync(c => c.Id == est.CursoId);
+        var otros = (await db.Talleres.AsNoTracking().Include(t => t.Sesiones)
+                .Where(t => t.ColegioId == colegioId && t.Activo && t.DocenteId == docenteId && (tallerId == null || t.Id != tallerId)).ToListAsync())
+            .Where(t => !Terminado(t)).ToList();
+        var prof = await db.Usuarios.AsNoTracking().Where(u => u.Id == docenteId).Select(u => new { u.Nombre, u.Apellido, u.HorasContrato }).FirstOrDefaultAsync();
+        var nombre = prof == null ? "El profesor/a" : $"{prof.Nombre} {prof.Apellido}";
+        if (otros.Count >= MaxClubesPorDocente)
+            return $"{nombre} ya tiene {otros.Count} clubes a cargo ({string.Join(", ", otros.Select(o => o.Nombre))}). El máximo es {MaxClubesPorDocente} para no sobrecargarlo.";
+        if (prof?.HorasContrato is > 0)
+        {
+            static int Ped(IEnumerable<SesionTaller> s) => (int)Math.Ceiling(s.Sum(x => (x.HoraFin - x.HoraInicio).TotalMinutes) / 45.0);
+            var bloques = await db.ClasesHorario.AsNoTracking().Include(c => c.Bloque).Where(c => c.ProfesorId == docenteId && c.Bloque != null).ToListAsync();
+            var clases = bloques.Sum(c => Math.Max(1, (int)Math.Round((c.Bloque!.HoraFin - c.Bloque.HoraInicio).TotalMinutes / 45.0)));
+            var total = clases + otros.Sum(o => Ped(o.Sesiones)) + Ped(sesiones);
+            if (total > prof.HorasContrato)
+                return $"{nombre} pasaría sus horas: {clases} de clases + {otros.Sum(o => Ped(o.Sesiones)) + Ped(sesiones)} de clubes = {total}, y su contrato es de {prof.HorasContrato}.";
+        }
+        return null;
+    }
+
+    /// <summary>Si el curso del alumno/a no es de los niveles del club, el motivo; si corresponde, null.</summary>
+    public static string? NivelNoCorresponde(Taller taller, Curso? curso)
+    {
         var niveles = LeerNiveles(taller.Niveles);
         if (niveles.Count > 0 && curso != null && !niveles.Contains(TramoDe(curso.Nombre)))
             return $"Este club es para {string.Join(", ", niveles.Select(NombreTramo))}; {curso.Nombre} {curso.Letra} no corresponde.";
+        return null;
+    }
+
+    /// <param name="ignorarNivel">true cuando la UTP ya autorizó a un alumno/a de otro nivel.</param>
+    public static async Task<string?> PuedeInscribirAsync(ApplicationDbContext db, Taller taller, List<SesionTaller> sesiones, Estudiante est, bool ignorarNivel = false)
+    {
+        if (Terminado(taller)) return "El club ya terminó su temporada.";
+        var curso = est.Curso ?? await db.Cursos.AsNoTracking().FirstOrDefaultAsync(c => c.Id == est.CursoId);
+        if (!ignorarNivel && NivelNoCorresponde(taller, curso) is string nivel) return nivel;
 
         if (curso != null)
         {

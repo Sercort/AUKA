@@ -56,6 +56,8 @@ public class Colegio
 
     // Especialidades técnico-profesionales del colegio (3° y 4° medio), separadas por "|". Se van agregando al matricular o al importar.
     public string? Especialidades { get; set; }
+    // false = especialidades solo en 3º y 4º medio (lo normal); true = el colegio tiene especialidades de 1º a 4º medio
+    public bool EspecialidadDesdePrimeroMedio { get; set; }
 
     // ---- Horarios ----
     // Los viernes se sale a esta hora (null = 13:00). Los bloques posteriores quedan bloqueados...

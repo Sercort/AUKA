@@ -210,7 +210,7 @@ public class CursosController : Controller
                 var pie = SinTildes(C(f, iPie));
                 if (pie.StartsWith("si") || pie == "x" || pie == "1") est.NecesidadesEducativas = true;
                 var esp = C(f, iEsp);
-                if (EsMedioTP(curso.Nombre) && esp.Length > 0 && !SinTildes(esp).StartsWith("cientifico") && !SinTildes(esp).StartsWith("humanista"))
+                if (EsMedioTP(curso.Nombre, col?.EspecialidadDesdePrimeroMedio == true) && esp.Length > 0 && !SinTildes(esp).StartsWith("cientifico") && !SinTildes(esp).StartsWith("humanista"))
                 {
                     est.Especialidad = esp;
                     if (!especialidades.Any(x => string.Equals(x, esp, StringComparison.OrdinalIgnoreCase))) especialidades.Add(esp);
@@ -325,6 +325,7 @@ public class CursosController : Controller
         var cursos = await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && anios.Contains(c.AnioAcademico) && c.Nombre != "Pacientes")
             .Select(c => new { c.AnioAcademico, c.CapacidadMaxima, Alumnos = c.Estudiantes.Count }).ToListAsync();
         ViewBag.RotarJefes = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.RotarLetraJefes).FirstOrDefaultAsync();
+        ViewBag.EspDesdePrimero = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.EspecialidadDesdePrimeroMedio).FirstOrDefaultAsync();
         ViewBag.Avance = cursos.GroupBy(c => c.AnioAcademico).ToDictionary(g => g.Key, g => (Matriculados: g.Sum(x => x.Alumnos), Cupos: g.Sum(x => x.CapacidadMaxima)));
         return View(periodos);
     }
@@ -671,6 +672,7 @@ public class CursosController : Controller
             .FirstOrDefaultAsync(c => c.Id == id && (c.ColegioId == colegioId || colegioId == 0));
 
         if (curso == null) return NotFound();
+        ViewBag.EspecialidadCurso = (await Jefaturas.EtiquetasAsync(_context, new[] { curso.Id })).GetValueOrDefault(curso.Id);
 
         // Año actual: los alumnos/as del curso. Años anteriores: los que estuvieron en él según el historial.
         var esArchivo = curso.AnioAcademico < DateTime.Now.Year;
@@ -754,6 +756,7 @@ public class CursosController : Controller
         ViewBag.AniosMatricula = aniosPermitidos.ToArray();
         ViewBag.PeriodosAbiertos = (await Matriculas.CargarAsync(_context, User)).Where(Matriculas.Abierto).ToList();
         ViewBag.Especialidades = await EspecialidadesAsync(colegioId);
+        ViewBag.EspDesdePrimero = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.EspecialidadDesdePrimeroMedio).FirstOrDefaultAsync();
         return View();
     }
 
@@ -835,10 +838,11 @@ public class CursosController : Controller
         return i < 0 || i + 1 >= NivelesOficiales.Length ? null : NivelesOficiales[i + 1];
     }
 
-    public static bool EsMedioTP(string? nivel)
+    /// <summary>¿Ese nivel puede tener especialidad? 3º y 4º medio siempre; 1º y 2º medio si el colegio lo activó.</summary>
+    public static bool EsMedioTP(string? nivel, bool desdePrimero = false)
     {
         var x = Normal(nivel ?? "");
-        return x.StartsWith("3º medio") || x.StartsWith("4º medio");
+        return x.StartsWith("3º medio") || x.StartsWith("4º medio") || (desdePrimero && (x.StartsWith("1º medio") || x.StartsWith("2º medio")));
     }
 
     private async Task<List<string>> EspecialidadesAsync(int colegioId)
@@ -861,7 +865,24 @@ public class CursosController : Controller
         {
             var ok = await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente);
             if (!ok) { TempData["Error"] = "El profesor elegido no es válido."; return LocalRedirect(Url.IsLocalUrl(volver) ? volver! : "/"); }
+            // Un profesor/a es jefe de un solo curso
+            var otro = await _context.Cursos.AsNoTracking().FirstOrDefaultAsync(c => c.ProfesorJefeId == usuarioId && c.Id != cursoId && c.AnioAcademico == curso.AnioAcademico && c.ColegioId == colegioId);
+            if (otro != null) { TempData["Error"] = $"Ese profesor/a ya es jefe de {otro.Nombre} {otro.Letra}. Cada profesor/a tiene un solo curso: quítaselo primero."; return LocalRedirect(Url.IsLocalUrl(volver) ? volver! : "/"); }
+            // 3º y 4º medio técnico-profesional: profe jefe de la especialidad del curso
+            var alumnosCurso = await _context.Estudiantes.AsNoTracking().Where(e => e.CursoId == cursoId).ToListAsync();
+            // Enseñanza media (con o sin especialidad): profe de especialidad o de media, de cualquier asignatura; nunca uno solo de básica
+            if (Niveles.Orden(curso.Nombre) >= 10)
+            {
+                var docs = await Jefaturas.DocentesAsync(_context, colegioId, curso.AnioAcademico);
+                var elegido = docs.FirstOrDefault(d => d.Id == usuarioId);
+                var esp = Jefaturas.EspecialidadDe(curso, alumnosCurso);
+                if (elegido != null && !Jefaturas.PuedeMedia(elegido))
+                { TempData["Error"] = $"{curso.Nombre} {curso.Letra} es de enseñanza media: elige a un profe de media{(esp != null ? " o de " + esp : "")}, no uno de básica."; return LocalRedirect(Url.IsLocalUrl(volver) ? volver! : "/"); }
+            }
             curso.ProfesorJefeId = usuarioId;
+            // Orientación y Consejo de Curso pasan al nuevo profesor/a jefe
+            foreach (var cl in await _context.ClasesHorario.Where(x => x.CursoId == cursoId).ToListAsync())
+                if (HorariosController.EsDeJefatura(cl.Asignatura)) { cl.ProfesorId = usuarioId; cl.ModificadaUtc = DateTime.UtcNow; }
         }
         await _context.SaveChangesAsync();
         TempData["PanelOk"] = TempData["SuccessMessage"] = usuarioId == 0 ? $"Se quitó el profesor jefe de {curso.Nombre} {curso.Letra}." : $"Profesor jefe de {curso.Nombre} {curso.Letra} actualizado.";
@@ -888,6 +909,19 @@ public class CursosController : Controller
             .Select(c => c.ProfesorJefeId!.Value).ToListAsync()).ToHashSet();
         var activos = (await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente).Select(u => u.Id).ToListAsync()).ToHashSet();
         bool Libre(int? id) => id != null && activos.Contains(id.Value) && !ocupados.Contains(id.Value);
+
+        // Técnico-profesional: el profe de especialidad rota entre 3º y 4º medio de su especialidad (misma letra).
+        // 3º medio TP recibe al que termina 4º; y ese profe no baja a 1º medio.
+        var deEspecialidad = (await _context.Usuarios.AsNoTracking().Where(u => u.ColegioId == colegioId && u.Activo && u.Rol == RolUsuario.Docente && u.Asignaturas != null && u.Asignaturas.Contains("Especialidad"))
+            .Select(u => u.Id).ToListAsync()).ToHashSet();
+        var desdePrimero = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.EspecialidadDesdePrimeroMedio).FirstOrDefaultAsync();
+        if (o == 12 && !desdePrimero)
+        {
+            var cuarto = (await _context.Cursos.AsNoTracking().Where(c => c.ColegioId == colegioId && c.AnioAcademico == anio - 1 && c.ProfesorJefeId != null && !c.JefeNoSigue).ToListAsync())
+                .FirstOrDefault(c => Niveles.Orden(c.Nombre) == 13 && (c.Letra ?? "").Trim().ToUpperInvariant() == l);
+            if (cuarto != null && deEspecialidad.Contains(cuarto.ProfesorJefeId!.Value) && Libre(cuarto.ProfesorJefeId)) return cuarto.ProfesorJefeId;
+        }
+        if (o == 10 && !desdePrimero) antes = antes.Where(c => !deEspecialidad.Contains(c.ProfesorJefeId!.Value)).ToList();
 
         var rotar = iniciaCiclo && await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.RotarLetraJefes).FirstOrDefaultAsync();
         if (!rotar)
@@ -957,10 +991,27 @@ public class CursosController : Controller
         return RedirectToAction(nameof(Alumnos), new { id = cursoId });
     }
 
-    /// <summary>La UTP, el director/a o el administrador eligen cómo vuelven los profesores/as jefe a 1º al terminar el ciclo.</summary>
+    /// <summary>La UTP, el director/a o el administrador eligen si el colegio tiene especialidades solo en 3º-4º medio o de 1º a 4º.</summary>
     [Authorize(Roles = "SuperAdmin,Director,UTP")]
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GuardarNivelesEspecialidad(bool desdePrimero)
+    {
+        var colegioId = ColegioActual();
+        var col = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
+        if (col == null) return NotFound();
+        col.EspecialidadDesdePrimeroMedio = desdePrimero;
+        await _context.SaveChangesAsync();
+        TempData["SuccessMessage"] = desdePrimero
+            ? "🛠️ Listo: el colegio tiene especialidades de 1º a 4º medio. Al matricular en 1º y 2º medio ya se puede elegir la especialidad."
+            : "🛠️ Listo: las especialidades son solo de 3º y 4º medio.";
+        return RedirectToAction(nameof(PeriodosMatricula));
+    }
+
+    /// <summary>La UTP, el director/a o el administrador eligen cómo vuelven los profesores/as jefe a 1º al terminar el ciclo.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = "SuperAdmin,Director,UTP")]
     public async Task<IActionResult> GuardarCicloJefes(bool rotar)
     {
         var colegioId = ColegioActual();
@@ -1184,7 +1235,8 @@ public class CursosController : Controller
 
             // Especialidad (3º y 4º medio TP). Si es nueva, queda guardada en la lista del colegio para las próximas matrículas.
             var esp = Limpio(string.IsNullOrWhiteSpace(especialidadNueva) ? especialidad : especialidadNueva, 80);
-            if (EsMedioTP(curso.Nombre) && esp != null)
+            var desde1 = await _context.Colegios.IgnoreQueryFilters().AsNoTracking().Where(c => c.Id == colegioId).Select(c => c.EspecialidadDesdePrimeroMedio).FirstOrDefaultAsync();
+            if (EsMedioTP(curso.Nombre, desde1) && esp != null)
             {
                 estudiante.Especialidad = esp;
                 var col = await _context.Colegios.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == colegioId);
@@ -1196,7 +1248,7 @@ public class CursosController : Controller
                     avisos.Add($"Nueva especialidad guardada: {esp}.");
                 }
             }
-            else if (!EsMedioTP(curso.Nombre)) estudiante.Especialidad = null;
+            else if (!EsMedioTP(curso.Nombre, desde1)) estudiante.Especialidad = null;
 
             // Traslado: de dónde viene y qué documentos faltan (lo revisa la UTP)
             if (tipoMatricula == TipoMatricula.Traslado)
